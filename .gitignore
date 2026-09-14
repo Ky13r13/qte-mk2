@@ -1,0 +1,11 @@
+/build/
+/cmake-build-*/
+/.venv/
+/.cache/
+/.pytest_cache/
+/__pycache__/
+*.py[cod]
+*.so
+*.dylib
+*.dll
+compile_commands.json

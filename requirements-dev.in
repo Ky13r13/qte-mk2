@@ -1,0 +1,6 @@
+# Python tooling belongs in the project-local .venv.
+cmake>=4,<5
+ninja>=1.13,<2
+pybind11>=3,<4
+pytest>=9,<10
+scikit-build-core>=0.11,<1
