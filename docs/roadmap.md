@@ -11,14 +11,14 @@ Do not create empty modules merely to match this table.
 |---|---|---|
 | M0 — foundation (implemented) | Canonical Bar, strict validation, GCC/CMake/CTest, `.venv`, AGENTS | Existing eleven test functions pass; zero/NaN/infinity/interval/OHLC boundary fixtures retained |
 | M1a — quantities and IDs (implemented) | Domain quantity/ID types; ADR 0005 | Positive magnitudes, exact arithmetic, overflow and fractional rejection; no engine |
-| M1b — price policy and metadata | Minimal instrument specification, tick conversion, profile config; M1a | Tick neighbors, adverse rounding, currency/tick validation; preserve Bar API |
-| M2a — order requests/state | Request validation, transition table, reasons; M1a/b, ADR 0001 | All type/price combinations, legal/illegal transitions and cancels; no matching |
-| M2b — fills | Immutable fill values, cumulative quantity checks and deduplication; M2a | Overfill, duplicate, terminal fill and metadata mismatch rejected without mutation |
-| M3a — market/limit execution | Pure open-only matching and costs; M2b, ADR 0003 | Buy/sell/equality/gap/tick/commission fixtures; future OHLCV cannot affect results |
-| M3b — stop/stop-limit execution | Persistent trigger state; M3a | Both sides, gap through limit, trigger persists, cost breach, same-open trigger/fill |
-| M4a — position accounting | Average cost, reductions/closures/reversals, marks; M2b, ADR 0004 | Long and short hand calculations; flat reset, no realized PnL on marks |
-| M4b — cash ledger | Portfolio fill transaction, cash/fees/exposure, duplicate protection; M4a | Full six-fill ADR fixture, atomic invalid-fill failure, equity identity, sequence tests |
-| M4c — trade episodes | Closed/open episode records and fee allocation; M4b | Scaling, reversal allocation, open episodes excluded from closed-trade statistics |
+| M1b — price policy and metadata (implemented) | Minimal instrument specification, tick conversion, profile config; M1a | Tick neighbors, adverse rounding, currency/tick validation; preserve Bar API |
+| M2a — order requests/state (implemented) | Request validation, transition table, reasons; M1a/b, ADR 0001 | All type/price combinations, legal/illegal transitions and cancels; no matching |
+| M2b — fills (implemented) | Immutable fill values, cumulative quantity checks and deduplication; M2a | Overfill, duplicate, terminal fill and metadata mismatch rejected without mutation |
+| M3a — market/limit execution (implemented) | Pure open-only matching and costs; M2b, ADR 0003 | Buy/sell/equality/gap/tick/commission fixtures; future OHLCV cannot affect results |
+| M3b — stop/stop-limit execution (implemented) | Persistent trigger state; M3a | Both sides, gap through limit, trigger persists, cost breach, same-open trigger/fill |
+| M4a — position accounting (implemented) | Average cost, reductions/closures/reversals, marks; M2b, ADR 0004 | Long and short hand calculations; flat reset, no realized PnL on marks |
+| M4b — cash ledger (implemented) | Portfolio fill transaction, cash/fees/exposure, duplicate protection; M4a | Full six-fill ADR fixture, atomic invalid-fill failure, equity identity, sequence tests |
+| M4c — trade episodes (implemented) | Closed/open episode records and fee allocation; M4b | Scaling, reversal allocation, open episodes excluded from closed-trade statistics |
 | M5 — risk | Separate submission and fill-time checks; M3b/M4b | Pending reservations, long-only, leverage/cash gaps, reductions during breaches; no forced liquidation |
 | M6 — C++ strategy contract | Lifecycle, snapshot context, command buffering using test driver; M2a/M4b | No direct mutation, pending receipt semantics, on_end restriction, expired context/reentrancy checks |
 | M7a — dataset preflight | Instrument/dataset metadata and strict stream checks; M1b, ADR 0002 | Duplicate/order/overlap/duration/action/currency rejection, gaps reported, zero-price trade rejection while Bar zero test still passes |
@@ -103,6 +103,8 @@ and revise the relevant ADR before implementing an incompatible behavior.
 
 ## Next scoped task
 
-Implement M1b only: the minimal instrument specification, tick conversion and
-initial research-profile configuration with boundary tests. Preserve Bar schema
-version 1. No unresolved provider or paper-trading decision blocks this unit.
+Implement M5 only: separate submission-time and fill-time risk decisions from
+ADR 0003 using immutable portfolio/order snapshots. Cover pending reservations,
+long-only behavior, leverage/cash gaps, per-order and per-symbol limits, and the
+pure-reduction exception without forced liquidation, feeds, strategies, or
+engine orchestration.

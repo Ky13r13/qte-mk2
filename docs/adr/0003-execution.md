@@ -1,6 +1,8 @@
 # ADR 0003: Open-only execution and independent risk
 
-Status: recommended baseline; model ID `open_only_v1`.
+Status: M3a market/limit matching and costs plus M3b stop/stop-limit behavior
+implemented. Independent risk checks remain recommended for M5. Model ID:
+`open_only_v1`.
 
 ## Decision
 
@@ -27,6 +29,19 @@ default all zero. No fixed/minimum fee initially. For a candidate, buy price is
 and sells down to the instrument tick. Non-positive/non-finite outcomes are
 configuration/execution errors, never fills. Commission equals executed
 notional times commission_bps / 10000, once per fill.
+
+The implementation exposes only a validated Symbol/timestamp/sequence/open value
+to execution; it cannot inspect an in-progress Bar's future high, low, close, or
+volume. Its
+evaluation returns an unlimited-liquidity candidate for the order's entire
+remaining quantity without assigning a fill ID or mutating portfolio state. An
+ineligible sequence, unmet stop, or unsatisfied limit returns no candidate.
+Invalid component metadata and unrepresentable calculations are explicit errors.
+Market and limit paths do not mutate orders. Once an eligible open inclusively
+reaches a stop, execution persists that trigger on the engine-owned order even
+when a stop-limit's raw or cost-adjusted price does not satisfy its limit. The
+trigger is written only after a valid candidate/no-fill calculation, preserving
+order state when evaluation throws.
 
 Limit and triggered stop-limit candidates additionally require the final price
 to respect L. If modeled costs breach L, leave the order open; do not clamp the

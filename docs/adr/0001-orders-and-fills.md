@@ -1,6 +1,9 @@
 # ADR 0001: Orders and immutable fills
 
-Status: recommended for implementation. Depends on [numerics](0005-numerics.md).
+Status: request/order state implemented in M2a; immutable fill facts, consistency
+validation, cumulative updates, and fill-ID replay protection implemented in
+M2b. Portfolio-level atomic commit and transition audit logging remain future
+integration work. Depends on [numerics](0005-numerics.md).
 
 ## Decision
 
@@ -47,6 +50,15 @@ quantity, effective timestamp/sequence, reference open, executed price, gross
 notional and commission. Spread/slippage are embedded in executed price and may
 also be disclosed as attribution fields; never charge them twice. IDs are
 sequential per run. Order transitions form a separate append-only audit log.
+
+M2b's `FillJournal` is the order/fill commit boundary: it requires contiguous
+fill IDs starting at 1, rejects duplicate and skipped IDs before mutation, then
+validates identity, instrument grid, temporal eligibility, terminal state, and
+remaining quantity. Equal timestamps are permitted only when the fill event
+sequence is later than order eligibility. The raw reference open must be finite
+and positive but is observational data and need not be tick-aligned; the
+executed price must match the instrument grid. Gross notional is positive
+`quantity * executed_price`, and commission is finite and non-negative.
 
 The engine prepares a fill and the resulting order/portfolio state, validates
 both, then commits them together before notifying strategies. Invalid fills or

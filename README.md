@@ -6,7 +6,26 @@ research, configuration, analysis, and strategy-facing API through pybind11.
 
 The project is being built in small, independently tested increments. Implemented
 foundations include the canonical OHLCV bar and validation boundary, checked
-whole-share quantities, and deterministic strongly typed identifiers.
+whole-share quantities, deterministic strongly typed identifiers, canonical
+currency codes, tick-price policy, and the initial single-currency instrument
+profile. The order domain now validates market, limit, stop, and stop-limit
+requests and enforces explicit lifecycle transitions without assuming execution.
+It also provides immutable fill facts and a sequential fill journal that rejects
+metadata mismatches, ineligible or terminal fills, overfills, and replayed IDs
+without partial state mutation. The initial `open_only_v1` execution component
+evaluates market and limit orders using only an observed open, applies explicit
+spread, slippage, tick rounding, and commission assumptions, and emits a
+fill candidate without portfolio mutation. Stops trigger inclusively from an
+eligible open, remain triggered across later opens, and stop-limits still enforce
+their final cost-adjusted limit. Per-symbol positions now implement average-cost
+long and short inventory, reductions, closures, reversals, realized and
+unrealized PnL, commissions, and ordered valuation marks. The portfolio ledger
+now atomically coordinates positions with compensated cash, validates a fixed
+single-currency universe, protects against duplicate/out-of-order fills, and
+calculates aggregate equity and exposure without inventing missing marks.
+Flat-to-flat trade episodes preserve scaling and partial reductions, classify
+closed net outcomes, exclude unfinished episodes from closed results, and split
+reversal fees exactly between closing and newly opened episodes.
 
 The [architecture decisions](docs/architecture.md) define the recommended next
 contracts. The [development roadmap](docs/roadmap.md) breaks implementation into

@@ -1,6 +1,7 @@
 # ADR 0004: One ledger and average-cost inventory
 
-Status: recommended. Depends on [fill](0001-orders-and-fills.md) and
+Status: M4a per-symbol positions, M4b aggregate cash/position ledger, and M4c
+trade episodes implemented. Depends on [fill](0001-orders-and-fills.md) and
 [numeric](0005-numerics.md) contracts.
 
 ## Decision and equations
@@ -30,6 +31,34 @@ offsets sale proceeds. Gross exposure = sum(abs(market_value)); net exposure =
 sum(market_value). Ratios to equity are undefined when equity <= 0, not zero.
 Flat positions retain cumulative realized PnL/fees but zero A and unrealized PnL.
 
+M4a represents an open position without a valuation mark explicitly: market
+value, unrealized PnL, and net PnL are unavailable until marked, while those
+values are known zero for a flat position even without a mark. Marks carry UTC
+timestamp and global event sequence, permit a later sequence at the same
+timestamp, and reject backward timestamps or non-increasing sequences. Applying
+a fill never fabricates a mark from its synthetic execution price. Per-symbol
+realized gross PnL and commissions use compensated accumulation; fees do not
+alter average cost. The position validates its complete prospective state before
+mutation and assumes M4b supplies each committed fill exactly once.
+
+M4b fixes a non-empty instrument universe and one valuation currency when the
+portfolio is constructed. Initial cash is finite and non-negative; subsequent
+cash may be negative because risk enforcement is a separate layer. The ledger
+stores committed fills, requires contiguous fill IDs starting at 1, and requires
+globally increasing event sequences with nondecreasing timestamps across marks
+and fills. It independently rejects unknown symbols, currency/profile mismatch,
+and executed prices outside instrument tick grids. Duplicate IDs are identified
+before ordinary event validation.
+
+Each fill stages a copied affected position, compensated cash changes, and all
+aggregate invariants before appending history or mutating live state. Cash uses
+sale proceeds as positive and purchase notionals as negative, with commission
+subtracted once for either side. Aggregate market value, unrealized PnL, equity,
+and exposure are unavailable while any non-flat position lacks a mark; becoming
+flat restores a known zero valuation without fabricating a market price. Whenever
+valuation is available, the ledger checks `equity - initial_cash = realized
+gross + unrealized - commissions` within the numeric-policy tolerance.
+
 All arithmetic, IDs and references are validated before commit; exceptions cannot
 partially mutate the ledger. Portfolio independently rejects invalid/duplicate
 fills, regardless of engine-side checks. Ledger identifiers persist for the run.
@@ -48,6 +77,17 @@ win rate/profit factor but include their fees in portfolio net PnL immediately.
 Breakeven episodes count as trades but neither winning nor losing trades. Trades
 are derived once from ledger events in the portfolio reporting component; do not
 implement a second cost-basis engine in Python/analytics.
+
+M4c exposes position-transition facts (prior/new quantity, opened/closed
+quantity, and realized gross PnL) from the authoritative average-cost update.
+The portfolio stages the matching trade update in the same transaction rather
+than recomputing cost basis. Open episodes remain separate from the globally
+closing-fill-ordered closed history and have no outcome. Scaling and partial
+reductions stay within one episode; exact zero net PnL is breakeven. A reversal
+fill closes the old episode and opens the opposite episode: its closing fee is
+proportional to closed quantity and the subtraction remainder goes to the new
+episode, conserving the original fee exactly. Compensated episode totals limit
+floating-point drift, and a rejected fill cannot mutate trade state.
 
 ## Hand-calculated acceptance fixtures
 

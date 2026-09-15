@@ -8,10 +8,27 @@ change to them requires a focused decision update and tests, not a rewrite.
 
 The repository currently contains `qte_core`, canonical `Bar`/`Symbol`/
 `Timestamp`, validation, checked share quantities, strongly typed sequential
-IDs, and two CTest executables. It has no orders, fills, feed, portfolio, engine,
-Python package, or bindings. Preserve the existing Bar layout and schema version 1. The dev preset
-uses `build/local-dev`, native C++20, and tools in `.venv`. The visible `.git`
-directory is not a usable Git repository; do not replace it without approval.
+IDs, currency and tick-price policies, initial instrument/profile metadata, and
+validated order requests/state transitions. Immutable fill facts, fill/order
+consistency validation, cumulative quantity updates, and a sequential replay-
+protected fill journal are implemented. The `open_only_v1` execution model
+now evaluates market and limit orders from a `MarketOpen` value, applies explicit
+spread/slippage/commission assumptions, and returns non-mutating fill candidates.
+It now supports persistent open-triggered stop and stop-limit behavior on the
+engine-owned order record; market and limit evaluation remains non-mutating.
+Per-symbol average-cost positions now handle long/short scaling, reductions,
+closures, reversals, cumulative gross realized PnL and commissions, and ordered
+valuation marks. The fixed-universe, single-currency portfolio ledger atomically
+applies fills to compensated cash and position state, independently rejects
+duplicate/out-of-order fills, and exposes aggregate equity and exposure only
+when all open positions are marked. Flat-to-flat trade episodes are derived from
+position transition facts during the same staged ledger transaction; scaling
+stays in one episode and reversal fees are conserved across the closing and new
+episodes. Nine CTest executables cover the foundation. Feeds, risk, engine,
+Python package, and bindings remain unimplemented. Preserve the existing Bar
+layout and schema version 1. The dev preset uses `build/local-dev`, native C++20,
+and tools in `.venv`. Git inspection currently works; history-changing Git
+operations still require explicit user direction.
 
 ## First supported research profile
 
