@@ -19,19 +19,19 @@ Do not create empty modules merely to match this table.
 | M4a — position accounting (implemented) | Average cost, reductions/closures/reversals, marks; M2b, ADR 0004 | Long and short hand calculations; flat reset, no realized PnL on marks |
 | M4b — cash ledger (implemented) | Portfolio fill transaction, cash/fees/exposure, duplicate protection; M4a | Full six-fill ADR fixture, atomic invalid-fill failure, equity identity, sequence tests |
 | M4c — trade episodes (implemented) | Closed/open episode records and fee allocation; M4b | Scaling, reversal allocation, open episodes excluded from closed-trade statistics |
-| M5 — risk | Separate submission and fill-time checks; M3b/M4b | Pending reservations, long-only, leverage/cash gaps, reductions during breaches; no forced liquidation |
-| M6 — C++ strategy contract | Lifecycle, snapshot context, command buffering using test driver; M2a/M4b | No direct mutation, pending receipt semantics, on_end restriction, expired context/reentrancy checks |
-| M7a — dataset preflight | Instrument/dataset metadata and strict stream checks; M1b, ADR 0002 | Duplicate/order/overlap/duration/action/currency rejection, gaps reported, zero-price trade rejection while Bar zero test still passes |
-| M7b — deterministic scheduler | Ordered merge, event phases and bounded histories; M7a | Equal-time multi-symbol trace, stream-order invariance, missing bars, future-data perturbation |
-| M8a — replay integration | One symbol; wire strategy, risk, execution and atomic ledger commit; M3b–M7b | Exact next-open fills, callback ordering, cancel races, failure propagation, final cancellations; no implicit liquidation |
-| M8b — multisymbol/results | Marks, equity curve, order/fill/trade logs, positions and run manifest; M8a | Stable priority under competing orders, stale marks, deterministic replay and complete input/build identity |
-| M9a — analytics basics | Returns, total return, drawdown, trade statistics, turnover/exposure; M8b | Hand-computed flat/loss/zero-trade/open-trade examples; no division by zero |
-| M9b — annualized analytics | Explicit sampling/annualization contract; M9a | Irregular timestamps rejected or explicitly resampled; Sharpe/Sortino/Calmar and undefined edge cases |
-| M10a — Python package | Optional pybind11 target, value/config/result bindings; M8b, ADR 0006 | Import/install with existing local tooling, nanosecond preservation, owned snapshots, C++-only build works |
-| M10b — Python strategies | Trampoline, scoped context/GIL rules; M10a/M6 | C++/Python parity fixture, lifecycle/error/retention/reentrancy tests, repeatability |
-| M11a — first provider adapter | User-selected provider, saved fixture parsing, normalized provenance; M7a/M10a | Offline contract tests, missing required fields fail, no provider branch in core; network/auth work separately approved |
-| M11b — portability adapter | CSV adapter with explicit mapping/schema; M11a | Equivalent provider/CSV fixtures produce equal canonical data and results without strategy edits |
-| M12 — research baseline | One formal deterministic sample strategy, config and comparison report; M9b/M10b/M11b | No duplicate pending orders, cost sensitivity and in/out-of-sample labels, reproduce one reference run |
+| M5 — risk (implemented) | Separate submission and fill-time checks; M3b/M4b | Pending reservations, long-only, leverage/cash gaps, reductions during breaches; no forced liquidation |
+| M6 — C++ strategy contract (implemented) | Lifecycle, snapshot context, command buffering using test driver; M2a/M4b | No direct mutation, pending receipt semantics, on_end restriction, expired context/reentrancy checks |
+| M7a — dataset preflight (implemented) | Instrument/dataset metadata and strict stream checks; M1b, ADR 0002 | Duplicate/order/overlap/duration/action/currency rejection, gaps reported, zero-price trade rejection while Bar zero test still passes |
+| M7b — deterministic scheduler (implemented) | Ordered merge, event phases and bounded histories; M7a | Equal-time multi-symbol trace, stream-order invariance, missing bars, future-data perturbation |
+| M8a — replay integration (implemented) | One symbol; wire strategy, risk, execution and atomic ledger commit; M3b–M7b | Exact next-open fills, callback ordering, cancel races, failure propagation, final cancellations; no implicit liquidation |
+| M8b — multisymbol/results (implemented) | Marks, equity curve, order/fill/trade logs, positions and run manifest; M8a | Stable priority under competing orders, stale marks, deterministic replay and complete input/build identity |
+| M9a — analytics basics (implemented) | Returns, total return, drawdown, trade statistics, turnover/exposure; M8b | Hand-computed flat/loss/zero-trade/open-trade examples; no division by zero |
+| M9b — annualized analytics (implemented) | Explicit sampling/annualization contract; M9a | Irregular timestamps rejected; Sharpe/Sortino/Calmar and undefined edge cases |
+| M10a — Python package (implemented) | Optional pybind11 target, value/config/result bindings; M8b, ADR 0006 | Import with existing local tooling, nanosecond preservation, owned snapshots, C++-only build works |
+| M10b — Python strategies (implemented) | Trampoline, scoped context/GIL rules; M10a/M6 | C++/Python parity fixture, lifecycle/error/retention/reentrancy tests, repeatability |
+| M11a — first provider adapter (implemented) | Alpaca saved-fixture parsing and normalized provenance; M7a/M10a | Offline contract tests, missing required fields fail, no provider branch in core; network/auth work separately approved |
+| M11b — portability adapter (implemented) | CSV adapter with explicit mapping/schema; M11a | Equivalent Alpaca/CSV fixtures produce equal economic results without strategy edits |
+| M12 — research baseline (implemented) | Formal deterministic SMA-regime strategy, config and comparison report; M9b/M10b/M11b | No duplicate pending orders, cost sensitivity and in/out-of-sample labels, reproducible reference run |
 
 M3 uses an isolated open-event driver until the scheduler arrives. M6 similarly
 uses a callback test driver; neither requires implementing the engine early.
@@ -103,8 +103,8 @@ and revise the relevant ADR before implementing an incompatible behavior.
 
 ## Next scoped task
 
-Implement M5 only: separate submission-time and fill-time risk decisions from
-ADR 0003 using immutable portfolio/order snapshots. Cover pending reservations,
-long-only behavior, leverage/cash gaps, per-order and per-symbol limits, and the
-pure-reduction exception without forced liquidation, feeds, strategies, or
-engine orchestration.
+Choose one small follow-on milestone before implementation. Candidates are a
+declared sampling/resampling layer for production analytics, an authenticated
+Alpaca download tool outside the core, walk-forward/robustness reports for the
+reference strategy, or paper-trading interfaces. Live credentials, network
+access, and new dependencies require separate approval.

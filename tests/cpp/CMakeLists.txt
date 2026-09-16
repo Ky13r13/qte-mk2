@@ -51,3 +51,39 @@ target_link_libraries(qte_trade_tests PRIVATE qte::core)
 target_compile_features(qte_trade_tests PRIVATE cxx_std_20)
 
 add_test(NAME qte.trade COMMAND qte_trade_tests)
+
+add_executable(qte_risk_tests test_risk.cpp)
+target_link_libraries(qte_risk_tests PRIVATE qte::core)
+target_compile_features(qte_risk_tests PRIVATE cxx_std_20)
+
+add_test(NAME qte.risk COMMAND qte_risk_tests)
+
+add_executable(qte_strategy_tests test_strategy.cpp)
+target_link_libraries(qte_strategy_tests PRIVATE qte::core)
+target_compile_features(qte_strategy_tests PRIVATE cxx_std_20)
+
+add_test(NAME qte.strategy COMMAND qte_strategy_tests)
+
+add_executable(qte_dataset_tests test_dataset.cpp)
+target_link_libraries(qte_dataset_tests PRIVATE qte::core)
+target_compile_features(qte_dataset_tests PRIVATE cxx_std_20)
+
+add_test(NAME qte.dataset COMMAND qte_dataset_tests)
+
+add_executable(qte_schedule_tests test_schedule.cpp)
+target_link_libraries(qte_schedule_tests PRIVATE qte::core)
+target_compile_features(qte_schedule_tests PRIVATE cxx_std_20)
+
+add_test(NAME qte.schedule COMMAND qte_schedule_tests)
+
+add_executable(qte_backtest_tests test_backtest.cpp)
+target_link_libraries(qte_backtest_tests PRIVATE qte::core)
+target_compile_features(qte_backtest_tests PRIVATE cxx_std_20)
+
+add_test(NAME qte.backtest COMMAND qte_backtest_tests)
+
+add_executable(qte_analytics_tests test_analytics.cpp)
+target_link_libraries(qte_analytics_tests PRIVATE qte::core)
+target_compile_features(qte_analytics_tests PRIVATE cxx_std_20)
+
+add_test(NAME qte.analytics COMMAND qte_analytics_tests)

@@ -1,6 +1,8 @@
 # ADR 0002: Deterministic time and visibility
 
-Status: recommended. Preserves Bar schema version 1.
+Status: Implemented through M8b: lifecycle, dataset preflight, deterministic
+scheduling, causal bounded history, replay phases, and result manifest. Preserves
+Bar schema version 1.
 
 ## Data boundary
 
@@ -55,6 +57,17 @@ before a visible mark are rejected (`no_reference_price`); on_start is for
 initialization, not privileged price access. At end, cancel outstanding orders,
 call on_end with read-only context, and finalize results. on_end cannot trade.
 Callback exceptions fail the run; there is no successful partial result.
+
+The isolated synchronous test driver and M8 replay engine implement the same
+lifecycle boundary. The driver owns one fresh strategy, rejects callback
+reentrancy and invalid lifecycle transitions, invalidates every context when its
+callback returns, and marks callback exceptions failed. Submission and cancel
+commands receive deterministic issue order; a submission also receives its
+run-local order ID immediately. Returned receipts are immutable pending
+acknowledgements, not approval or fill promises. Command processing and resolved
+order state is resolved by the replay engine. `on_end` may read an owned portfolio snapshot but
+cannot enqueue commands. Bar history is deferred until validated streams and the
+bounded history is supplied from validated completed-bar streams.
 
 Sample an initial equity point and one after each event timestamp, including
 opens without closes. Key points by timestamp and sequence so equal-time initial

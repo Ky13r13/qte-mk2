@@ -14,7 +14,16 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": true,
-        "QTE_BUILD_TESTS": true
+        "QTE_BUILD_TESTS": true,
+        "QTE_BUILD_PYTHON": false
+      }
+    },
+    {
+      "name": "python-dev",
+      "inherits": "dev",
+      "displayName": "qte Python development build",
+      "cacheVariables": {
+        "QTE_BUILD_PYTHON": true
       }
     }
   ],
@@ -22,12 +31,20 @@
     {
       "name": "dev",
       "configurePreset": "dev"
+    },
+    {
+      "name": "python-dev",
+      "configurePreset": "python-dev"
     }
   ],
   "testPresets": [
     {
       "name": "dev",
       "configurePreset": "dev"
+    },
+    {
+      "name": "python-dev",
+      "configurePreset": "python-dev"
     }
   ]
 }

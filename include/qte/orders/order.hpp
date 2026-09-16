@@ -91,6 +91,7 @@ enum class OrderStatus {
 
 enum class OrderRejectionReason {
     invalid_request,
+    no_reference_price,
     risk,
 };
 

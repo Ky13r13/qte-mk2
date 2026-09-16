@@ -120,6 +120,29 @@ private:
     double commission_;
 };
 
+class ExecutionEstimate final {
+public:
+    [[nodiscard]] core::TickPrice executed_price() const noexcept {
+        return executed_price_;
+    }
+    [[nodiscard]] double gross_notional() const noexcept { return gross_notional_; }
+    [[nodiscard]] double commission() const noexcept { return commission_; }
+
+private:
+    friend class OpenOnlyExecutionModel;
+    ExecutionEstimate(
+        core::TickPrice executed_price,
+        double gross_notional,
+        double commission)
+        : executed_price_(executed_price),
+          gross_notional_(gross_notional),
+          commission_(commission) {}
+
+    core::TickPrice executed_price_;
+    double gross_notional_;
+    double commission_;
+};
+
 class InvalidExecutionInput final : public std::invalid_argument {
 public:
     using std::invalid_argument::invalid_argument;
@@ -143,6 +166,12 @@ public:
         return kOpenOnlyModelId;
     }
     [[nodiscard]] const ExecutionCosts& costs() const noexcept { return costs_; }
+
+    [[nodiscard]] ExecutionEstimate estimate(
+        orders::OrderSide side,
+        core::ShareAmount quantity,
+        const market_data::InstrumentSpec& instrument,
+        double reference_price) const;
 
     // nullopt is the ordinary "not eligible, not triggered, or limit not
     // satisfied" result. Stop triggers are persisted on the engine-owned order

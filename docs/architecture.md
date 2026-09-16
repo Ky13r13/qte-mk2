@@ -2,9 +2,9 @@
 
 ## Status and baseline
 
-These are recommended implementation decisions for the first research release,
-not claims of implemented behavior. They are the defaults for the roadmap; a
-change to them requires a focused decision update and tests, not a rewrite.
+These are the implementation decisions for the first research release. The
+roadmap marks which decisions have landed; a change requires a focused decision
+update and tests, not a rewrite.
 
 The repository currently contains `qte_core`, canonical `Bar`/`Symbol`/
 `Timestamp`, validation, checked share quantities, strongly typed sequential
@@ -24,8 +24,26 @@ duplicate/out-of-order fills, and exposes aggregate equity and exposure only
 when all open positions are marked. Flat-to-flat trade episodes are derived from
 position transition facts during the same staged ledger transaction; scaling
 stays in one episode and reversal fees are conserved across the closing and new
-episodes. Nine CTest executables cover the foundation. Feeds, risk, engine,
-Python package, and bindings remain unimplemented. Preserve the existing Bar
+episodes. The independent risk component evaluates immutable portfolio and
+pending-order snapshots at submission and again at candidate execution, with
+explicit limits, conservative reservations, and no ledger/order mutation. The
+C++ strategy contract supplies owned portfolio snapshots and callback-scoped
+command capabilities. Dataset preflight validates fixed-interval canonical
+streams and records gaps; the scheduler publishes equal-time close batches in
+stable symbol order with bounded causal histories. The synchronous replay engine
+integrates strategy commands, risk, open-only execution, atomic accounting,
+multi-symbol marks, audit logs, closed and open trade episodes, and a reproducible
+run manifest. Pure analytics now derives unannualized results and explicitly
+configured regular-grid annualized metrics, preserving undefined reasons.
+Fifteen CTest executables cover the foundation through analytics. The optional
+pybind11 package exposes owned values, typed configuration/results, exact
+nanosecond conversion, synchronous Python strategies, and explicit GIL/lifetime
+handling. Offline Alpaca and explicitly mapped CSV adapters normalize saved
+fixtures into canonical owned data with hashed provenance; neither adds a vendor
+branch to the core. A formal SMA-regime integration baseline produces labeled
+in-sample/out-of-sample and transaction-cost-sensitivity reports without
+performing parameter optimization.
+Preserve the existing Bar
 layout and schema version 1. The dev preset uses `build/local-dev`, native C++20,
 and tools in `.venv`. Git inspection currently works; history-changing Git
 operations still require explicit user direction.
@@ -82,7 +100,7 @@ The [roadmap](roadmap.md) maps these contracts to independently testable changes
 
 | Choice | Recommended default now | Revisit / required decision |
 |---|---|---|
-| First provider | None selected; synthetic fixtures until adapters | Choose actual provider and access before network work; no installation assumed |
+| First provider | Alpaca saved historical stock-bar fixtures | Authenticated downloads/live access require a separate tool and approval; adapter remains outside core |
 | Initial instruments / currency | Cash equities, integer shares, USD, metadata-supplied tick | Confirm intended research universe before obtaining data |
 | Intrabar execution | Open-only sampling, explicitly named in results | Select a path/ambiguity policy before adding OHLC-touch execution |
 | Partial fills | Disabled; unlimited-liquidity assumption recorded | Enable shared volume cap explicitly; see execution ADR |
@@ -95,5 +113,5 @@ The [roadmap](roadmap.md) maps these contracts to independently testable changes
 | Reproducibility across machines | Same pinned build/input: exact logical replay | Cross-platform floating-point equivalence is tolerance-based, not promised bitwise |
 | Git metadata | Preserve visible directory | User-approved repair or workspace integration before versioned development |
 
-None of the deferred choices blocks the next orders/fills milestone. Unsupported
+None of the deferred choices blocks the next analytics milestone. Unsupported
 features fail explicitly; adding a configuration key is not an implementation.

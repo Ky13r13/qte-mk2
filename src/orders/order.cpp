@@ -52,6 +52,7 @@ void add_price_presence_errors(
 [[nodiscard]] bool valid_rejection_reason(const OrderRejectionReason reason) noexcept {
     switch (reason) {
         case OrderRejectionReason::invalid_request:
+        case OrderRejectionReason::no_reference_price:
         case OrderRejectionReason::risk:
             return true;
     }

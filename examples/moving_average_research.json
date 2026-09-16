@@ -1,0 +1,17 @@
+{
+  "strategy": {
+    "type": "moving_average_regime",
+    "symbol": "SPY",
+    "fast_period": 2,
+    "slow_period": 3,
+    "quantity": 10
+  },
+  "research": {
+    "parameter_status": "pre_registered_not_optimized",
+    "in_sample_label": "synthetic_train",
+    "out_of_sample_label": "synthetic_holdout",
+    "initial_cash": 100000.0,
+    "baseline_costs_bps": {"commission": 0.0, "spread": 0.0, "slippage": 0.0},
+    "stressed_costs_bps": {"commission": 5.0, "spread": 10.0, "slippage": 5.0}
+  }
+}

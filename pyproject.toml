@@ -1,0 +1,14 @@
+[build-system]
+requires = ["scikit-build-core==0.12.2", "pybind11==3.1.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "qte"
+version = "0.1.0"
+description = "Deterministic quantitative trading research engine"
+requires-python = ">=3.11"
+
+[tool.scikit-build]
+wheel.packages = ["python/qte"]
+cmake.args = ["-DQTE_BUILD_PYTHON=ON", "-DQTE_BUILD_TESTS=OFF"]
+build-dir = "build/python-package"

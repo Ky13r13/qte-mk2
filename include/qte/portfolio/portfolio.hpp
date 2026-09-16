@@ -10,9 +10,39 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace qte::portfolio {
+
+struct PositionSnapshot final {
+    market_data::Symbol symbol;
+    core::ShareQuantity quantity;
+    std::optional<double> mark_price;
+    std::optional<market_data::Timestamp> mark_timestamp;
+    std::optional<core::EventSequence> mark_sequence;
+};
+
+class PortfolioSnapshot final {
+public:
+    [[nodiscard]] double cash() const noexcept { return cash_; }
+    [[nodiscard]] std::optional<double> equity() const noexcept { return equity_; }
+    [[nodiscard]] const std::vector<PositionSnapshot>& positions() const noexcept {
+        return positions_;
+    }
+
+private:
+    friend class Portfolio;
+    PortfolioSnapshot(
+        double cash,
+        std::optional<double> equity,
+        std::vector<PositionSnapshot> positions)
+        : cash_(cash), equity_(equity), positions_(std::move(positions)) {}
+
+    double cash_;
+    std::optional<double> equity_;
+    std::vector<PositionSnapshot> positions_;
+};
 
 class InvalidPortfolioInput final : public std::invalid_argument {
 public:
@@ -68,6 +98,7 @@ public:
         const market_data::Symbol& symbol) const noexcept;
 
     [[nodiscard]] const Position* position(const market_data::Symbol& symbol) const noexcept;
+    [[nodiscard]] PortfolioSnapshot snapshot() const;
     [[nodiscard]] double realized_gross_pnl() const;
     [[nodiscard]] double commissions_paid() const;
     [[nodiscard]] std::optional<double> market_value() const;

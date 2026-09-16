@@ -56,6 +56,28 @@ const Position* Portfolio::position(const market_data::Symbol& symbol) const noe
     return found == positions_.end() ? nullptr : &found->second;
 }
 
+PortfolioSnapshot Portfolio::snapshot() const {
+    std::vector<PositionSnapshot> snapshots;
+    snapshots.reserve(positions_.size());
+    for (const auto& [key, position] : positions_) {
+        static_cast<void>(key);
+        snapshots.push_back(PositionSnapshot{
+            position.symbol(),
+            position.quantity(),
+            position.valuation_mark().has_value()
+                ? std::optional{position.valuation_mark()->price()}
+                : std::nullopt,
+            position.valuation_mark().has_value()
+                ? std::optional{position.valuation_mark()->effective_at()}
+                : std::nullopt,
+            position.valuation_mark().has_value()
+                ? std::optional{position.valuation_mark()->sequence()}
+                : std::nullopt,
+        });
+    }
+    return PortfolioSnapshot{cash_sum_, equity(), std::move(snapshots)};
+}
+
 const TradeEpisode* Portfolio::open_trade(
     const market_data::Symbol& symbol) const noexcept {
     const auto found = open_trades_.find(symbol.value());

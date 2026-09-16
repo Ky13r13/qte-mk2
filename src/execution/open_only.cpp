@@ -146,30 +146,12 @@ std::optional<FillCandidate> OpenOnlyExecutionModel::evaluate(
         return std::nullopt;
     }
 
-    const double adverse_bps = costs_.spread_bps() / 2.0 + costs_.slippage_bps();
-    const double adverse_fraction = adverse_bps / kBasisPointsPerUnit;
-    const double side_multiplier = request.side == orders::OrderSide::buy
-                                       ? 1.0 + adverse_fraction
-                                       : 1.0 - adverse_fraction;
-    const double adjusted_price = market_open.price() * side_multiplier;
-    if (!std::isfinite(adjusted_price) || adjusted_price <= 0.0) {
-        throw ExecutionCalculationError(
-            "cost-adjusted execution price is not finite and positive");
-    }
-
-    const core::TickPrice executed_price = [&] {
-        try {
-            return request.side == orders::OrderSide::buy
-                       ? instrument.price_grid().round_up(adjusted_price)
-                       : instrument.price_grid().round_down(adjusted_price);
-        } catch (const std::invalid_argument&) {
-            throw ExecutionCalculationError(
-                "cost-adjusted execution price cannot be represented on the tick grid");
-        } catch (const std::out_of_range&) {
-            throw ExecutionCalculationError(
-                "cost-adjusted execution price cannot be represented on the tick grid");
-        }
-    }();
+    const auto estimate = this->estimate(
+        request.side,
+        core::ShareAmount::from_count(order.remaining_quantity().value()),
+        instrument,
+        market_open.price());
+    const core::TickPrice executed_price = estimate.executed_price();
 
     if (requires_limit &&
         !limit_is_satisfied(request.side, executed_price.value(), *request.limit_price)) {
@@ -181,6 +163,60 @@ std::optional<FillCandidate> OpenOnlyExecutionModel::evaluate(
 
     const auto quantity = core::ShareAmount::from_count(
         order.remaining_quantity().value());
+    FillCandidate candidate{
+        order.id(),
+        request.symbol,
+        request.side,
+        quantity,
+        market_open.timestamp(),
+        market_open.sequence(),
+        market_open.price(),
+        executed_price,
+        estimate.gross_notional(),
+        estimate.commission(),
+    };
+    if (trigger_now) {
+        static_cast<void>(order.mark_stop_triggered());
+    }
+    return candidate;
+}
+
+ExecutionEstimate OpenOnlyExecutionModel::estimate(
+    const orders::OrderSide side,
+    const core::ShareAmount quantity,
+    const market_data::InstrumentSpec& instrument,
+    const double reference_price) const {
+    if (!std::isfinite(reference_price) || reference_price <= 0.0) {
+        throw InvalidExecutionInput("execution reference price must be finite and positive");
+    }
+    if (side != orders::OrderSide::buy && side != orders::OrderSide::sell) {
+        throw InvalidExecutionInput("execution side is unsupported");
+    }
+    const double adverse_bps = costs_.spread_bps() / 2.0 + costs_.slippage_bps();
+    const double adverse_fraction = adverse_bps / kBasisPointsPerUnit;
+    const double side_multiplier = side == orders::OrderSide::buy
+                                       ? 1.0 + adverse_fraction
+                                       : 1.0 - adverse_fraction;
+    const double adjusted_price = reference_price * side_multiplier;
+    if (!std::isfinite(adjusted_price) || adjusted_price <= 0.0) {
+        throw ExecutionCalculationError(
+            "cost-adjusted execution price is not finite and positive");
+    }
+
+    const core::TickPrice executed_price = [&] {
+        try {
+            return side == orders::OrderSide::buy
+                       ? instrument.price_grid().round_up(adjusted_price)
+                       : instrument.price_grid().round_down(adjusted_price);
+        } catch (const std::invalid_argument&) {
+            throw ExecutionCalculationError(
+                "cost-adjusted execution price cannot be represented on the tick grid");
+        } catch (const std::out_of_range&) {
+            throw ExecutionCalculationError(
+                "cost-adjusted execution price cannot be represented on the tick grid");
+        }
+    }();
+
     const double gross_notional =
         static_cast<double>(quantity.value()) * executed_price.value();
     const double commission =
@@ -191,22 +227,7 @@ std::optional<FillCandidate> OpenOnlyExecutionModel::evaluate(
             "execution notional or commission is outside the supported range");
     }
 
-    FillCandidate candidate{
-        order.id(),
-        request.symbol,
-        request.side,
-        quantity,
-        market_open.timestamp(),
-        market_open.sequence(),
-        market_open.price(),
-        executed_price,
-        gross_notional,
-        commission,
-    };
-    if (trigger_now) {
-        static_cast<void>(order.mark_stop_triggered());
-    }
-    return candidate;
+    return ExecutionEstimate{executed_price, gross_notional, commission};
 }
 
 }  // namespace qte::execution

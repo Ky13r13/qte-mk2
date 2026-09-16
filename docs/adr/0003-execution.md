@@ -1,7 +1,7 @@
 # ADR 0003: Open-only execution and independent risk
 
-Status: M3a market/limit matching and costs plus M3b stop/stop-limit behavior
-implemented. Independent risk checks remain recommended for M5. Model ID:
+Status: M3a market/limit matching and costs, M3b stop/stop-limit behavior,
+M5 independent risk checks, and M8 replay integration implemented. Model ID:
 `open_only_v1`.
 
 ## Decision
@@ -85,6 +85,20 @@ pure reducing order despite an already-breached exposure cap if it does not
 cross zero, lowers exposure, and passes cash/short constraints. This exception
 applies to submission and fill checks; it also allows reductions at nonpositive
 equity. Risk does not force liquidation if the market alone breaches a cap.
+
+M5 implements these checks as a pure `RiskManager` over owned portfolio and
+pending-order snapshots. Limits are explicit values or explicitly disabled;
+malformed snapshots and arithmetic overflow are errors, while policy failures
+return stable rejection codes and reasons. Pending buys reserve estimated
+notional plus fees per remaining share, pending sells receive no cash credit,
+and duplicate pending IDs are invalid. Fill-time evaluation removes the
+candidate quantity from its own reservation, projects its actual price and fee,
+and rechecks the remaining accepted orders. The reduction exception is confined
+to the affected symbol: it cannot cross flat or conceal pending sells that would
+create a short. It may buy to cover an existing short under long-only policy if
+cash remains sufficient. Risk never mutates an order or portfolio; the replay
+engine maps an execution rejection to `execution_risk` cancellation, preserving
+one state-transition authority.
 
 ## Acceptance / alternatives
 

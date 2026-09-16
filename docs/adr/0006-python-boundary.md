@@ -1,6 +1,8 @@
 # ADR 0006: C++ ownership and Python research API
 
-Status: recommended. Packaging and bindings are future milestones.
+Status: Implemented through M10b: C++ strategy lifecycle, callback-scoped
+context, owned snapshots, buffered commands, optional pybind11 package,
+trampoline/GIL behavior, exception propagation, and reentrancy protection.
 
 ## Decision
 
@@ -28,6 +30,13 @@ callback thread. Expired, cross-thread or on_end mutation calls raise a clear
 exception. Context does not keep a run alive. This prevents dangling pointers
 even if a Python strategy stores its context accidentally.
 
+The implementation applies this contract with a weak driver-state reference, monotonically
+increasing callback generation, and originating-thread check on every context
+method. Portfolio and position reads return owned values. The isolated driver
+owns its strategy and command buffer, exposes command snapshots by value, and
+rejects command draining during callbacks. The isolated driver remains an
+acceptance harness; replay uses the same contract through the Python trampoline.
+
 `run` retains strong ownership of the Python strategy for the synchronous call.
 Release the GIL around C++ replay; acquire it around each Python callback and
 Python object access/destruction. No parallel callbacks, reentrant run, background
@@ -45,7 +54,7 @@ int64 nanoseconds explicitly; Python datetime's precision must not silently
 truncate timestamps. Domain validation exceptions map to ValueError-derived
 exceptions, liveness/reentrancy errors to RuntimeError-derived exceptions.
 
-## Package structure when implemented
+## Package structure
 
 Use existing CMake target with PIC when linking a pybind11 extension. Add a
 `bindings/` translation unit, `python/qte/` facade, `tests/python/`, and a
