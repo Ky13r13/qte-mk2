@@ -3,6 +3,8 @@
 Status: Implemented through M10b: C++ strategy lifecycle, callback-scoped
 context, owned snapshots, buffered commands, optional pybind11 package,
 trampoline/GIL behavior, exception propagation, and reentrancy protection.
+G3b adds read-only owned result coverage without changing these ownership rules;
+see [result binding fields](../gui-result-bindings.md).
 
 ## Decision
 
@@ -12,7 +14,8 @@ same inputs cannot inherit prior positions or strategy indicator history.
 Require a fresh strategy instance per run initially. Store no owning raw pointers.
 
 Strategy callbacks use `on_start(ctx)`, `on_bar(ctx, bar)`, `on_fill(ctx, fill)`,
-`on_end(ctx)`. C++ Strategy is a virtual interface; Python uses a pybind11
+`on_order_update(ctx, update)`, `on_end(ctx)`. Order updates are read-only
+notifications; commands remain forbidden there. C++ Strategy is a virtual interface; Python uses a pybind11
 trampoline. Context supplies bounded history, marked position/equity snapshots,
 and queued submit/cancel commands. A submission returns an order ID immediately,
 not an approval/fill promise. Its receipt remains pending until the command phase.

@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "error": {
+    "code": "document_not_found",
+    "message": "Document unavailable.",
+    "request_id": "fixture-request"
+  }
+}

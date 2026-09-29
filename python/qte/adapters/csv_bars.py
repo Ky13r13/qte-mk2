@@ -47,6 +47,8 @@ def load_csv_bars(
     action_free: bool,
 ) -> AdapterResult:
     """Normalize explicitly mapped RFC3339-UTC CSV bars into an owned Dataset."""
+    if type(interval_ns) is not int or interval_ns<=0:
+        raise ValueError('interval_ns must be a positive integer')
     if adjustment != "raw":
         raise ValueError("initial QTE profile requires CSV adjustment='raw'")
     if action_free is not True:
@@ -62,11 +64,15 @@ def load_csv_bars(
     reader = csv.DictReader(text.splitlines())
     if reader.fieldnames is None:
         raise ValueError("CSV fixture requires a header")
+    if len(set(reader.fieldnames))!=len(reader.fieldnames):
+        raise ValueError('duplicate CSV column names')
     missing = set(schema.columns()).difference(reader.fieldnames)
     if missing:
         raise ValueError(f"CSV fixture is missing mapped columns: {sorted(missing)}")
     bars: list[Bar] = []
     for line, record in enumerate(reader, start=2):
+        if None in record or any(v is None for v in record.values()):
+            raise ValueError(f'CSV field count mismatch at line {line}')
         try:
             start_ns = parse_rfc3339_utc_ns(record[schema.timestamp])
             bars.append(

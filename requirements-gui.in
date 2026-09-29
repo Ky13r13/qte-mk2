@@ -1,0 +1,5 @@
+# Proposed G0 optional GUI dependencies; installation requires user approval.
+# Resolve intentionally for the existing .venv; do not use full/standard extras.
+starlette==1.7.0
+uvicorn==0.53.0
+markdown-it-py==4.2.0

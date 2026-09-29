@@ -93,8 +93,16 @@ introduce an event bus, dependency-injection framework, or broker SDK dependency
 4. [Portfolio invariants](adr/0004-portfolio.md)
 5. [Numeric representation](adr/0005-numerics.md)
 6. [C++ and Python boundary](adr/0006-python-boundary.md)
+7. [Paper-order coordination](adr/0007-paper-coordination.md)
+8. [Equity sampling](adr/0008-equity-sampling.md)
+9. [Causal regime research](adr/0009-regime-research.md)
+10. [Local research library/UI boundary — proposed](adr/0010-local-research-ui.md)
 
 The [roadmap](roadmap.md) maps these contracts to independently testable changes.
+The [GUI architecture](gui-architecture.md) defines the minimal localhost
+documentation/evidence library and incremental workflow UI; the [checkpoint](gui-task-log.md)
+records implemented and reviewed milestones, rather than claiming all are delivered
+yet and it does not change the engine or authorize account trading.
 
 ## Choices requiring later evidence or a user preference
 
@@ -111,7 +119,8 @@ The [roadmap](roadmap.md) maps these contracts to independently testable changes
 | Metrics annualization | No implicit periods-per-year | Require interval/calendar assumptions before annualized output |
 | Python API | Snapshot values and callback-scoped context | Optimize views only after measuring copies |
 | Reproducibility across machines | Same pinned build/input: exact logical replay | Cross-platform floating-point equivalence is tolerance-based, not promised bitwise |
-| Git metadata | Preserve visible directory | User-approved repair or workspace integration before versioned development |
+| Git metadata | Read-only inspection works; preserve user history | Any commit/remote/history mutation needs explicit user request |
 
-None of the deferred choices blocks the next analytics milestone. Unsupported
-features fail explicitly; adding a configuration key is not an implementation.
+The current strategy-research work is described in ADR 0009. Session calendars,
+corporate actions, point-in-time external inputs and persistent broker integration
+remain explicit limits, not implemented features hidden behind configuration.

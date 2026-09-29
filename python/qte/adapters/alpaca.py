@@ -7,6 +7,7 @@ from pathlib import Path
 from qte import Bar, Dataset
 
 from .common import AdapterResult, SourceProvenance, parse_rfc3339_utc_ns, require_number
+from .common import interval_for_timeframe
 
 
 ADAPTER_VERSION = "alpaca-stock-bars-v1"
@@ -43,6 +44,12 @@ def load_alpaca_fixture(
         raise ValueError("initial QTE profile requires Alpaca adjustment='raw'")
     if envelope["action_free"] is not True:
         raise ValueError("initial QTE profile requires a declared action-free fixture")
+    if envelope['feed'] not in ('iex', 'sip'):
+        raise ValueError('supported stock feeds are iex and sip')
+    if type(interval_ns) is not int or interval_ns != interval_for_timeframe(envelope['timeframe']):
+        raise ValueError('interval_ns must match the declared timeframe')
+    if 'next_page_token' not in payload:
+        raise ValueError('missing next_page_token completeness declaration')
     if payload.get("next_page_token") is not None:
         raise ValueError("Alpaca fixture is an incomplete paginated response")
     grouped = payload.get("bars")

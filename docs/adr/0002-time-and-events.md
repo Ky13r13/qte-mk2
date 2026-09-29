@@ -58,6 +58,16 @@ initialization, not privileged price access. At end, cancel outstanding orders,
 call on_end with read-only context, and finalize results. on_end cannot trade.
 Callback exceptions fail the run; there is no successful partial result.
 
+M13a adds read-only `on_order_update(ctx, update)` notifications immediately after
+each accepted/rejected/canceled/filled transition. Quantities and reason are
+owned snapshots of that transition. During sequential opening fills, an update
+may observe the portfolio after that fill but before later fills in the batch.
+These notifications cannot enqueue commands, so they cannot create recursive
+retry loops or affect the current execution phase. Strategies clear pending
+state and may act on the next bar. Actual fill callbacks retain the phase-5
+batch semantics above. Unknown/terminal cancel no-ops remain audit-only events.
+Final cancellations are notified before `on_end`.
+
 The isolated synchronous test driver and M8 replay engine implement the same
 lifecycle boundary. The driver owns one fresh strategy, rejects callback
 reentrancy and invalid lifecycle transitions, invalidates every context when its

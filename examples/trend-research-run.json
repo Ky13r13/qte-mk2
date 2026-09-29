@@ -1,0 +1,6 @@
+{
+  "data": {"adapter": "csv", "path": "research-bars.csv", "interval_ns": 3600000000000, "action_free": true},
+  "strategy": {"type": "trend", "symbol": "SPY", "fast_period": 2, "slow_period": 3, "atr_period": 2, "allocation_fraction": 0.1},
+  "engine": {"initial_cash": 100000},
+  "execution": {"commission_bps": 1, "spread_bps": 2, "slippage_bps": 1}
+}

@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "fixture_status": "proposed_contract",
+  "execution_status": "not_run_no_gui_implementation",
+  "defaults": "All unrelated host/origin/session/token/body conditions are valid; each case isolates only its named boundary. Raw bodies and header pairs must not be normalized before the test.",
+  "cases": [
+    {
+      "id": "missing-version",
+      "raw_body": "{\"code\":\"fixture-only-code\"}",
+      "status": 400
+    },
+    {
+      "id": "wrong-version",
+      "raw_body": "{\"schema_version\":2,\"code\":\"fixture-only-code\"}",
+      "status": 400
+    },
+    {
+      "id": "boolean-version",
+      "raw_body": "{\"schema_version\":true,\"code\":\"fixture-only-code\"}",
+      "status": 400
+    },
+    {
+      "id": "unknown-field",
+      "raw_body": "{\"schema_version\":1,\"code\":\"fixture-only-code\",\"command\":\"ignored\"}",
+      "status": 400
+    },
+    {
+      "id": "duplicate-key",
+      "raw_body": "{\"schema_version\":1,\"schema_version\":1,\"code\":\"fixture-only-code\"}",
+      "status": 400
+    },
+    {
+      "id": "nonobject-body",
+      "raw_body": "[]",
+      "status": 400
+    },
+    {
+      "id": "invalid-json",
+      "raw_body": "{",
+      "status": 400
+    },
+    {
+      "id": "oversized-login",
+      "body_generator": {
+        "repeat": "x",
+        "bytes": 4097
+      },
+      "status": 413
+    },
+    {
+      "id": "wrong-media-type",
+      "headers": [
+        [
+          "Content-Type",
+          "text/plain"
+        ]
+      ],
+      "status": 415
+    },
+    {
+      "id": "missing-session",
+      "setup": "no session cookie on a protected API GET",
+      "status": 401
+    },
+    {
+      "id": "expired-session",
+      "setup": "monotonic clock advanced beyond 1800 idle seconds",
+      "status": 401
+    },
+    {
+      "id": "missing-token",
+      "setup": "valid session, protected API GET, no request-token header",
+      "status": 403
+    },
+    {
+      "id": "wrong-token",
+      "setup": "valid session, protected API GET, incorrect request token",
+      "status": 403
+    },
+    {
+      "id": "wrong-host",
+      "headers": [
+        [
+          "Host",
+          "attacker.invalid:8765"
+        ]
+      ],
+      "status": 400
+    },
+    {
+      "id": "duplicate-host",
+      "headers": [
+        [
+          "Host",
+          "127.0.0.1:8765"
+        ],
+        [
+          "Host",
+          "attacker.invalid"
+        ]
+      ],
+      "status": 400
+    },
+    {
+      "id": "wrong-origin",
+      "headers": [
+        [
+          "Origin",
+          "https://attacker.invalid"
+        ]
+      ],
+      "status": 403
+    },
+    {
+      "id": "null-origin",
+      "headers": [
+        [
+          "Origin",
+          "null"
+        ]
+      ],
+      "status": 403
+    },
+    {
+      "id": "missing-mutation-origin",
+      "setup": "authenticated mutation with valid token, omitted Origin",
+      "status": 403
+    },
+    {
+      "id": "reload-bootstrap",
+      "setup": "GET /api/v1/session with valid cookie and same-origin fetch metadata; request token not yet known",
+      "status": 200
+    },
+    {
+      "id": "bootstrap-missing-fetch-metadata",
+      "setup": "valid cookie; GET /api/v1/session without Sec-Fetch-Site",
+      "status": 403
+    },
+    {
+      "id": "cross-site-bootstrap",
+      "headers": [
+        [
+          "Sec-Fetch-Site",
+          "cross-site"
+        ]
+      ],
+      "status": 403
+    },
+    {
+      "id": "code-replay",
+      "setup": "repeat login with successfully consumed startup code",
+      "status": 401
+    },
+    {
+      "id": "logout-invalidates-session",
+      "setup": "valid exact-origin logout with request token; subsequent protected API GET reuses old cookie/token",
+      "status": 401
+    },
+    {
+      "id": "restart-invalidates-session",
+      "setup": "restart server; protected API GET reuses the prior server's session cookie/token",
+      "status": 401
+    },
+    {
+      "id": "sixth-login-failure",
+      "setup": "sixth invalid login within one minute",
+      "status": 429
+    },
+    {
+      "id": "unknown-route",
+      "setup": "authenticated request to an unregistered route",
+      "status": 404
+    },
+    {
+      "id": "wrong-method",
+      "setup": "authenticated unsupported method on a registered route",
+      "status": 405
+    },
+    {
+      "id": "negative-offset",
+      "query": "offset=-1",
+      "status": 400
+    },
+    {
+      "id": "zero-limit",
+      "query": "limit=0",
+      "status": 400
+    },
+    {
+      "id": "oversized-limit",
+      "query": "limit=201",
+      "status": 400
+    },
+    {
+      "id": "long-search",
+      "query_generator": {
+        "name": "q",
+        "repeat": "x",
+        "characters": 201
+      },
+      "status": 400
+    },
+    {
+      "id": "unknown-document",
+      "setup": "unknown opaque document ID",
+      "status": 404
+    },
+    {
+      "id": "missing-document",
+      "setup": "registered document removed from the source checkout",
+      "status": 404
+    },
+    {
+      "id": "unavailable-source",
+      "setup": "GET /api/v1/capabilities without a validated configured document source",
+      "status": 200,
+      "assertion": "library state is blocked; no available library claim"
+    },
+    {
+      "id": "symlink-document",
+      "setup": "registered source file or an ancestor is a symlink",
+      "status": 403
+    },
+    {
+      "id": "invalid-utf8",
+      "setup": "registered source bytes are not valid UTF-8",
+      "status": 422
+    },
+    {
+      "id": "oversized-document",
+      "setup": "registered source exceeds declared 1 MiB document limit",
+      "status": 413
+    },
+    {
+      "id": "raw-html",
+      "source": "<script>alert(\"fixture\")</script>",
+      "assertion": "escaped or inert text; no executable script in rendered HTML"
+    },
+    {
+      "id": "unsafe-link",
+      "source": "[link](javascript:alert(1))",
+      "assertion": "no executable link"
+    },
+    {
+      "id": "data-link",
+      "source": "[link](data:text/html,fixture)",
+      "assertion": "no data URL navigation"
+    },
+    {
+      "id": "remote-image",
+      "source": "![fixture](https://attacker.invalid/image.png)",
+      "assertion": "no remote resource element/load"
+    },
+    {
+      "id": "traversal-link",
+      "source": "[secret](../../../../etc/passwd)",
+      "assertion": "link is unavailable; no path request or content disclosure"
+    },
+    {
+      "id": "duplicate-headings",
+      "source": "# Same\n\n# Same\n",
+      "assertion": "unique prefixed IDs stable for identical source bytes"
+    },
+    {
+      "id": "encoded-traversal",
+      "setup": "encoded traversal used as document ID",
+      "assertion": "rejected as unknown ID or invalid request; no filesystem access outside allowlist"
+    },
+    {
+      "id": "navigation-has-no-side-effects",
+      "setup": "visit every registered shell/document route",
+      "assertion": "no subprocess, provider call, artifact import or business-state mutation"
+    }
+  ]
+}

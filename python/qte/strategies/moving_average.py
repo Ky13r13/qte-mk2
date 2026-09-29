@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from qte import OrderSide, Strategy, market_order
+from qte import OrderSide, OrderStatus, Strategy, market_order
 
 
 @dataclass(frozen=True)
@@ -12,6 +12,8 @@ class MovingAverageConfig:
     quantity: int
 
     def __post_init__(self) -> None:
+        if any(type(v) is not int for v in (self.fast_period, self.slow_period, self.quantity)):
+            raise ValueError("periods and quantity must be integers")
         if self.fast_period <= 0:
             raise ValueError("fast_period must be positive")
         if self.slow_period <= self.fast_period:
@@ -55,4 +57,10 @@ class MovingAverageRegimeStrategy(Strategy):
 
     def on_fill(self, context, fill) -> None:
         if fill.order_id == self._pending_order_id:
+            self._pending_order_id = None
+
+    def on_order_update(self, context, update) -> None:
+        if update.order_id == self._pending_order_id and update.status in (
+            OrderStatus.REJECTED, OrderStatus.CANCELED, OrderStatus.FILLED
+        ):
             self._pending_order_id = None

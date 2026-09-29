@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="same-origin">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'self'; img-src 'self'; object-src 'none'; script-src 'self'; style-src 'self'">
+    <title>QTE Library</title>
+    <link rel="stylesheet" href="/assets/app.css">
+    <script type="module" src="/assets/app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <header class="site-header">
+      <a class="wordmark" href="/library" aria-label="QTE Library home">QTE</a>
+      <nav aria-label="Primary navigation">
+        <ul class="nav-list">
+          <li><a data-nav="library" href="/library">Library</a></li>
+          <li><a data-nav="research" href="/research">Research</a></li>
+          <li><a data-nav="data" href="/data">Data</a></li>
+          <li><a data-nav="system" href="/system">System</a></li>
+        </ul>
+      </nav>
+      <button class="quiet-button" id="logout-button" type="button" hidden>Log out</button>
+    </header>
+    <main id="main-content" tabindex="-1">
+      <p id="page-status" class="page-status" role="status" aria-live="polite"></p>
+      <section id="app" aria-live="polite"></section>
+    </main>
+  </body>
+</html>

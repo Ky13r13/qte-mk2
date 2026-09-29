@@ -1,0 +1,3 @@
+# Proposed optional GUI testing dependencies; not part of engine runtime.
+-r requirements-gui.in
+httpx==0.28.1

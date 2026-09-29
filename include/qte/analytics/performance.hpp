@@ -30,6 +30,14 @@ struct AnnualizationConfig final {
     double annual_risk_free_rate{0.0};
 };
 
+struct SamplingConfig final {
+    std::vector<market_data::Timestamp> timestamps;
+    std::chrono::nanoseconds max_staleness;
+};
+
+[[nodiscard]] std::vector<engine::EquityPoint> sample_equity(
+    const std::vector<engine::EquityPoint>& events, const SamplingConfig& sampling);
+
 struct PerformanceReport final {
     std::vector<double> returns;
     Metric total_return;
@@ -51,6 +59,7 @@ struct PerformanceReport final {
 
 [[nodiscard]] PerformanceReport analyze(
     const engine::BacktestResults& results,
-    std::optional<AnnualizationConfig> annualization = std::nullopt);
+    std::optional<AnnualizationConfig> annualization = std::nullopt,
+    std::optional<SamplingConfig> sampling = std::nullopt);
 
 }  // namespace qte::analytics

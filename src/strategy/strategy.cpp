@@ -111,7 +111,7 @@ private:
     void require_mutation(const std::uint64_t generation) const {
         require_access(generation);
         if (!allow_mutation_) {
-            throw StrategyContextError("strategy commands are forbidden during on_end");
+            throw StrategyContextError("strategy commands are forbidden during on_end or on_order_update");
         }
     }
 
@@ -192,6 +192,23 @@ StrategyTestDriver::StrategyTestDriver(std::shared_ptr<Strategy> strategy)
 }
 
 StrategyTestDriver::~StrategyTestDriver() = default;
+
+void StrategyTestDriver::order_update(
+    const OrderUpdate& update, portfolio::PortfolioSnapshot snapshot,
+    market_data::BarHistorySnapshot history) {
+    require_not_in_callback();
+    if (lifecycle_ != Lifecycle::running) {
+        throw StrategyLifecycleError("on_order_update requires a running strategy");
+    }
+    auto context = begin_callback(std::move(snapshot), std::move(history), false);
+    try {
+        strategy_->on_order_update(context, update);
+        finish_callback();
+    } catch (...) {
+        fail_callback();
+        throw;
+    }
+}
 
 void StrategyTestDriver::require_not_in_callback() const {
     if (state_->active()) {

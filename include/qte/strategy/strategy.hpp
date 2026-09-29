@@ -76,6 +76,16 @@ struct CancelOrderCommand final {
 
 using StrategyCommand = std::variant<SubmitOrderCommand, CancelOrderCommand>;
 
+struct OrderUpdate final {
+    core::OrderId order_id;
+    market_data::Symbol symbol;
+    orders::OrderStatus status;
+    core::ShareQuantity filled_quantity;
+    core::ShareQuantity remaining_quantity;
+    market_data::Timestamp timestamp;
+    std::string reason;
+};
+
 // A callback-scoped capability. Copies are safe to retain but become unusable
 // immediately after their originating callback returns.
 class StrategyContext final {
@@ -119,6 +129,7 @@ public:
     virtual void on_end(StrategyContext& context) {
         static_cast<void>(context);
     }
+    virtual void on_order_update(StrategyContext&, const OrderUpdate&) {}
 };
 
 // M6-only synchronous callback harness. It owns exactly one strategy and models
@@ -147,6 +158,9 @@ public:
     void end(
         portfolio::PortfolioSnapshot snapshot,
         market_data::BarHistorySnapshot history = {});
+    void order_update(const OrderUpdate& update,
+                      portfolio::PortfolioSnapshot snapshot,
+                      market_data::BarHistorySnapshot history = {});
 
     [[nodiscard]] std::vector<StrategyCommand> buffered_commands() const;
     [[nodiscard]] std::vector<StrategyCommand> take_commands();

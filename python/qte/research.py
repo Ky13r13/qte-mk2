@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
+import json
+from qte.provenance import source_identity
 
 from qte import (
     BacktestConfig,
@@ -24,6 +26,11 @@ class ScenarioResult:
     fill_count: int
     dataset_hash: str
     normalized_config: str
+    strategy_config: str
+    source_identity: str
+    source_id: str
+    start_ns: int
+    end_ns: int
 
 
 @dataclass(frozen=True)
@@ -48,7 +55,8 @@ def _run_scenario(
         execution_costs=costs,
         risk_limits=RiskLimits(),
         random_seed=0,
-        build_identity="moving-average-reference-v1",
+        build_identity=source_identity(),
+        history_capacity=max(256, strategy_config.slow_period),
     )
     result = BacktestEngine(config).run(
         data, MovingAverageRegimeStrategy(symbol, strategy_config)
@@ -64,6 +72,11 @@ def _run_scenario(
         fill_count=len(result.fills),
         dataset_hash=result.manifest.dataset_hash,
         normalized_config=result.manifest.normalized_config,
+        strategy_config=json.dumps({'symbol': symbol, **asdict(strategy_config)}, sort_keys=True),
+        source_identity=result.manifest.build_identity,
+        source_id=data.source_id,
+        start_ns=data.start_ns,
+        end_ns=data.end_ns,
     )
 
 
@@ -79,6 +92,14 @@ def compare_moving_average(
     ),
 ) -> ComparisonReport:
     """Run pre-registered parameters; this function performs no optimization."""
+    if in_sample.end_ns > out_of_sample.start_ns:
+        raise ValueError('train/test splits must be chronological and non-overlapping')
+    if in_sample.interval_ns != out_of_sample.interval_ns:
+        raise ValueError('train/test intervals must match')
+    if in_sample.currency != out_of_sample.currency:
+        raise ValueError('train/test valuation currencies must match')
+    if symbol not in in_sample.symbols or symbol not in out_of_sample.symbols:
+        raise ValueError('strategy symbol must exist in both splits')
     scenarios = []
     for sample, data in (
         ("in_sample", in_sample),

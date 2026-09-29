@@ -54,10 +54,48 @@ Metric Metric::undefined(std::string reason) {
     return Metric{std::nullopt, std::move(reason)};
 }
 
+std::vector<engine::EquityPoint> sample_equity(
+    const std::vector<engine::EquityPoint>& events, const SamplingConfig& sampling) {
+    if (events.empty() || sampling.timestamps.size() < 2 || sampling.max_staleness.count() < 0) {
+        throw std::invalid_argument("sampling requires events, at least two timestamps and nonnegative staleness");
+    }
+    for (std::size_t i = 0; i < events.size(); ++i) {
+        if (!std::isfinite(events[i].equity) || !std::isfinite(events[i].gross_exposure) ||
+            events[i].gross_exposure < 0 || (i && (events[i].timestamp < events[i-1].timestamp ||
+            events[i].sequence <= events[i-1].sequence))) {
+            throw std::invalid_argument("invalid equity event ordering or value");
+        }
+    }
+    if (sampling.timestamps.front() != events.front().timestamp ||
+        sampling.timestamps.back() != events.back().timestamp) {
+        throw std::invalid_argument("sample grid must retain run start and end");
+    }
+    std::vector<engine::EquityPoint> result;
+    std::size_t cursor = 0;
+    for (const auto t : sampling.timestamps) {
+        if (!result.empty() && t <= result.back().timestamp) {
+            throw std::invalid_argument("sample timestamps must strictly increase");
+        }
+        while (cursor + 1 < events.size() && events[cursor+1].timestamp <= t) ++cursor;
+        const auto age = static_cast<long double>(t.time_since_epoch().count()) -
+                         static_cast<long double>(events[cursor].timestamp.time_since_epoch().count());
+        if (age < 0 || age > sampling.max_staleness.count()) {
+            throw std::invalid_argument("sample exceeds maximum staleness");
+        }
+        auto point = events[cursor];
+        point.timestamp = t;
+        result.push_back(point);
+    }
+    return result;
+}
+
 PerformanceReport analyze(
     const engine::BacktestResults& results,
-    const std::optional<AnnualizationConfig> annualization) {
-    const auto& curve = results.equity_curve();
+    const std::optional<AnnualizationConfig> annualization,
+    const std::optional<SamplingConfig> sampling) {
+    const auto sampled = sampling ? sample_equity(results.equity_curve(), *sampling)
+                                  : std::vector<engine::EquityPoint>{};
+    const auto& curve = sampling ? sampled : results.equity_curve();
     if (curve.empty()) {
         throw std::invalid_argument("analytics requires at least one equity point");
     }
@@ -91,7 +129,7 @@ PerformanceReport analyze(
     double peak = curve.front().equity;
     double maximum_loss = 0.0;
     bool drawdown_valid = finite_positive(peak);
-    for (const auto& point : curve) {
+    for (const auto& point : results.equity_curve()) {
         if (!std::isfinite(point.equity) || !finite_positive(peak)) {
             drawdown_valid = false;
             break;
@@ -149,16 +187,17 @@ PerformanceReport analyze(
     double weighted_exposure = 0.0;
     std::chrono::nanoseconds elapsed{0};
     bool exposure_valid = true;
-    for (std::size_t index = 1; index < curve.size(); ++index) {
-        const auto duration = curve[index].timestamp - curve[index - 1].timestamp;
+    const auto& exposure_curve = results.equity_curve();
+    for (std::size_t index = 1; index < exposure_curve.size(); ++index) {
+        const auto duration = exposure_curve[index].timestamp - exposure_curve[index - 1].timestamp;
         if (duration < std::chrono::nanoseconds::zero() ||
-            !finite_positive(curve[index - 1].equity) ||
-            !std::isfinite(curve[index - 1].gross_exposure)) {
+            !finite_positive(exposure_curve[index - 1].equity) ||
+            !std::isfinite(exposure_curve[index - 1].gross_exposure)) {
             exposure_valid = false;
             break;
         }
         weighted_exposure +=
-            (curve[index - 1].gross_exposure / curve[index - 1].equity) *
+            (exposure_curve[index - 1].gross_exposure / exposure_curve[index - 1].equity) *
             static_cast<double>(duration.count());
         elapsed += duration;
     }
@@ -187,7 +226,7 @@ PerformanceReport analyze(
             equally_spaced = equally_spaced &&
                 curve[index].timestamp - curve[index - 1].timestamp == spacing;
         }
-        if (!equally_spaced) {
+        if (!equally_spaced && !sampling.has_value()) {
             annual_return = unavailable("annualization requires equally spaced positive timestamps");
             volatility = unavailable("annualization requires equally spaced positive timestamps");
             sharpe = unavailable("annualization requires equally spaced positive timestamps");
@@ -205,9 +244,12 @@ PerformanceReport analyze(
                 (365.25 * 24.0 * 60.0 * 60.0 * 1.0e9);
             if (finite_positive(curve.front().equity) &&
                 finite_positive(curve.back().equity) && elapsed_years > 0.0) {
-                annual_return = Metric::defined(std::pow(
+                const auto computed_return = std::pow(
                     curve.back().equity / curve.front().equity,
-                    1.0 / elapsed_years) - 1.0);
+                    1.0 / elapsed_years) - 1.0;
+                annual_return = std::isfinite(computed_return)
+                    ? Metric::defined(computed_return)
+                    : unavailable("annualized return exceeds numeric range");
             } else {
                 annual_return = unavailable("annual return requires positive endpoints and elapsed time");
             }

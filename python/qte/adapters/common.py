@@ -7,6 +7,15 @@ from datetime import datetime
 
 from qte import Dataset
 
+def interval_for_timeframe(value: str) -> int:
+    match = re.fullmatch(r'([1-9][0-9]*)(Min|Hour)', value) if isinstance(value, str) else None
+    if match is None:
+        raise ValueError('supported timeframes are 1-59Min and 1-23Hour; calendar bars are unsupported')
+    n, unit = int(match[1]), match[2]
+    if n > (59 if unit == 'Min' else 23):
+        raise ValueError('timeframe out of supported range')
+    return n * (60 if unit == 'Min' else 3600) * 1_000_000_000
+
 
 _RFC3339_UTC = re.compile(
     r"^(?P<date>\d{4}-\d{2}-\d{2})T(?P<time>\d{2}:\d{2}:\d{2})"

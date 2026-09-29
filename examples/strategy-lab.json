@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "seed": 20260919,
+  "bars_per_window": 512,
+  "timeframes": ["hourly", "daily_24h"],
+  "strategy_parameters": {"allocation_fraction": 0.1},
+  "engine": {"initial_cash": 100000, "max_symbol_allocation": 0.2, "max_gross_leverage": 1.0},
+  "execution": {"commission_bps": 1, "spread_bps": 2, "slippage_bps": 1},
+  "stress_execution": {"commission_bps": 5, "spread_bps": 10, "slippage_bps": 5},
+  "selection": {"min_closed_trades": 20, "min_validation_windows": 3, "min_stressed_return": 0, "worst_stressed_return": -0.03, "max_drawdown": 0.2}
+}

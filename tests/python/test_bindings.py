@@ -91,6 +91,18 @@ def test_nanoseconds_round_trip_exactly_and_input_is_copied() -> None:
     assert data.bar_count == 1
 
 
+def test_dataset_currency_is_owned_read_only_metadata() -> None:
+    data = qte.Dataset.from_bars(
+        bars(), interval_ns=HOUR_NS, source_id="currency-test", currency="EUR"
+    )
+    currency = data.currency
+    assert currency == "EUR"
+    with pytest.raises(AttributeError):
+        data.currency = "USD"
+    del data
+    assert currency == "EUR"
+
+
 def test_invalid_configuration_and_callback_exception_propagate() -> None:
     with pytest.raises((TypeError, ValueError)):
         qte.BacktestConfig(-1.0)
@@ -132,3 +144,20 @@ def test_metrics_binding_returns_owned_report() -> None:
     assert report.total_return.value == pytest.approx(0.05)
     assert report.trade_count == 1
     assert report.expectancy.value == pytest.approx(50.0)
+
+def test_retained_callback_values_survive_all_owners_and_contexts_expire():
+    saved=[]
+    class Retain(RoundTrip):
+        def on_bar(self,ctx,bar):
+            saved.append((ctx,bar))
+            super().on_bar(ctx,bar)
+        def on_fill(self,ctx,fill):
+            saved.append((ctx,fill))
+            super().on_fill(ctx,fill)
+    result=engine().run(dataset(),Retain())
+    del result
+    gc.collect()
+    assert len(saved)==5
+    for ctx,value in saved:
+        assert value.symbol=='SPY'
+        with pytest.raises(RuntimeError): ctx.portfolio

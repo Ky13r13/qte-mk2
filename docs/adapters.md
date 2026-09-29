@@ -6,6 +6,10 @@ complete local files, copy values into `Dataset`, hash the original bytes, and
 return immutable provenance alongside the dataset. They never use credentials or
 the network.
 
+M15 adds a separate acquisition module, `alpaca_download`, which performs
+authenticated GET requests, aggregates pages, validates and atomically caches
+complete fixtures. Parsing remains offline. See [research workflow](research-workflow.md).
+
 ## Alpaca historical stock bars
 
 The `alpaca-stock-bars-v1` adapter targets Alpaca Market Data API v2 historical

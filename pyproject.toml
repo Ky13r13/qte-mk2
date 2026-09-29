@@ -8,6 +8,13 @@ version = "0.1.0"
 description = "Deterministic quantitative trading research engine"
 requires-python = ">=3.11"
 
+[project.optional-dependencies]
+gui = ["starlette==1.7.0", "uvicorn==0.53.0", "markdown-it-py==4.2.0"]
+gui-test = ["httpx==0.28.1"]
+
+[project.scripts]
+qte = "qte.cli:main"
+
 [tool.scikit-build]
 wheel.packages = ["python/qte"]
 cmake.args = ["-DQTE_BUILD_PYTHON=ON", "-DQTE_BUILD_TESTS=OFF"]

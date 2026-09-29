@@ -100,6 +100,13 @@ public:
     }
 
 private:
+    void notify_order(const orders::OrderRecord& order, const std::string& reason) {
+        strategy_.order_update(strategy::OrderUpdate{
+            order.id(), order.request().symbol, order.status(),
+            order.filled_quantity(), order.remaining_quantity(), current_time_, reason},
+            portfolio_.snapshot(), history_.snapshot());
+    }
+
     [[nodiscard]] core::EventSequence next_sequence() {
         return sequences_.next();
     }
@@ -209,6 +216,7 @@ private:
             accepted ? OrderEventKind::accepted : OrderEventKind::rejected,
             detail,
         });
+        notify_order(*orders_.at(command.order_id.value()), detail);
     }
 
     void process_command(const strategy::CancelOrderCommand& command) {
@@ -239,6 +247,9 @@ private:
                 : OrderEventKind::cancel_noop,
             result == orders::CancelResult::canceled ? "canceled" : "already terminal",
         });
+        if (result == orders::CancelResult::canceled) {
+            notify_order(*found->second, "user_requested");
+        }
     }
 
     [[nodiscard]] std::vector<orders::Fill> process_openings(
@@ -291,6 +302,7 @@ private:
                 order_events_.push_back(OrderEvent{
                     current_time_, next_sequence(), order.id(),
                     OrderEventKind::canceled, decision.reason()});
+                notify_order(order, "execution_risk: " + decision.reason());
                 continue;
             }
 
@@ -315,6 +327,7 @@ private:
                 current_time_, fill_sequence, order.id(),
                 OrderEventKind::filled, "filled"});
             committed.push_back(fill);
+            notify_order(order, "filled");
         }
         return committed;
     }
@@ -350,6 +363,7 @@ private:
             order_events_.push_back(OrderEvent{
                 current_time_, next_sequence(), order->id(),
                 OrderEventKind::canceled, "end of data"});
+            notify_order(*order, "end_of_data");
         }
     }
 

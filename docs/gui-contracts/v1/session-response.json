@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "request_token": "fixture-only-not-a-real-token",
+  "idle_timeout_seconds": 1800
+}

@@ -32,6 +32,12 @@ Do not create empty modules merely to match this table.
 | M11a — first provider adapter (implemented) | Alpaca saved-fixture parsing and normalized provenance; M7a/M10a | Offline contract tests, missing required fields fail, no provider branch in core; network/auth work separately approved |
 | M11b — portability adapter (implemented) | CSV adapter with explicit mapping/schema; M11a | Equivalent Alpaca/CSV fixtures produce equal economic results without strategy edits |
 | M12 — research baseline (implemented) | Formal deterministic SMA-regime strategy, config and comparison report; M9b/M10b/M11b | No duplicate pending orders, cost sensitivity and in/out-of-sample labels, reproducible reference run |
+| M13a — order feedback (implemented) | Read-only lifecycle notifications and SMA recovery | Rejection, execution/user/end cancellation, fill, no recursive retries, retained snapshots |
+| M13b — analytics sampling (implemented) | Explicit UTC grids, bounded carry, session observation convention | Actual-engine annualization, equal-time collapse, stale/gap rejection, raw-event drawdown |
+| M13c — research integrity (implemented) | Chronological splits, strategy/code identity, metadata checks | Reject overlap, timeframe mismatch, missing pagination declaration, malformed CSV |
+| M14 — research command (implemented) | JSON configuration to reports, manifests and CSV artifacts | Subprocess execution, two-fill example, unknown-key rejection, overwrite protection |
+| M15 — acquisition (offline verified; authenticated validation pending) | Alpaca GET pagination, immutable local cache, explicit feed, scale tool | Offline retries/corruption/pagination tests and synthetic benchmarks; real historical run requires credentials |
+| M16 — paper architecture (offline controller implemented) | Journaled intent, persistent IDs, acknowledgements, recovery, controls | Fake-gateway tests; actual paper gateway and durable C++ ledger bridge remain separate integration work |
 
 M3 uses an isolated open-event driver until the scheduler arrives. M6 similarly
 uses a callback test driver; neither requires implementing the engine early.
@@ -101,10 +107,55 @@ suite; do not invent executable tests for prose. Numerical/financial changes mus
 include regression fixtures. Record deferred decisions in the architecture index
 and revise the relevant ADR before implementing an incompatible behavior.
 
-## Next scoped task
+## Prioritized task list (2026-09-19)
 
-Choose one small follow-on milestone before implementation. Candidates are a
-declared sampling/resampling layer for production analytics, an authenticated
-Alpaca download tool outside the core, walk-forward/robustness reports for the
-reference strategy, or paper-trading interfaces. Live credentials, network
-access, and new dependencies require separate approval.
+The user prioritizes strategy research for US ETFs (hourly and daily) now and
+explicitly permits synthetic fixtures while no data credentials are available.
+Synthetic outcomes establish mechanics only; no candidate is promoted on them.
+All candidates and failures remain in the research record. No account connection
+or trade placement is authorized by this research request.
+
+| Task | Scope | Acceptance / dependency |
+|---|---|---|
+| R1 — strategy lab (implemented; synthetic verified) | Six causal long-only families, macro router, macro/volatility filter, qualified external dealer overlay, synthetic stress scenarios, all-candidate comparison | Formal rules; actual-engine lifecycle/look-ahead tests; recorded seeds/parameters; no synthetic promotion; frozen validation selection before holdout; no real-market merit claimed |
+| R2 — credible ETF datasets (queued) | Finish M15 authenticated validation; point-in-time macro vintages; explicit session availability for daily bars; split/dividend ledger support before action-bearing runs | Credentials/data rights and action validation; UTC session/DST/holiday/short-day tests; no pretending 24-hour synthetic bars are exchange daily bars |
+| R3 — real-data research gate (queued) | Pre-register compact strategy slate; compare against cash and risk-matched buy-and-hold across disjoint regimes at base/stressed costs | Untouched chronological holdout; rejected candidates retained; sufficient trades/regime coverage; selection may return no winner |
+| R4 — robustness (queued) | Rolling walk-forward, neighboring-parameter/cost sensitivity, block-resampled uncertainty, multiple-testing accounting | Training only in past folds; dependent returns not IID; disclose all search trials; no holdout reuse after tuning |
+| R5 — usable research analysis (queued) | Strategy comparison charts, regime attribution, report review, real-history performance measurement | Match manifest/artifacts; profile before optimizing; separate synthetic throughput from financial evidence |
+| R6 — measured scaling (queued) | Benchmark active-order iteration and indicator throughput on long frequent-trading runs | The current engine scans historical terminal orders each event; preserve fill/event priority and prove equivalent outputs before optimization |
+| M17 — durable accounting bridge (queued) | Bridge broker execution IDs to authoritative C++ ledger, durable exactly-once application/recovery | Crash at each commit boundary, duplicate/conflicting fills, cash/position reconciliation; no second accounting authority |
+| M18 — Alpaca paper gateway (queued) | Paper-only acknowledgements, submit/cancel/lookup/execution retrieval and timeout reconciliation | Fake transport/contract tests, paper-account identity, no blind resend after unknown outcome; depends on M17 |
+| M19 — paper strategy runner (queued) | Feed/session availability, callbacks, risk/coordinator bridge, reconnect/staleness controls | Startup fail-closed, gaps/revisions/order races, deterministic replay of recorded events; depends on M18 and session contract |
+| M20 — supervised paper validation (queued) | One explicitly approved strategy/account, small caps and monitored sessions | Verify reconciliation/restart/disconnect/kill switch; independent go/no-go review; never implies real-money approval |
+| M21a — read-only broker connections (offline verified) | Robinhood official crypto reads; Schwab GET lookup from caller-supplied official OpenAPI, pinned hosts, no automatic account/trade actions | Mock transport/auth/path/redaction tests; production endpoints never called paper; Schwab schema access and authenticated checks pending; crypto isolated from equity core |
+| M21b — authenticated connection validation (blocked on access) | Validate approved credentials/entitlements and provider contracts without trading | User-approved account read access; no secret output; OAuth/signing lifecycle and schema checks |
+| M21c — broker execution integration (deferred) | Provider-specific acknowledgement/execution mapping behind durable reconciliation | Depends on M17–M20; official instrument support and numeric profile first; explicit trading authorization, never unofficial equities APIs |
+
+M16 is an offline coordinator, not an operational paper trader. Actual dealer
+positioning requires qualified external observations; price bars alone do not
+establish whether dealers are buying or selling. The first macro score/routing
+policy is a testable hypothesis, not a fitted or validated economic model.
+
+## Local GUI workstream (implementation started)
+
+The [GUI architecture and acceptance gates](gui-architecture.md) and
+[ADR 0010](adr/0010-local-research-ui.md) define G0–G9: dependency approval,
+minimal local shell/documentation, verified artifact catalog, run/lab views,
+complete result exports, bounded research jobs, data workflows, declarative
+comparison/router interfaces, test/benchmark evidence, and read-only connection
+inspection. G0 dependencies are approved/installed and G1 is implemented and
+reviewed. G2/G3a are implemented/reviewed; G3b owned-result bindings are underway.
+See the [task log](gui-task-log.md)
+and [usage guide](gui-usage.md) for tested capability and remaining work.
+
+First deliverable: read-only library and existing results (G1a, G1b, G2, G3a, G4).
+Job launch follows evidence validation; broker reads remain separately authorized.
+GUI coverage does not imply completion of R2–R4 or M17–M20. Preserve current CLI,
+canonical Bar semantics, accounting authority and all existing artifacts.
+
+G0 preflight on 2026-09-23 is [recorded here](gui-g0-preflight.md). The
+[post-boot proposal](gui-dependencies.md) adds resolved optional dependency locks
+and first-screen contract examples after SSL/RPM checks passed. The user approved
+the locked packages and available Sol/Terra builders with Astra review, and later
+extended implementation through G4/G5 after the preceding gates. No current
+system repair is requested or authorized.

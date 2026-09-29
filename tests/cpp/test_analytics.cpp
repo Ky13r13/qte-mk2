@@ -178,12 +178,50 @@ void zero_trade_and_open_trade_cases_stay_undefined() {
     CHECK(!report.expectancy.value().has_value());
 }
 
+void explicit_samples_resolve_duplicate_timestamps_and_gaps() {
+    const auto results = replay();
+    const analytics::SamplingConfig sampling{
+        {market_data::Timestamp{0h}, market_data::Timestamp{1h},
+         market_data::Timestamp{2h}, market_data::Timestamp{3h}}, 0ns};
+    const auto points = analytics::sample_equity(results.equity_curve(), sampling);
+    CHECK(points.size() == 4);
+    const auto report = analytics::analyze(results, analytics::AnnualizationConfig{8766}, sampling);
+    CHECK(report.returns.size() == 3);
+    CHECK(report.annualized_volatility.value().has_value());
+    const std::vector<engine::EquityPoint> events{
+        {market_data::Timestamp{0h}, core::EventSequence{1}, 100, 0},
+        {market_data::Timestamp{0h}, core::EventSequence{2}, 101, 0},
+        {market_data::Timestamp{2h}, core::EventSequence{3}, 105, 0}};
+    const analytics::SamplingConfig gaps{
+        {market_data::Timestamp{0h},market_data::Timestamp{1h},market_data::Timestamp{2h}},1h};
+    const auto carried = analytics::sample_equity(events,gaps);
+    CHECK(carried.size() == 3);
+    if (carried.size() == 3) {
+        CHECK(carried[0].equity == 101);
+        CHECK(carried[1].equity == 101);
+        CHECK(carried[2].equity == 105);
+    }
+    bool rejected = false;
+    try {
+        static_cast<void>(analytics::sample_equity(events, {gaps.timestamps,0ns}));
+    } catch (const std::invalid_argument&) { rejected = true; }
+    CHECK(rejected);
+    const engine::BacktestResults short_run{
+        {{market_data::Timestamp{0ns},core::EventSequence{1},100,0},
+         {market_data::Timestamp{1ns},core::EventSequence{2},101,0}},
+        {},{},{},{},{},{},results.manifest()};
+    const auto overflow = analytics::analyze(short_run, analytics::AnnualizationConfig{252});
+    CHECK(!overflow.annualized_return.value().has_value());
+    CHECK(overflow.annualized_return.undefined_reason() == "annualized return exceeds numeric range");
+}
+
 }  // namespace
 
 int main() {
     unannualized_metrics_are_hand_calculated();
     annualized_metrics_require_an_explicit_regular_grid();
     zero_trade_and_open_trade_cases_stay_undefined();
+    explicit_samples_resolve_duplicate_timestamps_and_gaps();
     if (failures != 0) {
         std::cerr << failures << " analytics test(s) failed\n";
         return EXIT_FAILURE;

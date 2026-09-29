@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "fixture_status": "proposed_contract",
+  "implementation_status": "not_implemented",
+  "scope": "G1a/G1b shell and documentation only",
+  "examples": [
+    "session-request.json",
+    "session-response.json",
+    "capabilities-current.json",
+    "capabilities-expected-g1.json",
+    "library-response.json",
+    "document-response.json",
+    "error-response.json",
+    "acceptance-cases.json"
+  ],
+  "source_fixture": "document-source.md",
+  "source_sha256": "2b117196c5230f9050180bcf8a16fd6ac821d282082bdd3587ceab0a19fe42e0",
+  "notes": [
+    "Payloads describe proposed contracts, not live endpoints.",
+    "Expected G1 capabilities describe a future validated-source case only.",
+    "Rendering example is specified by contract; no Markdown runtime has been installed or executed.",
+    "All session strings are inert fixture placeholders, never real credentials.",
+    "Acceptance cases have not been executed against a GUI."
+  ]
+}

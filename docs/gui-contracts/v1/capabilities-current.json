@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "capabilities": [
+    {
+      "id": "library",
+      "state": "planned",
+      "reason": "The GUI library has not been implemented."
+    },
+    {
+      "id": "research",
+      "state": "planned",
+      "reason": "Research CLI/API exists; GUI run controls are not implemented."
+    },
+    {
+      "id": "data",
+      "state": "planned",
+      "reason": "Local adapters exist; GUI dataset workflows are not implemented."
+    },
+    {
+      "id": "test_execution",
+      "state": "planned",
+      "reason": "Tests run from the terminal; no GUI test runner exists."
+    },
+    {
+      "id": "broker_reads",
+      "state": "blocked",
+      "reason": "GUI read controls and authorized credential/contract/signing prerequisites are unresolved."
+    },
+    {
+      "id": "paper_execution",
+      "state": "blocked",
+      "reason": "Operational paper gateway, durable accounting bridge and strategy runner are not integrated."
+    }
+  ]
+}

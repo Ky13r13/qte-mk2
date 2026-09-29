@@ -10,14 +10,14 @@ from qte.strategies import MovingAverageConfig, MovingAverageRegimeStrategy
 HOUR_NS = 3_600_000_000_000
 
 
-def make_dataset(prices, source_id):
+def make_dataset(prices, source_id, start_ns=0):
     bars = []
     for index, (open_price, close_price) in enumerate(prices):
         bars.append(
             qte.Bar(
                 "SPY",
-                index * HOUR_NS,
-                (index + 1) * HOUR_NS,
+                start_ns + index * HOUR_NS,
+                start_ns + (index + 1) * HOUR_NS,
                 open_price,
                 max(open_price, close_price) + 1.0,
                 min(open_price, close_price) - 1.0,
@@ -53,7 +53,7 @@ OUT_OF_SAMPLE = (
 def report():
     return compare_moving_average(
         in_sample=make_dataset(IN_SAMPLE, "synthetic-in-sample"),
-        out_of_sample=make_dataset(OUT_OF_SAMPLE, "synthetic-out-of-sample"),
+        out_of_sample=make_dataset(OUT_OF_SAMPLE, "synthetic-out-of-sample", 7 * HOUR_NS),
         symbol="SPY",
         strategy_config=MovingAverageConfig(2, 3, 10),
         initial_cash=100_000.0,
@@ -102,3 +102,13 @@ def test_strategy_uses_only_public_contract_and_avoids_duplicate_pending_orders(
     assert len(result.orders) == 2
     assert len(result.fills) == 2
     assert result.positions[0].quantity == 0
+
+
+def test_comparison_rejects_mismatched_valuation_currency() -> None:
+    foreign = qte.Dataset.from_bars([
+        qte.Bar("SPY", 8 * HOUR_NS, 9 * HOUR_NS, 100, 101, 99, 100, 1000)
+    ], interval_ns=HOUR_NS, source_id="foreign-currency", currency="EUR")
+    with pytest.raises(ValueError, match="currencies"):
+        compare_moving_average(
+            in_sample=make_dataset(IN_SAMPLE, "USD"), out_of_sample=foreign,
+            symbol="SPY", strategy_config=MovingAverageConfig(2, 3, 1))

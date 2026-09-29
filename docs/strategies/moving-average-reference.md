@@ -22,7 +22,8 @@ in-sample or out-of-sample results.
   authoritative.
 - Execution: signal at completed-bar publication; eligible at the symbol's next
   actual open under `open_only_v1`, with the configured costs and risk checks.
-- State: one pending order ID, cleared only by its fill. This prevents duplicate
+- State: one pending order ID, cleared by a filled, rejected, or canceled order
+  update (and defensively by its fill). Retrying occurs only on a later bar. This prevents duplicate
   submissions while an accepted order awaits its next open.
 - Parameters: symbol, `fast_period`, `slow_period`, quantity, initial cash,
   execution costs, and the engine risk configuration.

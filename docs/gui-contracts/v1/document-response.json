@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "document": {
+    "id": "doc-fixture-001",
+    "title": "Fixture document",
+    "category": "reference",
+    "source_path": "docs/gui-contracts/v1/document-source.md",
+    "source_sha256": "2b117196c5230f9050180bcf8a16fd6ac821d282082bdd3587ceab0a19fe42e0",
+    "implementation_status": "proposed"
+  },
+  "rendered_html": "<h1 id=\"qte-doc-fixture-001-h1\">Fixture document</h1>\n<p>Contract example, not a live GUI.</p>\n",
+  "headings": [
+    {
+      "id": "qte-doc-fixture-001-h1",
+      "text": "Fixture document",
+      "level": 1
+    }
+  ]
+}

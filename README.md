@@ -1,5 +1,42 @@
 # qte
 
+The [strategy lab](docs/strategies/strategy-lab.md) adds six documented long-only
+hypotheses, causal macro/volatility filtering, explicit dealer-data boundaries,
+and all-candidate cost/regime comparisons:
+
+```sh
+.venv/bin/python -m qte lab --config examples/strategy-lab.json --output build/my-strategy-lab
+```
+
+This command uses **synthetic data only**. It tests software behavior, does not
+establish profitability, and cannot promote a strategy for trading.
+Read-only [broker connection foundations](docs/broker-connections.md) support
+Robinhood's official crypto reads and contract-supplied Schwab GET endpoints.
+Credentials, signing/OAuth setup, verified Schwab documentation, and authenticated
+validation are still required; these do not enable automated account trading.
+See the [2026-09-22 validation record](docs/validation-20260922.md) for exact
+commands, tests, recovered artifacts, limitations and remaining approvals.
+
+A minimal localhost [documentation library](docs/gui-usage.md) is available:
+run `.venv/bin/python -m qte gui` from this directory, open the printed loopback
+URL, and enter its terminal code. The [GUI checkpoint](docs/gui-task-log.md)
+distinguishes reviewed functionality from ongoing artifact/job development.
+The [architecture](docs/gui-architecture.md) describes the later research, data,
+test and connection workflows; it does not imply those controls are operational.
+
+Run a complete synthetic research example from the installed venv package:
+
+```sh
+.venv/bin/python -m qte run --config examples/research-run.json --output build/my-research-run
+```
+
+This writes a report, fills/orders, event and sampled equity, and a reproducibility
+manifest. Output directories cannot be overwritten. See the
+[research workflow](docs/research-workflow.md) for configuration, authenticated
+Alpaca historical downloads, cache behavior, and benchmarks. The new
+[paper coordinator](docs/adr/0007-paper-coordination.md) is tested offline;
+account/strategy connectivity is a later integration step.
+
 `qte` is a modular quantitative-trading research and backtesting engine. The
 performance-sensitive engine is written in C++20; Python will provide the
 research, configuration, analysis, and strategy-facing API through pybind11.
@@ -43,9 +80,10 @@ order/fill audits, closed and unfinished trade episodes, final marked positions,
 and a manifest containing normalized configuration and input/build identity.
 The analytics layer derives returns, total return, drawdown, closed-trade
 statistics, turnover, and elapsed-time-weighted exposure without influencing
-replay. Annualized return, volatility, Sharpe, Sortino, and Calmar require an
-explicit periods-per-year value and an equally spaced positive timestamp grid;
-undefined cases retain a reason instead of producing an arbitrary zero.
+replay. Annualized metrics require an explicit periods-per-year convention and
+regular returns or an explicitly supplied session sampling grid. Undefined cases
+retain a reason instead of producing an arbitrary zero. The strategy lab reports
+nonannualized metrics only.
 The optional pybind11 package exposes typed datasets, configuration, results,
 analytics, and synchronous Python strategy callbacks while the C++ core retains
 engine ownership. Python timestamps cross the boundary as exact integer
