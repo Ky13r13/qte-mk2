@@ -14,7 +14,8 @@ The command never installs dependencies itself.
 
 G1 provides searchable original documentation with source hashes and status.
 G2 provides explicit artifact registration, verification and guarded downloads;
-G3a single-run charts and tables are implemented, regression-tested and reviewed.
+G3a single-run charts/tables and G3b owned-result bindings are reviewed.
+G3c richer exports/views are implemented, regression-tested and reviewed.
 Consult the
 [checkpoint](gui-task-log.md) for the current tested milestone. Later job, data,
 test-execution and broker controls are not enabled merely by opening a page.
@@ -42,8 +43,19 @@ reduction; exact rows and authorized file downloads remain available.
 
 Legacy v1 files do not contain event sequence, detailed trade episodes, position
 snapshots or order-event history. Those fields stay explicitly not recorded;
-G3b/G3c will expose/export existing owned results without rebuilding accounting
-from CSVs. Lab comparison and job forms are later G4/G5 work, not yet available.
+the opt-in v2 format exports existing owned results without rebuilding accounting
+from CSVs:
+
+```sh
+.venv/bin/python -m qte run --config examples/research-run.json --output build/my-owned-run --export-version 2
+```
+
+Use a new output directory; existing exports are never overwritten. Default
+exports remain v1. V2 adds focused positions, closed/open trades and order-event
+views, plus exact event sequences. Positions contain inventory and valuation
+marks, not position cost basis or PnL. Carried sampled values retain their source
+event sequence. See the [format contract](gui-export-v2.md).
+Lab comparison and job forms are later G4/G5 work, not yet available.
 
 ## Session and storage
 
@@ -86,3 +98,8 @@ exact chart ranges, corrupt/protected catalog fallback and narrow chart layout.
 Authenticated download bytes are tested through HTTP; the native browser
 save-file flow has not been exercised. See the checkpoint for commands/results
 and subsequent milestone status.
+
+G3c browser checks additionally cover v2 overview/sequence labels, positions with
+mark sequence, complete closed-trade details, empty open-trade tables, lifecycle
+history, and sampled source-event labeling. All browser checks use a separate
+QA catalog, not user research artifacts.

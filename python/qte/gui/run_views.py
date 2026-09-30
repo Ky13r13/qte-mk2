@@ -1,4 +1,4 @@
-"""Read-only G3a views over verified single-run v1 exports."""
+"""Read-only views over verified legacy and owned-result single-run exports."""
 
 from __future__ import annotations
 
@@ -12,6 +12,10 @@ from .charts import reduce_points
 
 TABLES = {"orders": "orders.csv", "fills": "fills.csv", "equity": "equity.csv",
           "sampled_equity": "sampled_equity.csv"}
+OWNED_TABLES = {"orders": "order_snapshots.csv", "fills": "fill_events.csv",
+                "equity": "equity_events.csv", "sampled_equity": "sampled_equity_events.csv",
+                **{name: f"{name}.csv" for name in
+                   ("positions", "closed_trades", "open_trades", "order_events")}}
 METRIC_UNITS = {
     "average_losing_trade": "currency", "average_winning_trade": "currency", "expectancy": "currency",
     "annualized_return": "ratio", "annualized_volatility": "ratio", "average_gross_exposure": "ratio",
@@ -37,6 +41,10 @@ class RunViews:
                              "unit": METRIC_UNITS.get(name, "unknown"),
                              "recorded_sampling_policy": sampling}
         source = manifest.get("source", {})
+        owned = artifact.kind == "research_export_v2"
+        capabilities = (self._json(artifact_id, "research_export.json")["capabilities"] if owned else
+                        {name: "not_recorded" for name in
+                         ("positions", "closed_trades", "open_trades", "order_events", "event_sequence")})
         self._unchanged(artifact_id, artifact)
         return {
             "id": artifact_id, "name": catalog_dto["name"], "kind": artifact.kind,
@@ -55,9 +63,9 @@ class RunViews:
                 "dataset_start_ns": manifest.get("dataset_start_ns"), "dataset_end_ns": manifest.get("dataset_end_ns"),
                 "interval_ns": data.get("interval_ns"), "sampling": sampling,
             },
-            "capabilities": {name: "not_recorded" for name in
-                             ("positions", "closed_trades", "open_trades", "order_events", "event_sequence")},
-            "warnings": ["Legacy v1 exports do not record event sequence or owned trade/order-event detail."],
+            "capabilities": capabilities,
+            "warnings": (["Final positions record inventory and valuation marks, not position PnL or cost basis."]
+                         if owned else ["Legacy v1 exports do not record event sequence or owned trade/order-event detail."]),
         }
 
     def series(self, artifact_id: str, sampling: str = "event", max_points: int = 2000,
@@ -70,7 +78,9 @@ class RunViews:
                 raise ArtifactError("invalid_chart_query", 400, "Invalid chart range.")
         if start_ns is not None and end_ns is not None and start_ns > end_ns:
             raise ArtifactError("invalid_chart_query", 400, "Invalid chart range.")
-        filename = "equity.csv" if sampling == "event" else "sampled_equity.csv"
+        owned = artifact.kind == "research_export_v2"
+        tables = OWNED_TABLES if owned else TABLES
+        filename = tables["equity" if sampling == "event" else "sampled_equity"]
         rows = self._csv(artifact_id, filename)
         manifest = self._json(artifact_id, "manifest.json")
         data, declared_sampling = self._data_contract(manifest)
@@ -90,24 +100,31 @@ class RunViews:
             equity, exposure = float(row["equity"]), float(row["gross_exposure"])
             if not math.isfinite(equity) or not math.isfinite(exposure):
                 raise ArtifactError("artifact_invalid", 422, "Recorded equity is invalid.")
-            point = {"timestamp_ns": timestamp, "row_ordinal": ordinal, "sequence": None,
+            point = {"timestamp_ns": timestamp, "row_ordinal": ordinal,
+                     "sequence": int(row["sequence"]) if owned else None,
                      "equity": equity, "gross_exposure": exposure,
                      "gap_before": previous is not None and interval is not None and timestamp - previous > interval}
             points.append(point); previous = timestamp
         display = reduce_points(points, max_points)
         self._unchanged(artifact_id, artifact)
-        warnings = ["Legacy v1 equity rows do not record event sequence."]
+        warnings = (["Sampled sequences identify source events and may repeat when values are carried."]
+                    if owned and sampling == "sampled" else [] if owned else
+                    ["Legacy v1 equity rows do not record event sequence."])
         if interval is None: warnings.append("No fixed interval was recorded; gaps are not inferred.")
         return {"artifact_id": artifact_id, "sampling": sampling, "raw_count": len(points),
                 "display_count": len(display), "points": display, "warnings": warnings,
                 "gap_policy": "recorded_fixed_interval" if interval is not None else "not_declared",
-                "sequence_status": "not_recorded"}
+                "sequence_status": ("recorded_source_event" if sampling == "sampled" else "recorded")
+                                   if owned else "not_recorded"}
 
     def table(self, artifact_id: str, table: str = "orders", offset: int = 0, limit: int = 25) -> dict:
         artifact = self._single(artifact_id)
-        if table not in TABLES or type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 200:
+        if table not in OWNED_TABLES or type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 200:
             raise ArtifactError("invalid_table_query", 400, "Invalid table query.")
-        rows, columns = self._csv(artifact_id, TABLES[table], columns=True)
+        tables = OWNED_TABLES if artifact.kind == "research_export_v2" else TABLES
+        if table not in tables:
+            raise ArtifactError("not_recorded", 404, "This table is not recorded in the selected format.")
+        rows, columns = self._csv(artifact_id, tables[table], columns=True)
         self._unchanged(artifact_id, artifact)
         return {"artifact_id": artifact_id, "table": table, "columns": columns,
                 "rows": rows[offset:offset + limit], "total": len(rows), "offset": offset, "limit": limit,
@@ -115,7 +132,7 @@ class RunViews:
 
     def _single(self, artifact_id: str):
         artifact = self.catalog.inspect(artifact_id)
-        if artifact.kind != "single_run_v1" or artifact.metadata.get("integrity") != "verified":
+        if artifact.kind not in {"single_run_v1", "research_export_v2"} or artifact.metadata.get("integrity") != "verified":
             raise ArtifactError("run_view_unavailable", 409, "Verified single-run view unavailable.")
         return artifact
 

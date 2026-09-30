@@ -74,8 +74,9 @@ summary { cursor: pointer; font-weight: 600; }
 .artifact-errors { margin: 0; max-width: 76ch; padding-left: 1.25rem; }
 .artifact-meta { margin-top: 1.5rem; }
 .holdout-confirmation { align-items: end; display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
-.run-nav { display: flex; flex-wrap: wrap; gap: 0.5rem 0.8rem; margin: 1.5rem 0; }
-.run-nav a[aria-current="page"] { border-bottom: 2px solid var(--ink); text-decoration: none; }
+.run-nav, .experiment-nav { display: flex; flex-wrap: wrap; gap: 0.5rem 0.8rem; margin: 1.5rem 0; }
+.run-nav a[aria-current="page"], .experiment-nav a[aria-current="page"] { border-bottom: 2px solid var(--ink); text-decoration: none; }
+.experiment-timeframe-selector, .experiment-window-selector { align-items: end; display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0; }
 .disabled-view { color: var(--muted); }
 .run-headline { font-variant-numeric: tabular-nums; margin: 0 0 1.25rem; }
 .chart-selector { margin: 1rem 0; max-width: 24rem; }

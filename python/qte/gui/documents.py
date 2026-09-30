@@ -29,6 +29,8 @@ def _spec(doc_id: str, title: str, category: str, path: str, status: str) -> Doc
 DOCUMENTS = (
     _spec("gui-usage", "Using the local GUI", "reference", "docs/gui-usage.md", "mixed"),
     _spec("gui-result-bindings", "Read-only result bindings", "reference", "docs/gui-result-bindings.md", "implemented"),
+    _spec("gui-export-v2", "Owned-result export format", "reference", "docs/gui-export-v2.md", "implemented"),
+    _spec("gui-lab-views", "Role-filtered lab views", "reference", "docs/gui-lab-views.md", "proposed"),
     _spec("readme", "QTE", "overview", "README.md", "mixed"),
     _spec("development-rules", "Development rules", "reference", "AGENTS.md", "implemented"),
     _spec("architecture", "Core architecture", "architecture", "docs/architecture.md", "mixed"),

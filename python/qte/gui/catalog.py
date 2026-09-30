@@ -13,6 +13,17 @@ from .artifacts import Artifact, ArtifactError, inspect_artifact, invalid_artifa
 from .disclosures import DisclosureJournal
 
 
+# Schema-v2 records the same engine facts in its legacy compatibility files and
+# richer owned-result tables.  Protection applies to the fact, not whichever
+# serialization a caller happens to request.
+V2_PROJECTION_GROUPS = (
+    ("equity.csv", "equity_events.csv"),
+    ("sampled_equity.csv", "sampled_equity_events.csv"),
+    ("fills.csv", "fill_events.csv"),
+    ("orders.csv", "order_snapshots.csv"),
+)
+
+
 class Catalog:
     def __init__(self, repository: Path) -> None:
         self.repository = Path(repository)
@@ -56,8 +67,7 @@ class Catalog:
         except ArtifactError as exc:
             if exc.code not in {"artifact_invalid", "artifact_unsupported"}: raise
             artifact = invalid_artifact(root, exc.code)
-        try: self.disclosures.mark_protected(artifact.protected_identities())
-        except OSError as exc: raise ArtifactError("disclosure_unavailable", 503, "Disclosure storage is unavailable.") from exc
+        self._record_protection(artifact)
         now = datetime.now(timezone.utc).isoformat()
         with self._connect(True) as db:
             row = db.execute("SELECT id,registered_at FROM artifacts WHERE path=?", (relative_path,)).fetchone()
@@ -148,6 +158,31 @@ class Catalog:
             raise ArtifactError("artifact_changed", 409, "Artifact changed while being read.")
         return data, meta
 
+    def experiment_view(self, artifact_id: str, timeframe: str | None = None,
+                        table: str | None = None, window: str | None = None,
+                        offset: int = 0, limit: int = 25) -> dict:
+        """Fixed safe-role projection; never a raw protection override.
+
+        The projector internally verifies and filters mixed lab metadata. It
+        cannot accept paths, arbitrary field lists or executable callbacks.
+        Raw downloads still require read_file authorization and disclosure.
+        """
+        from .lab_views import project_lab
+        row = self._row(artifact_id)
+        original = self.inspect(artifact_id)
+        projected = project_lab(original, timeframe, table, window, offset, limit)
+        latest = self.inspect(artifact_id)
+        if latest.snapshots != original.snapshots or latest.metadata != original.metadata:
+            raise ArtifactError("artifact_changed", 409, "Artifact changed while the view was being read.")
+        if table is not None:
+            return {**projected, "artifact_id": artifact_id}
+        metadata = self._dto(artifact_id, row["path"], row["registered_at"], latest, False)
+        status = {key: metadata["status"][key] for key in
+                  ("export", "integrity", "evidence", "selection", "holdout_evaluation", "disclosure", "code_match")}
+        status["combined_status"] = metadata["status"]["combined_status"]
+        return {**projected, "id": artifact_id, "name": metadata["name"],
+                "kind": latest.kind, "status": status}
+
     def _dto(self, artifact_id: str, relative: str, registered: str, artifact: Artifact,
              include_files: bool = True) -> dict:
         protected = self._effective_protected(artifact)
@@ -178,6 +213,7 @@ class Catalog:
         identities.update(identity for identity in
             (f"file-sha256:{value}" for value in artifact.metadata.get("file_hashes", {}).values())
             if self.disclosures.protected(identity))
+        identities.update(self._projection_protection(artifact, identities))
         return sorted(identities)
 
     def _files(self, artifact: Artifact) -> list[dict]:
@@ -193,9 +229,24 @@ class Catalog:
 
     def _record_protection(self, artifact: Artifact) -> None:
         try:
-            self.disclosures.mark_protected(artifact.protected_identities())
+            identities = set(artifact.protected_identities())
+            identities.update(self._projection_protection(artifact, identities))
+            self.disclosures.mark_protected(sorted(identities))
         except OSError as exc:
             raise ArtifactError("disclosure_unavailable", 503, "Disclosure storage is unavailable.") from exc
+
+    def _projection_protection(self, artifact: Artifact, protected: set[str]) -> set[str]:
+        if artifact.kind != "research_export_v2" or artifact.metadata.get("integrity") != "verified":
+            return set()
+        hashes = artifact.metadata.get("file_hashes", {})
+        expanded: set[str] = set()
+        for names in V2_PROJECTION_GROUPS:
+            identities = {f"file-sha256:{hashes[name]}" for name in names if name in hashes}
+            if len(identities) != len(names):
+                continue
+            if any(identity in protected or self.disclosures.protected(identity) for identity in identities):
+                expanded.update(identities)
+        return expanded
 
     @staticmethod
     def _unavailable(row) -> dict:

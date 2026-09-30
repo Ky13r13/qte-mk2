@@ -1,7 +1,8 @@
 # QTE local research library
 
-Status: architecture approved for incremental implementation. As of 2026-09-27,
-G0 dependencies are installed, G1/G2/G3a are reviewed, and G3b is underway. See the
+Status: architecture approved for incremental implementation. As of 2026-09-29,
+G0 dependencies are installed, G1 through G3c are reviewed, and G4 role-filtered
+lab views are underway. See the
 [active checkpoint](gui-task-log.md) for tested capability and remaining work;
 later milestones below remain targets, not claims of shipped functionality.
 The user requested a locally hosted, minimally colored, square-cornered interface
@@ -192,10 +193,11 @@ Implement explicit readers, not one guessed JSON shape:
    full order snapshots/events, and equity/fill sequences. New router exports
    may include existing `route_events`; old artifacts show “not recorded.”
 
-The C++ results already own these fields, but current Python bindings omit
+The C++ results already owned these fields, but the pre-G3b Python bindings omitted
 `EquityPoint.sequence`, `BacktestResults.order_events`, fill sequences and many
-order/trade fields. G3b first adds only the read-only owned-value bindings needed
-for those views, with lifetime and exact-integer tests. G3c exports them. Neither
+order/trade fields. G3b added only the read-only owned-value bindings needed
+for those views, with lifetime and exact-integer tests. G3c exports them through
+the opt-in [additive v2 format](gui-export-v2.md). Neither
 changes engine/accounting behavior or reconstructs missing facts from CSVs.
 
 Verification checks schema, mandatory files, checksum map, exact inventory (except

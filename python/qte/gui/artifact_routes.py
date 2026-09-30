@@ -122,10 +122,46 @@ def artifact_routes(catalog, authenticate):
         authenticate(request, token=True)
         offset, limit = pagination(request)
         name = request.path_params['table_name']
-        if name not in {'orders', 'fills', 'equity', 'sampled_equity'}:
+        if name not in {'orders', 'fills', 'equity', 'sampled_equity',
+                        'positions', 'closed_trades', 'open_trades', 'order_events'}:
             raise SecurityError('not_recorded', 404, 'This table is not recorded in the selected format.')
         result = await call(views().table, request.path_params['artifact_id'], name, offset, limit)
         # Pagination is bounded API metadata; artifact values stay decimal text.
+        paging = {key: result[key] for key in ('total', 'offset', 'limit')}
+        return response(**{**artifact_value(result), **paging})
+
+    def experiment_query(request, *, table=False):
+        query = request.query_params
+        if table:
+            offset, limit = pagination(request, extra={'timeframe', 'window'})
+        else:
+            if any(key != 'timeframe' or len(query.getlist(key)) != 1 for key in query):
+                raise SecurityError('invalid_query', 400, 'Invalid experiment query.')
+            offset, limit = 0, 25
+        timeframe = query.get('timeframe')
+        window = query.get('window')
+        if timeframe is not None and timeframe not in {'hourly', 'daily_24h'}:
+            raise SecurityError('invalid_query', 400, 'Invalid experiment timeframe.')
+        if window is not None and (not 1 <= len(window) <= 128 or any(ord(c) < 32 for c in window)):
+            raise SecurityError('invalid_query', 400, 'Invalid experiment window.')
+        return timeframe, window, offset, limit
+
+    async def experiment_detail(request):
+        authenticate(request, token=True)
+        timeframe, _, _, _ = experiment_query(request)
+        result = await call(catalog.experiment_view, request.path_params['artifact_id'], timeframe)
+        return response(experiment=artifact_value(result))
+
+    async def experiment_table(request):
+        authenticate(request, token=True)
+        timeframe, window, offset, limit = experiment_query(request, table=True)
+        name = request.path_params['table_name']
+        if name not in {'candidates', 'windows', 'comparison', 'macro', 'regime_decisions'}:
+            raise SecurityError('not_recorded', 404, 'Experiment table unavailable.')
+        if name in {'candidates', 'windows'} and window is not None:
+            raise SecurityError('invalid_query', 400, 'This table does not accept a window.')
+        result = await call(catalog.experiment_view, request.path_params['artifact_id'],
+                            timeframe, name, window, offset, limit)
         paging = {key: result[key] for key in ('total', 'offset', 'limit')}
         return response(**{**artifact_value(result), **paging})
 
@@ -139,4 +175,6 @@ def artifact_routes(catalog, authenticate):
         Route('/api/v1/runs/{artifact_id:str}', run_detail, methods=['GET']),
         Route('/api/v1/runs/{artifact_id:str}/series', series, methods=['GET']),
         Route('/api/v1/runs/{artifact_id:str}/tables/{table_name:str}', run_table, methods=['GET']),
+        Route('/api/v1/experiments/{artifact_id:str}', experiment_detail, methods=['GET']),
+        Route('/api/v1/experiments/{artifact_id:str}/tables/{table_name:str}', experiment_table, methods=['GET']),
     ]

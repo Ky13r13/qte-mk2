@@ -1,6 +1,6 @@
 # Active GUI implementation checkpoint
 
-Last checkpoint: 2026-09-28, G1/G2/G3a reviewed; G3b implementation active.
+Last checkpoint: 2026-09-29, G1 through G3c reviewed; G4 integration active.
 **Read this file before resuming.**
 
 ## Authority and scope
@@ -28,18 +28,15 @@ failed; scoped network approval allowed the install. No system package changed.
 
 ## File ownership during active build
 
-- Sol task `gui_sol_g1` (`gpt-5.6-sol`), now assigned G3a: `run_views.py`,
-  `charts.py` and run-view/chart tests. G2 readers/catalog/disclosure also owned
-  for narrowly required fixes; coordinate changes with root.
-- Terra task `gui_terra_g1` (`gpt-5.6-terra`), now G3a: static assets/tests,
-  single-run chart/metrics/table/download views. Labs follow in G4.
+- Sol task `gui_sol_g1` (`gpt-5.6-sol`), now assigned G4:
+  `python/qte/gui/lab_views.py` and `tests/python/test_gui_lab_views.py`.
+- Terra task `gui_terra_g1` (`gpt-5.6-terra`), now G4:
+  `static/experiments.js`, minimal `app.js` hooks and lab static tests.
 - Root: `app.py`, request/DTO helpers, artifact API routes/tests, CLI/server,
   docs/checkpoints, integration and real-browser validation.
-- Astra task `gui_astra_g1_review`: completed G1/G2 review. G3a review started,
-  found the invalid/protected-run navigation regression described below, then
-  hit usage limits. Sol/Terra follow-up tasks also errored at the same limit.
-  Root saved local follow-up fixes/tests; none is independently re-reviewed yet.
-  Do not assume agents survive a pause or that an errored review passed.
+- Astra task `gui_astra_g1_review`: completed G1 through G3c review, including
+  independent G3c 26-reader/21-HTTP tests. G4 design reviewed; implementation
+  review is still required. Do not assume an errored/interrupted review passed.
 
 ## Agreed G1 interface
 
@@ -86,10 +83,9 @@ system workflows unavailable until their milestone. No arbitrary static mounts.
    scoped execution); native build and 15/15 CTest still pass. Real browser tests
    verified typed disclosure and old-file available/new-file blocked after a
    later addition, using isolated synthetic fixtures only. Astra passes G2.
-5. G3a review completed after the usage pause; NOW G3b read-only owned result
-   bindings, then G3c additive versioned exports.
+5. G3a/G3b/G3c review completed; NOW G4 safe lab projections and GUI integration.
    Never mutate legacy artifacts or change engine accounting/execution. Old
-   missing fields remain explicitly not recorded. G3c/G4/G5 are not started.
+   missing fields remain explicitly not recorded. G4/G5 are not started.
 6. Update this log with exact commands/results, outstanding review findings,
    running process IDs/ports (no access codes), and next file/action at each gate
    and before stopping. Log checkpoints are not a scheduled automatic restart.
@@ -234,5 +230,110 @@ git diff --check
 
 Sol initially looked for system CTest and reported it absent; root verified the
 existing `.venv/bin/ctest` and ran it successfully with the normal PATH above.
-No new dependency was required. Astra G3b review is pending. A concrete additive
-G3c design is drafted in `docs/gui-export-v2.md`; no G3c runtime change yet.
+No new dependency was required. Astra G3b review subsequently passed, including
+an independent 5-test binding run. The concrete additive G3c design in
+`docs/gui-export-v2.md` also passed design review (not implementation review).
+
+## G3c active — 2026-09-29
+
+Usage interrupted Sol/Terra again after partial G3c work. On resuming, verified
+`python/qte/research_export.py` and CLI opt-in changes exist; v2 frontend edits
+are partial; exporter tests and GUI v2 reader/integration remain unfinished.
+Sol owns exporter/CLI plus `test_research_export.py`; Terra owns static assets
+and tests; root owns GUI validation/readers/API/tests and checkpoints. No source
+or binary upgrade needed for G3c. Astra reviews implementation at its gate.
+
+User requested a 3:24 AM Pacific continuation after the usage reset. No scheduled
+automation was successfully created before that interruption. The user manually
+resumed at 7:46 AM Pacific on September 29, so work continues now; no duplicate
+future schedule was created. This log is a checkpoint, not an automatic timer.
+
+V2 reader guardrails from Astra: wrapper presence cannot downgrade to v1 on
+malformed/unknown schema; validate common projections/counts and lineage on one
+stable generation without recomputing economics. Positions are signed int64
+excluding INT64_MIN; fill/request quantities positive int64; episode cumulative
+quantities uint64. Reversal fills can both close/open episodes; scale-in means
+episode quantity need not equal its opening-fill quantity. Rejected invalid
+requests must remain inspectable. Sequences repeat across collections and may
+repeat within sampled carried values; no global uniqueness/contiguity claim.
+
+### G3c integration and independent review — 2026-09-29
+
+Exporter, strict v2 reader, owned-table API and frontend integration are saved.
+Default v1 bytes remain unchanged; v2 is opt-in. Initial focused validation:
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_export_v2.py tests/python/test_gui_run_views.py tests/python/test_research_export.py tests/python/test_gui_static.py -q --basetemp=build/test-gui-g3c-views-20260929
+# 51 passed
+.venv/bin/python -m pytest tests/python/test_gui_run_api.py tests/python/test_gui_artifact_api.py -q --basetemp=build/test-gui-g3c-http-20260929
+# 11 passed; scoped async thread-wakeup approval
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# build succeeded (no work required); 15/15 CTest passed
+.venv/bin/python -m pytest tests/python/test_gui_export_v2.py tests/python/test_research_export.py tests/python/test_gui_run_views.py -q --basetemp=build/test-gui-g3c-hardening-20260929
+# 36 passed before additional review regressions landed
+```
+
+Astra found missing structural checks for lifecycle completeness, sampling grid
+completeness/staleness, status/reason compatibility and position mark bounds.
+Root implemented these, plus final-position/open-episode quantity consistency.
+Terra is adding rehashed corruption regressions and a full real-engine reversal /
+carry reader fixture. Sol added four real-engine v2 HTTP parity/protection tests.
+
+Gate remains **pending**: Astra also found a duplicated-fact protection bypass
+between v1/v2 projections. Sol owns central conservative protection propagation
+and persistence for equity, sampled equity, fills and orders, with both-direction
+raw-download / interpreted-view regressions. Do not clear G3c until reviewed.
+
+Browser QA uses only the isolated repository from G3a. New `build/owned-reference`
+was generated with `--export-version 2` and explicitly registered there. Confirmed
+overview sequence labeling, positions and full mark sequence, all 16 closed-trade
+fields, empty open-trade headers, and lifecycle table/full record navigation.
+No user research root registered or holdout revealed. Temporary QA server/tab
+will be stopped/closed at the end of verification. G4 preflight is read-only;
+no G4/G5 implementation has started yet.
+
+### G3c gate passed / G4 active — 2026-09-29
+
+The G3c implementation and independent Astra review are complete. Astra's final
+independent suites passed 26 reader tests and 21 HTTP tests. Sol fixed and tested
+durable bidirectional protection for all four proven legacy/owned projections;
+raw downloads, interpreted views, later copies and explicit disclosure share the
+classification. Terra's final real-engine reversal/carry fixture passes the full
+reader, and all structural findings have regressions.
+
+```sh
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-g3c-full-20260929
+# 582 passed in 15.12s; scoped async thread-wakeup approval
+.venv/bin/python -m pytest tests/python/test_gui_documents.py tests/python/test_gui_static.py -q --basetemp=build/test-gui-g3c-docs-20260929
+# 22 passed after documentation/registry update
+git diff --check
+# passed
+```
+
+Native build and 15/15 CTest passed earlier in this checkpoint; no C++ source
+changed. One Sol broader test invocation overlapped Terra's staleness-fixture
+edit and reported a failure; the final fixture and fresh full suite pass without
+weakening tests. A transient Astra capacity error was retried successfully; final
+review was actually completed, not inferred from a failed agent turn.
+
+Browser additionally verified empty open trades and sampled source-event labels.
+New isolated v2 artifact ID: `f9d1403bc8404a6fba4d9ec3a247b0f8`. QA server session
+93562 stopped with Ctrl-C (130), browser tab closed. No active server remains.
+Explicit 200% zoom and native download-save flow remain the earlier manual gaps.
+
+G4 decisions are in `docs/gui-lab-views.md`. Train/validation structured views
+only, even after raw disclosure; fixed allowlisted server projections of mixed
+files, no arbitrary read/protection override, whole-generation guard. Candidate
+and comparison order remains slate order; one selected window required for
+comparison/macro/decisions, no stitched returns. Macro reference and availability
+must both join the same safe window; decisions use close-time `(start,end]`.
+Mixed-summary outcome is now `unknown` in generic catalog metadata so it cannot
+leak held-out failure results. Raw file inventory names/counts remain metadata.
+
+Root has saved Catalog.experiment_view, authenticated experiment routes, static
+asset allowlisting and `test_gui_lab_api.py`. Sol is building the projector and
+reader tests; Terra saved the modular frontend and 20 passing static tests.
+Next: finish and integrate projector, run actual-engine API/security regressions,
+measure cold/warm paging on the large saved lab read-only, browser-test isolated
+lab controls, full suites, then Astra G4 review. Only then begin G5a/G5b.

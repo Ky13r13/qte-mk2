@@ -1,6 +1,7 @@
 # Additive research export v2
 
-Status: G3c implementation contract; not yet implemented. G3b supplies the
+Status: G3c implemented, regression-tested and independently reviewed.
+G3b supplies the
 [read-only owned values](gui-result-bindings.md). No engine/accounting change is
 part of this format.
 
@@ -75,6 +76,9 @@ It checks recorded structure, not recalculated PnL or strategy economics.
 
 All interpreted content and raw downloads pass through catalog protection.
 Copied protected bytes do not become public merely by acquiring a v2 filename.
+For verified v2 exports, each legacy/owned equity, sampled-equity, fill and order
+pair inherits protection in both directions. The classification is persisted, so
+later copies and raw downloads cannot bypass the richer table's restrictions.
 The browser receives 64-bit fields as decimal strings and uses recorded metrics.
 The v2 views prefer owned tables; legacy v1 views keep missing richer fields
 explicitly `not_recorded`. Final positions contain only inventory and valuation

@@ -1,4 +1,4 @@
-"""Strict readers for QTE's two legacy artifact layouts."""
+"""Strict readers for QTE's legacy and additive owned-result artifact layouts."""
 
 from __future__ import annotations
 
@@ -142,7 +142,8 @@ def _csv_data_row_count(data: bytes) -> int:
 def inspect_artifact(root: Path, snapshots: dict[str, Snapshot] | None = None) -> Artifact:
     try: snaps = snapshots if snapshots is not None else inventory(root)
     except ArtifactIOError as exc: raise ArtifactError("artifact_forbidden", 403, "Artifact is unavailable.") from exc
-    kind = "single_run_v1" if "manifest.json" in snaps else "strategy_lab_v1" if "configuration.json" in snaps else "unsupported"
+    kind = _kind(snaps)
+    single = kind in {"single_run_v1", "research_export_v2"}
     base = {"export": "unsupported_format", "integrity": "unchecked", "evidence": "unknown",
             "scenario_outcome": "unknown", "selection": "unknown", "holdout_evaluation": "unknown"}
     if kind == "unsupported":
@@ -151,7 +152,7 @@ def inspect_artifact(root: Path, snapshots: dict[str, Snapshot] | None = None) -
         _unchanged(root, snaps)
         return Artifact(root, kind, snaps, {**base, "identity": identity, "protocol_ids": [], "file_hashes": hashes},
                         set(), set(), set())
-    mandatory = {"manifest.json", "report.json", "equity.csv", "fills.csv", "orders.csv"} if kind == "single_run_v1" else {"configuration.json", "summary.json"}
+    mandatory = {"manifest.json", "report.json", "equity.csv", "fills.csv", "orders.csv"} if single else {"configuration.json", "summary.json"}
     if "complete.json" not in snaps:
         hashes = _file_hashes(root, snaps)
         result = Artifact(root, kind, snaps, {**base, "export": "incomplete", "identity": _content_identity(root, snaps),
@@ -172,7 +173,7 @@ def inspect_artifact(root: Path, snapshots: dict[str, Snapshot] | None = None) -
             raise ArtifactError("artifact_invalid", 422, "Artifact checksum verification failed.")
     protected, mixed, protocols, source_identities = set(), set(), [], []
     known = {"complete.json"}
-    if kind == "single_run_v1":
+    if single:
         manifest = _load_json(root, snaps, "manifest.json")
         report = _load_json(root, snaps, "report.json")
         if (not isinstance(manifest, dict) or type(manifest.get("schema_version")) is not int or
@@ -211,6 +212,9 @@ def inspect_artifact(root: Path, snapshots: dict[str, Snapshot] | None = None) -
         status = {**base, "export": "complete", "integrity": "verified", "evidence": evidence,
                   "scenario_outcome": "succeeded", "selection": "no_selection", "holdout_evaluation": "not_evaluated"}
         known |= mandatory
+        if kind == "research_export_v2":
+            from .export_v2 import validate_v2
+            known |= validate_v2(root, snaps, manifest, report)
         if isinstance(manifest.get("source_identity"), str): source_identities.append(manifest["source_identity"])
     else:
         config, summary = _load_json(root, snaps, "configuration.json"), _load_json(root, snaps, "summary.json")
@@ -248,12 +252,13 @@ def inspect_artifact(root: Path, snapshots: dict[str, Snapshot] | None = None) -
         for experiment in summary["experiments"]:
             if type(experiment.get("scenario_failures")) is not int or experiment["scenario_failures"] < 0:
                 raise ArtifactError("artifact_invalid", 422, "Artifact scenario failure count is invalid.")
-        failures = sum(x["scenario_failures"] for x in summary["experiments"])
         selected = [x.get("selected_candidate") for x in summary["experiments"] if x.get("selected_candidate")]
         evaluated = any(x.get("holdout_status") not in (None, "not_run_no_selection") for x in summary["experiments"])
         status = {**base, "export": "complete", "integrity": "verified",
                   "evidence": "synthetic" if summary.get("evidence") == "synthetic_only" else "unknown",
-                  "scenario_outcome": "failed" if failures else "succeeded",
+                  # The mixed summary may include test failures. Inventory
+                  # metadata must not disclose their result before a reveal.
+                  "scenario_outcome": "unknown",
                   "selection": "selected" if selected else "no_selection",
                   "holdout_evaluation": "evaluated" if evaluated else "not_evaluated"}
         protected = {n for n in snaps if "/test-" in f"/{n}"}
@@ -294,7 +299,7 @@ def _file_hashes(root: Path, snaps: dict[str, Snapshot]) -> dict[str, str]:
 def invalid_artifact(root: Path, reason: str) -> Artifact:
     try: snaps = inventory(root)
     except ArtifactIOError as exc: raise ArtifactError("artifact_forbidden", 403, "Artifact is unavailable.") from exc
-    kind = "single_run_v1" if "manifest.json" in snaps else "strategy_lab_v1" if "configuration.json" in snaps else "unsupported"
+    kind = _kind(snaps)
     unsupported = reason == "artifact_unsupported"
     export = "unsupported_format" if unsupported else "complete" if "complete.json" in snaps else "incomplete"
     metadata = {"export": export, "integrity": "unchecked" if unsupported else "invalid",
@@ -302,3 +307,10 @@ def invalid_artifact(root: Path, reason: str) -> Artifact:
                 "selection": "unknown", "holdout_evaluation": "unknown", "identity": _content_identity(root, snaps),
                 "protocol_ids": [], "errors": [reason], "file_hashes": _file_hashes(root, snaps)}
     return Artifact(root, kind, snaps, metadata, set(), set(), set())
+
+
+def _kind(snapshots: dict) -> str:
+    # An invalid/unknown v2 wrapper must not silently downgrade to v1.
+    if "research_export.json" in snapshots: return "research_export_v2"
+    if "manifest.json" in snapshots: return "single_run_v1"
+    return "strategy_lab_v1" if "configuration.json" in snapshots else "unsupported"

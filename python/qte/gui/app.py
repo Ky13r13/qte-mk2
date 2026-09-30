@@ -23,7 +23,7 @@ from .security import IDLE_TIMEOUT_SECONDS, SecurityError, SessionController, un
 
 TOKEN_HEADER = "X-QTE-Token"
 COOKIE_NAME = "qte_session"
-STATIC_NAMES = {"index.html", "app.css", "app.js"}
+STATIC_NAMES = {"index.html", "app.css", "app.js", "experiments.js"}
 
 
 def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str], object] = print,

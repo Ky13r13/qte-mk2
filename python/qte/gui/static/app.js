@@ -1,3 +1,5 @@
+import { createExperimentViews } from "./experiments.js";
+
 const app = document.querySelector("#app");
 const pageStatus = document.querySelector("#page-status");
 const logoutButton = document.querySelector("#logout-button");
@@ -413,10 +415,14 @@ function canOpenRun(artifact) {
   return ["single_run_v1", "research_export_v2"].includes(artifact.kind) && artifactValue(artifact, "integrity") === "verified" && artifact.needs_disclosure === false;
 }
 
+function canOpenExperiment(artifact) {
+  return artifact.kind === "strategy_lab_v1" && artifactValue(artifact, "integrity") === "verified";
+}
+
 function renderArtifact(artifact, filesPayload, fileOffset, filesError, viewError = null) {
   const breadcrumb = element("p", { class: "muted" }, [textLink("/research", "Research"), globalThis.document.createTextNode(" / "), globalThis.document.createTextNode(artifact.name || "Artifact")]);
   const status = element("p", { class: "lede", text: `Status: ${artifactStatus(artifact)}. Evidence: ${humanize(artifactValue(artifact, "evidence"))}.` });
-  const planned = artifact.kind === "strategy_lab_v1" ? [element("p", { class: "muted", text: "Strategy-lab comparison is planned for G4; this catalog record does not infer a combined return." })] : [];
+  const planned = artifact.kind === "strategy_lab_v1" ? [element("p", { class: "muted", text: "Safe strategy-lab views are role-filtered. This catalog record does not infer a combined return." })] : [];
   const warning = element("section", { class: "artifact-warning", "aria-label": "Holdout disclosure warning" }, [
     element("h2", { text: "Holdout disclosure" }),
     element("p", { text: `Holdout evaluation: ${humanize(artifactValue(artifact, "holdout_evaluation"))}. Disclosure: ${humanize(artifactValue(artifact, "disclosure"))}.` }),
@@ -776,6 +782,10 @@ async function loadArtifact(id, fileOffset = 0, catalogRecord = false, runView =
       loadRun(id, runView);
       return;
     }
+    if (canOpenExperiment(artifact) && !catalogRecord) {
+      experimentViews.load(id);
+      return;
+    }
     let filesPayload = null;
     let filesError = null;
     try {
@@ -789,6 +799,11 @@ async function loadArtifact(id, fileOffset = 0, catalogRecord = false, runView =
     setStatus("");
   } catch (error) { if (isCurrentView(request)) { setStatus(""); renderError(error.message); } }
 }
+
+const experimentViews = createExperimentViews({
+  api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation,
+  displayValue, humanize, textLink, loadArtifact,
+});
 
 function renderLogin(errorMessage = "") {
   logoutButton.hidden = true;
@@ -842,6 +857,12 @@ function route() {
   else if (path === "/research") loadResearch();
   else if (path.startsWith("/research/")) {
     const id = decodeRouteSegment(path, "/research/");
+    const query = new URLSearchParams(window.location.search);
+    const requestedLabView = query.get("lab_view");
+    if (id !== null && experimentViews.isView(requestedLabView)) {
+      experimentViews.load(id, { view: requestedLabView, timeframe: query.get("timeframe") || "", windowName: query.get("window") || "" });
+      return;
+    }
     const requestedView = new URLSearchParams(window.location.search).get("view");
     const view = runViews.has(requestedView) ? requestedView : "overview";
     if (id !== null) loadArtifact(id, 0, view === "catalog", view);
