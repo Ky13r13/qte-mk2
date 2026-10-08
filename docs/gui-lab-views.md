@@ -1,6 +1,6 @@
 # Role-filtered lab views (G4)
 
-Status: G4 implementation active after the G3c review gate passed.
+Status: G4 implemented, tested and independently reviewed on 2026-09-30.
 This is a read-only projection of `strategy_lab_v1`, not a second experiment
 runner or selection algorithm. Existing 14- and 15-entry slates remain valid.
 

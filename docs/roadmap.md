@@ -144,8 +144,9 @@ minimal local shell/documentation, verified artifact catalog, run/lab views,
 complete result exports, bounded research jobs, data workflows, declarative
 comparison/router interfaces, test/benchmark evidence, and read-only connection
 inspection. G0 dependencies are approved/installed and G1 is implemented and
-reviewed. G2 through G3c are implemented/reviewed; G4 role-filtered lab views
-are underway.
+reviewed. G2 through G5a are implemented/reviewed under the
+[job contract](gui-jobs.md). G5b.1 shared validators and G5b.2a previews are reviewed; the
+[forms contract](gui-research-forms.md) separates backend and browser gates.
 See the [task log](gui-task-log.md)
 and [usage guide](gui-usage.md) for tested capability and remaining work.
 

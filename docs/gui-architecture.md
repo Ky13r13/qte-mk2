@@ -1,8 +1,9 @@
 # QTE local research library
 
-Status: architecture approved for incremental implementation. As of 2026-09-29,
-G0 dependencies are installed, G1 through G3c are reviewed, and G4 role-filtered
-lab views are underway. See the
+Status: architecture approved for incremental implementation. As of 2026-10-06,
+G0 dependencies are installed and G1 through G5b.2a are implemented and reviewed.
+G5b.2b starts with immutable inline snapshots under the [forms contract](gui-research-forms.md).
+Browser forms, inline submission and the lab job handler are not implemented yet. See the
 [active checkpoint](gui-task-log.md) for tested capability and remaining work;
 later milestones below remain targets, not claims of shipped functionality.
 The user requested a locally hosted, minimally colored, square-cornered interface

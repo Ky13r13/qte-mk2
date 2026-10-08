@@ -8,16 +8,7 @@ import hashlib
 from dataclasses import asdict
 from pathlib import Path
 import qte
-from qte.adapters import load_alpaca_fixture, load_csv_bars, CsvBarSchema
-from qte.provenance import source_identity
-from qte.strategies import MovingAverageConfig, MovingAverageRegimeStrategy, CandidateConfig, CandidateStrategy
-from qte.strategies.candidates import FAMILIES
-
-def fields(value, allowed, required=()):
-    if not isinstance(value, dict): raise ValueError('configuration section must be an object')
-    if set(value)-set(allowed): raise ValueError(f'unknown configuration keys: {sorted(set(value)-set(allowed))}')
-    if set(required)-set(value): raise ValueError(f'missing configuration keys: {sorted(set(required)-set(value))}')
-    return value
+from qte.research_config import capture_research_inputs, fields, prepare_research
 
 def write_json(path, value):
     with path.open('x', encoding='utf-8') as stream:
@@ -31,72 +22,22 @@ def write_csv(path, columns, rows):
 def run_research(config_path: Path, output: Path, *, export_version=1):
     if type(export_version) is not int or export_version not in (1, 2):
         raise ValueError('export version must be 1 or 2')
-    config=json.loads(config_path.read_text())
-    fields(config, ('data','strategy','engine','execution','risk','sampling'), ('data','strategy','engine'))
-    d=fields(config['data'], ('adapter','path','interval_ns','tick_size','currency','action_free','schema'),
-             ('adapter','path','interval_ns'))
-    source=config_path.parent / d['path']
-    kwargs={k:d[k] for k in ('interval_ns','tick_size','currency') if k in d}
-    if d['adapter']=='alpaca':
-        if 'schema' in d or 'action_free' in d: raise ValueError('Alpaca assumptions must be in fixture envelope')
-        loaded=load_alpaca_fixture(source,**kwargs)
-    elif d['adapter']=='csv':
-        loaded=load_csv_bars(source,**kwargs,action_free=d.get('action_free'),schema=CsvBarSchema(**d.get('schema',{})))
-    else: raise ValueError('adapter must be alpaca or csv')
-    s=fields(config['strategy'], {'type','symbol','quantity'} | (set(CandidateConfig.__dataclass_fields__)-{'kind'}),
-             ('type','symbol'))
-    if s['type']=='moving_average_regime':
-        fields(s,('type','symbol','fast_period','slow_period','quantity'),
-               ('type','symbol','fast_period','slow_period','quantity'))
-        strategy_config=MovingAverageConfig(s['fast_period'],s['slow_period'],s['quantity'])
-        strategy=MovingAverageRegimeStrategy(s['symbol'],strategy_config)
-        history_required=strategy_config.slow_period
-    elif s['type'] in FAMILIES:
-        if 'quantity' in s: raise ValueError('candidate strategies use allocation_fraction, not quantity')
-        strategy_config=CandidateConfig(kind=s['type'],**{k:v for k,v in s.items() if k not in ('type','symbol')})
-        strategy=CandidateStrategy(s['symbol'],strategy_config)
-        history_required=strategy_config.history_required
-    else: raise ValueError('unsupported strategy type')
-    if s['symbol'] not in loaded.dataset.symbols: raise ValueError('strategy symbol not in dataset')
-    e=fields(config['engine'],('initial_cash','history_capacity','random_seed'),('initial_cash',))
-    if e.get('history_capacity',256)<history_required: raise ValueError('history capacity is smaller than strategy requirement')
-    costs=fields(config.get('execution',{}),('commission_bps','spread_bps','slippage_bps'))
-    risk=fields(config.get('risk',{}),('max_order_quantity','max_symbol_allocation','max_gross_leverage','allow_short','cash_floor'))
-    identity=source_identity()
-    result=qte.BacktestEngine(qte.BacktestConfig(**e,execution_costs=qte.ExecutionCosts(**costs),
-                risk_limits=qte.RiskLimits(**risk),build_identity=identity)).run(
-                loaded.dataset,strategy)
-    sampling=None; annual=None
-    sampling_spec=config.get('sampling')
-    if sampling_spec is not None:
-        fields(sampling_spec,('timestamps_ns','interval_ns','max_staleness_ns','periods_per_year','annual_risk_free_rate'),
-               ('max_staleness_ns','periods_per_year'))
-        if ('interval_ns' in sampling_spec)==('timestamps_ns' in sampling_spec):
-            raise ValueError('sampling needs exactly one of interval_ns or timestamps_ns')
-        if 'interval_ns' in sampling_spec:
-            interval=sampling_spec['interval_ns']
-            if type(interval) is not int or interval<=0: raise ValueError('sampling interval must be a positive integer')
-            start,end=loaded.dataset.start_ns,loaded.dataset.end_ns
-            if (end-start)%interval: raise ValueError('sampling interval must divide run duration')
-            if (end-start)//interval>1_000_000: raise ValueError('sampling grid too large')
-            times=list(range(start,end+1,interval))
-        else: times=sampling_spec['timestamps_ns']
-        sampling=qte.SamplingConfig(times,sampling_spec['max_staleness_ns'])
-        annual=qte.AnnualizationConfig(sampling_spec['periods_per_year'],sampling_spec.get('annual_risk_free_rate',0))
-        sampling_spec={**sampling_spec,'timestamps_ns':times,'policy':'last_event_at_or_before_v1'}
-    report=qte.analyze(result,annual,sampling)
+    config,data_bytes=capture_research_inputs(config_path)
+    prepared=prepare_research(config,data_bytes)
+    result=qte.BacktestEngine(prepared.engine_config).run(prepared.loaded.dataset,prepared.strategy)
+    report=qte.analyze(result,prepared.annualization,prepared.sampling)
     metrics={name:{'value':getattr(report,name).value,'undefined_reason':getattr(report,name).undefined_reason}
              for name in ('total_return','maximum_drawdown','win_rate','profit_factor','expectancy',
                           'average_winning_trade','average_losing_trade','turnover','average_gross_exposure',
                           'annualized_return','annualized_volatility','sharpe_ratio','sortino_ratio','calmar_ratio')}
     manifest={'schema_version':1,'dataset_hash':result.manifest.dataset_hash,
               'dataset_hash_algorithm':result.manifest.dataset_hash_algorithm,
-              'source':asdict(loaded.provenance),'source_id':loaded.dataset.source_id,
-              'source_identity':identity,'normalized_engine_config':result.manifest.normalized_config,
-              'strategy':{'type':s['type'],'symbol':s['symbol'],**asdict(strategy_config)},
-              'configuration':config,'sampling':sampling_spec,
+              'source':asdict(prepared.loaded.provenance),'source_id':prepared.loaded.dataset.source_id,
+              'source_identity':prepared.source_identity,'normalized_engine_config':result.manifest.normalized_config,
+              'strategy':{'type':prepared.strategy_type,'symbol':prepared.symbol,**asdict(prepared.strategy_config)},
+              'configuration':prepared.configuration,'sampling':prepared.sampling_manifest,
               'execution_model':result.manifest.execution_model,
-              'dataset_start_ns':loaded.dataset.start_ns,'dataset_end_ns':loaded.dataset.end_ns,
+              'dataset_start_ns':prepared.loaded.dataset.start_ns,'dataset_end_ns':prepared.loaded.dataset.end_ns,
               'research_label':'single_run_no_optimization_or_holdout_claim'}
     # Refuse an existing directory so previous research artifacts cannot be overwritten.
     output.mkdir(parents=True,exist_ok=False)
@@ -106,8 +47,8 @@ def run_research(config_path: Path, output: Path, *, export_version=1):
                 'order_count':len(result.orders),'fill_count':len(result.fills)})
     write_csv(output/'equity.csv',('timestamp_ns','equity','gross_exposure'),
               ((p.timestamp_ns,p.equity,p.gross_exposure) for p in result.equity_curve))
-    sampled_points=qte.sample_equity(result,sampling) if sampling else None
-    if sampling:
+    sampled_points=qte.sample_equity(result,prepared.sampling) if prepared.sampling else None
+    if prepared.sampling:
         write_csv(output/'sampled_equity.csv',('timestamp_ns','equity','gross_exposure'),
                   ((p.timestamp_ns,p.equity,p.gross_exposure) for p in sampled_points))
     write_csv(output/'fills.csv',('fill_id','order_id','symbol','side','quantity','timestamp_ns','price','commission'),

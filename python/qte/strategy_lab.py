@@ -1,7 +1,8 @@
 """Offline synthetic strategy lab. No network, credentials, or brokerage access."""
 from __future__ import annotations
 
-from dataclasses import asdict
+import copy
+from dataclasses import asdict, dataclass
 from functools import partial
 import hashlib
 import json
@@ -14,6 +15,9 @@ from qte.regimes import MacroObservation, MacroRegimeFilter, RegimeConfig
 from qte.strategies.candidates import CandidateConfig, CandidateStrategy, FAMILIES
 from qte.strategies.router import MacroRouterStrategy, RouterConfig
 from qte.synthetic import DAY_NS, HOUR_NS, REGIMES, SyntheticConfig, generate_case, regime_at
+
+
+_CLOCKS = {"hourly": HOUR_NS, "daily_24h": DAY_NS}
 
 
 class CashBenchmark(qte.Strategy):
@@ -81,10 +85,23 @@ def _json_hash(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
 
-def run_lab(config_path: Path, output: Path) -> Path:
-    # Reuse the existing strict parser and artifact conventions, not another CLI.
-    from qte.cli import fields, write_csv, write_json
-    spec = json.loads(config_path.read_text(encoding="utf-8"))
+@dataclass(frozen=True)
+class PreparedLab:
+    """Purely validated fixed-lab inputs; it owns no outputs or experiments."""
+    spec: dict
+    timeframes: tuple[str, ...]
+    regimes: tuple[str, ...]
+    configs: tuple[CandidateConfig, ...]
+    base_costs: qte.ExecutionCosts
+    stress_costs: qte.ExecutionCosts
+    experiment_config: ExperimentConfig
+
+
+def prepare_lab(spec: dict) -> PreparedLab:
+    """Validate and construct the fixed synthetic-lab configuration without I/O."""
+    # Reuse the existing strict parser and configuration classes, not another CLI dialect.
+    from qte.cli import fields
+    spec = copy.deepcopy(spec)
     fields(spec, ("schema_version", "seed", "bars_per_window", "timeframes", "regimes", "strategy_parameters",
                   "engine", "execution", "stress_execution", "selection"),
            ("schema_version", "seed", "bars_per_window", "timeframes"))
@@ -94,9 +111,8 @@ def run_lab(config_path: Path, output: Path) -> Path:
         raise ValueError("lab seed must be a nonnegative 62-bit integer")
     if type(spec["bars_per_window"]) is not int or not 128 <= spec["bars_per_window"] <= 4096:
         raise ValueError("bars_per_window must be an integer in [128, 4096]")
-    clocks = {"hourly": HOUR_NS, "daily_24h": DAY_NS}
     timeframes = spec["timeframes"]
-    if (not isinstance(timeframes, list) or not timeframes or any(t not in clocks for t in timeframes)
+    if (not isinstance(timeframes, list) or not timeframes or any(t not in _CLOCKS for t in timeframes)
             or len(set(timeframes)) != len(timeframes)):
         raise ValueError("timeframes must be unique hourly/daily_24h names")
     regimes = spec.get("regimes", list(REGIMES))
@@ -116,10 +132,18 @@ def run_lab(config_path: Path, output: Path) -> Path:
                        ("min_closed_trades", "min_validation_windows", "min_stressed_return", "worst_stressed_return", "max_drawdown"))
     experiment_config = ExperimentConfig(**engine, **selection, base_costs=base, stressed_costs=stress,
                                          required_regimes=tuple(regimes), random_seed=spec["seed"])
+    return PreparedLab(spec, tuple(timeframes), tuple(regimes), configs, base, stress, experiment_config)
+
+
+def run_lab(config_path: Path, output: Path) -> Path:
+    prepared = prepare_lab(json.loads(config_path.read_text(encoding="utf-8")))
+    spec = prepared.spec
+    # Reuse the existing artifact conventions after pure validation succeeds.
+    from qte.cli import write_csv, write_json
     output.mkdir(parents=True, exist_ok=False)
     write_json(output / "configuration.json", spec)
     summaries = []
-    for clock_index, timeframe in enumerate(timeframes):
+    for clock_index, timeframe in enumerate(prepared.timeframes):
         folder = output / timeframe
         folder.mkdir()
         data_folder = folder / "data"
@@ -127,22 +151,22 @@ def run_lab(config_path: Path, output: Path) -> Path:
         cases, windows, observations = [], [], []
         clock = 0
         for role_index, role in enumerate(("train", "validation", "test")):
-            for regime_index, regime in enumerate(regimes):
+            for regime_index, regime in enumerate(prepared.regimes):
                 name = f"{role}-{regime}"
                 case = generate_case(SyntheticConfig(
                     regime, spec["seed"] + clock_index * 10000 + role_index * 100 + regime_index,
-                    bars=spec["bars_per_window"], interval_ns=clocks[timeframe], start_ns=clock))
+                    bars=spec["bars_per_window"], interval_ns=_CLOCKS[timeframe], start_ns=clock))
                 cases.append(case)
                 observations.extend(_synthetic_macro(case))
-                clock = case.data.end_ns + clocks[timeframe]
+                clock = case.data.end_ns + _CLOCKS[timeframe]
                 windows.append(ResearchWindow(name, case.data, role, regime, Evidence(
                     "synthetic", case.data.source_id, case.source_sha256,
                     "completed_bar_at_end; macro_reference_close_plus_one_bar",
                     "fabricated_prices_no_corporate_actions")))
                 write_csv(data_folder / f"{name}.csv", ("symbol", "start_ns", "end_ns", "open", "high", "low", "close", "volume"),
                           ((b.symbol, b.start_ns, b.end_ns, b.open, b.high, b.low, b.close, b.volume) for b in case.bars))
-        macro_config = RegimeConfig(max_macro_age_ns=32 * clocks[timeframe],
-                                    max_volatility_age_ns=32 * clocks[timeframe], dealer_mode="ignore")
+        macro_config = RegimeConfig(max_macro_age_ns=32 * _CLOCKS[timeframe],
+                                    max_volatility_age_ns=32 * _CLOCKS[timeframe], dealer_mode="ignore")
         gate = MacroRegimeFilter(observations, macro_config)
         macro_payload = {"config": asdict(macro_config), "observations": [asdict(o) for o in observations],
                          "dealer_observations": [], "evidence": "fabricated_not_observed_macro_or_dealer_data"}
@@ -151,7 +175,7 @@ def run_lab(config_path: Path, output: Path) -> Path:
         write_json(folder / "generator.json", {"cases": [asdict(c.config) for c in cases],
                                                "source_sha256": [c.source_sha256 for c in cases]})
         candidates = []
-        for cfg in configs:
+        for cfg in prepared.configs:
             for gated in (False, True):
                 name = f"{cfg.kind}-{'macro' if gated else 'ungated'}"
                 candidates.append(Candidate(name,
@@ -161,14 +185,14 @@ def run_lab(config_path: Path, output: Path) -> Path:
                     partial(CandidateStrategy, "QTE_SYNTH", cfg, regime_filter=gate if gated else None)))
         router_config = RouterConfig()
         candidates.append(Candidate("macro-router",
-            {"symbol": "QTE_SYNTH", "strategy_configs": [asdict(c) for c in configs],
+            {"symbol": "QTE_SYNTH", "strategy_configs": [asdict(c) for c in prepared.configs],
              "router": asdict(router_config), "macro_sha256": macro_hash, "dealer_overlay": "disabled"},
-            max(256, *(c.history_required for c in configs)),
-            partial(MacroRouterStrategy, "QTE_SYNTH", configs, gate, router_config)))
+            max(256, *(c.history_required for c in prepared.configs)),
+            partial(MacroRouterStrategy, "QTE_SYNTH", prepared.configs, gate, router_config)))
         candidates.extend((
             Candidate("cash", {"benchmark": "cash_no_interest"}, 1, CashBenchmark, eligible=False),
-            Candidate("buy-and-hold", {"benchmark": "one_allocation_hold", "allocation_fraction": configs[0].allocation_fraction},
-                      1, partial(HoldBenchmark, "QTE_SYNTH", configs[0].allocation_fraction), eligible=False),
+            Candidate("buy-and-hold", {"benchmark": "one_allocation_hold", "allocation_fraction": prepared.configs[0].allocation_fraction},
+                      1, partial(HoldBenchmark, "QTE_SYNTH", prepared.configs[0].allocation_fraction), eligible=False),
         ))
         write_json(folder / "slate.json", {"candidates": [
             {"name": c.name, "parameters": json.loads(c.parameters_json), "eligible": c.eligible} for c in candidates],
@@ -187,7 +211,7 @@ def run_lab(config_path: Path, output: Path) -> Path:
             write_csv(run_folder / "orders.csv", ("id", "symbol", "status", "detail"),
                       ((o.id, o.symbol, o.status.name, o.detail) for o in result.orders))
 
-        report = run_experiment(candidates, windows, experiment_config, on_result=save_result)
+        report = run_experiment(candidates, windows, prepared.experiment_config, on_result=save_result)
         write_json(folder / "report.json", asdict(report))
         scenario_columns = ("candidate", "window", "role", "regime", "cost_scenario", "status", "total_return",
                             "maximum_drawdown", "trade_count", "open_trade_count", "fill_count", "rejected_order_count", "error")

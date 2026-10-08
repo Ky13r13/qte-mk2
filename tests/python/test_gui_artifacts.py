@@ -73,6 +73,23 @@ def test_tamper_extra_file_duplicate_json_and_nonfinite_are_rejected(tmp_path):
         with pytest.raises(ValueError): strict_json(body)
 
 
+@pytest.mark.parametrize("body", [
+    b'"\\ud800"', b'{"\\udfff":1}', b'{"nested":[{"value":"\\ud800"}]}',
+])
+def test_json_rejects_lone_surrogates_in_keys_and_nested_values(body):
+    with pytest.raises(ValueError, match="invalid Unicode scalar"):
+        strict_json(body)
+
+
+def test_json_preserves_valid_unicode_and_surrogate_pairs():
+    assert strict_json(b'{"text":"\\ud83d\\ude80"}') == {"text": "\U0001f680"}
+
+
+def test_json_nesting_limit_is_a_sanitizable_validation_error():
+    with pytest.raises(ValueError, match="JSON nesting"):
+        strict_json(b"[" * 2000 + b"0" + b"]" * 2000)
+
+
 @pytest.mark.parametrize(("name", "value"), [
     ("manifest.json", b'{"schema_version":true}'),
     ("manifest.json", b"[]"),

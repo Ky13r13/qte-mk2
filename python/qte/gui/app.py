@@ -1,13 +1,15 @@
-"""Starlette application factory for the G1 read-only local interface."""
+"""Local documentation, evidence and explicitly requested offline research jobs."""
 
 from __future__ import annotations
 
 from pathlib import Path
+from contextlib import asynccontextmanager
 import time
 from typing import Callable
 from uuid import uuid4
 
 from starlette.applications import Starlette
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import MutableHeaders
 from starlette.middleware import Middleware
 from starlette.requests import Request
@@ -17,6 +19,9 @@ from starlette.routing import Route
 from .documents import DocumentLibrary
 from .artifact_routes import artifact_routes
 from .catalog import Catalog
+from .form_routes import form_routes
+from .job_routes import job_routes
+from .jobs import JobManager
 from .requests import json_request, pagination
 from .safeio import SafeReadError
 from .security import IDLE_TIMEOUT_SECONDS, SecurityError, SessionController, unique_header
@@ -31,6 +36,9 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
     controller = SessionController(code_sink, clock)
     library = DocumentLibrary(Path(repository))
     catalog = Catalog(Path(repository))
+    # The job dispatcher owns its own verification cache; durable catalog and
+    # protection storage are shared, not mutable request-thread cache objects.
+    jobs = JobManager(Path(repository), Catalog(Path(repository)))
     expected_host = f"127.0.0.1:{port}"
     expected_origin = f"http://{expected_host}"
     static_root = Path(__file__).with_name("static")
@@ -104,7 +112,7 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
         values = [
             {"id": "library", "state": "available" if available else "blocked", "reason":
              "Configured document source has passed validation." if available else "Library source unavailable."},
-            {"id": "research", "state": "available", "reason": "Explicit local artifact catalog; GUI execution controls are not implemented."},
+             {"id": "research", "state": "available", "reason": "Local artifact catalog, fixed offline jobs and authorized form preview API; browser forms are not yet implemented."},
             {"id": "data", "state": "planned", "reason": "Local adapters exist; GUI dataset workflows are not implemented."},
             {"id": "test_execution", "state": "planned", "reason": "Tests run from the terminal; no GUI test runner exists."},
             {"id": "broker_reads", "state": "blocked", "reason": "GUI read controls and authorized prerequisites are unresolved."},
@@ -138,7 +146,7 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
         Route("/library", shell, methods=["GET"]), Route("/library/{document_id:str}", shell, methods=["GET"]),
         Route("/research", shell, methods=["GET"]), Route("/research/{artifact_id:str}", shell, methods=["GET"]),
         Route("/data", shell, methods=["GET"]), Route("/system", shell, methods=["GET"]),
-    ] + artifact_routes(catalog, session_for)
+    ] + artifact_routes(catalog, session_for) + job_routes(jobs, session_for) + form_routes(Catalog(Path(repository)), session_for)
     class BoundaryMiddleware:
         def __init__(self, app) -> None:
             self.app = app
@@ -183,9 +191,19 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
                 response = error(exc.code, exc.status, exc.message)
             await response(scope, receive, secured_send)
 
-    app = Starlette(routes=routes, middleware=[Middleware(BoundaryMiddleware)])
+    @asynccontextmanager
+    async def lifespan(app):
+        try:
+            yield
+        finally:
+            # Construction and browsing are idle. Only explicit job operations
+            # initialize scheduling; shutdown still cleans up any owned worker.
+            await run_in_threadpool(jobs.close)
+
+    app = Starlette(routes=routes, middleware=[Middleware(BoundaryMiddleware)], lifespan=lifespan)
     app.state.session_controller = controller
     app.state.document_library = library
     app.state.catalog = catalog
+    app.state.jobs = jobs
 
     return app

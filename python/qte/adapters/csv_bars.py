@@ -35,6 +35,23 @@ class CsvBarSchema:
         )
 
 
+def _validate_csv_options(
+    *,
+    interval_ns: int,
+    schema: CsvBarSchema,
+    adjustment: str = "raw",
+    action_free: bool,
+) -> None:
+    if type(interval_ns) is not int or interval_ns <= 0:
+        raise ValueError("interval_ns must be a positive integer")
+    if adjustment != "raw":
+        raise ValueError("initial QTE profile requires CSV adjustment='raw'")
+    if action_free is not True:
+        raise ValueError("initial QTE profile requires action_free=True")
+    if len(set(schema.columns())) != len(schema.columns()):
+        raise ValueError("CSV schema mappings must be unique")
+
+
 def load_csv_bars(
     path: str | Path,
     *,
@@ -46,17 +63,33 @@ def load_csv_bars(
     adjustment: str = "raw",
     action_free: bool,
 ) -> AdapterResult:
-    """Normalize explicitly mapped RFC3339-UTC CSV bars into an owned Dataset."""
-    if type(interval_ns) is not int or interval_ns<=0:
-        raise ValueError('interval_ns must be a positive integer')
-    if adjustment != "raw":
-        raise ValueError("initial QTE profile requires CSV adjustment='raw'")
-    if action_free is not True:
-        raise ValueError("initial QTE profile requires action_free=True")
-    if len(set(schema.columns())) != len(schema.columns()):
-        raise ValueError("CSV schema mappings must be unique")
-    csv_path = Path(path)
-    raw = csv_path.read_bytes()
+    """Read one CSV fixture once, then normalize its exact bytes."""
+    # Preserve the established fail-before-read behavior for invalid local
+    # options; a bad request must not open a missing, FIFO, or other source.
+    _validate_csv_options(interval_ns=interval_ns, schema=schema, adjustment=adjustment,
+                          action_free=action_free)
+    raw = Path(path).read_bytes()
+    return _load_csv_bytes(raw, interval_ns=interval_ns, schema=schema, tick_size=tick_size,
+                           currency=currency, volume_unit=volume_unit, adjustment=adjustment,
+                           action_free=action_free)
+
+
+def _load_csv_bytes(
+    raw: bytes,
+    *,
+    interval_ns: int,
+    schema: CsvBarSchema = CsvBarSchema(),
+    tick_size: float = 0.01,
+    currency: str = "USD",
+    volume_unit: str = "shares",
+    adjustment: str = "raw",
+    action_free: bool,
+) -> AdapterResult:
+    """Normalize one captured CSV byte sequence without reopening a source path."""
+    if not isinstance(raw, bytes):
+        raise TypeError("CSV fixture bytes must be bytes")
+    _validate_csv_options(interval_ns=interval_ns, schema=schema, adjustment=adjustment,
+                          action_free=action_free)
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as error:

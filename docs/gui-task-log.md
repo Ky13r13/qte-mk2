@@ -1,6 +1,6 @@
 # Active GUI implementation checkpoint
 
-Last checkpoint: 2026-09-29, G1 through G3c reviewed; G4 integration active.
+Last checkpoint: 2026-10-07, inline snapshots reviewed; G5b.2b job integration active.
 **Read this file before resuming.**
 
 ## Authority and scope
@@ -28,15 +28,43 @@ failed; scoped network approval allowed the install. No system package changed.
 
 ## File ownership during active build
 
-- Sol task `gui_sol_g1` (`gpt-5.6-sol`), now assigned G4:
-  `python/qte/gui/lab_views.py` and `tests/python/test_gui_lab_views.py`.
-- Terra task `gui_terra_g1` (`gpt-5.6-terra`), now G4:
-  `static/experiments.js`, minimal `app.js` hooks and lab static tests.
+- October 7 post-snapshot gate: Terra owns `jobs.py`, `job_worker.py` and
+  manager/lifecycle tests. Sol owns new `job_outputs.py` and its strict fixed-lab
+  verifier tests. Root owns `job_routes.py`/request shape parsing, new inline API
+  tests and docs/full gates. Astra independently reviews. No browser/core changes.
+- October 7 post-preview gate: Terra owns new `inline_inputs.py`, minimal
+  `job_inputs.py` dispatch and `test_gui_inline_inputs.py`. Sol owns independent
+  `test_gui_snapshot_compatibility.py` legacy golden tests. Root owns docs,
+  snapshot-to-CLI integration tests and full gates. Astra reviews independently.
+  No HTTP/manager/worker/core changes in this snapshot-only slice.
+- October 7: G5b.2a source is saved. Root owns preview routes/app wiring,
+  Catalog authorization, integration/protection tests and docs. Sol owns
+  `research_forms.py`/unit tests; Terra owns `form_inputs.py`/unit tests (both
+  source-quiet). Astra resumes independent review. Sol is doing read-only G5b.2b
+  seam planning; no new launch/snapshot/worker changes before the preview gate.
+  All older assignments below are historical.
+- October 6: G5a is complete. Sol `g5b_sol_design_oct4` now owns
+  `research_config.py`, `cli.py` and single-run preparation tests. Terra
+  `g5a_terra_finish_oct4` owns CSV/Alpaca byte-loader seams, `strategy_lab.py`
+  pure preparation and their new tests. Astra `g5a_astra_review_oct4` independently
+  reviews G5b.1. Root owns docs/integration/full gates. No HTTP/runner/form changes
+  are authorized in G5b.1; the older assignments below are historical.
+- October 4 resume: earlier agents are no longer live. Terra task
+  `g5a_terra_finish_oct4` owns the runner/input files and their three test files;
+  Astra task `g5a_astra_review_oct4` is the independent read-only reviewer.
+  Sol task `g5b_sol_design_oct4` is doing read-only G5b design, not implementation.
+  The historical assignments below explain the saved work, not concurrent owners.
+- Sol task `gui_sol_g1` (`gpt-5.6-sol`) saved the initial G5a runner; its later
+  pending-initialization turn was interrupted. No current file ownership.
+- Terra task `gui_terra_g1` (`gpt-5.6-terra`), now G5a:
+  input helper/tests, `jobs.py`, `job_worker.py`, `test_gui_jobs.py` and
+  `test_gui_job_worker.py`. Root explicitly transferred the remaining runner
+  fixes after interrupting Sol; do not allow concurrent edits in these files.
 - Root: `app.py`, request/DTO helpers, artifact API routes/tests, CLI/server,
   docs/checkpoints, integration and real-browser validation.
-- Astra task `gui_astra_g1_review`: completed G1 through G3c review, including
-  independent G3c 26-reader/21-HTTP tests. G4 design reviewed; implementation
-  review is still required. Do not assume an errored/interrupted review passed.
+- Astra task `gui_astra_g1_review`: completed G1 through G4 implementation
+  review and G5a design review. G5a implementation still requires a gate.
+  Do not assume an errored/interrupted review passed.
 
 ## Agreed G1 interface
 
@@ -48,6 +76,14 @@ Auth routes `/api/v1/session` POST/GET/DELETE; library/capability DTOs in
 system workflows unavailable until their milestone. No arbitrary static mounts.
 
 ## Next actions
+
+Current resume target (October 7): inline immutable snapshots are complete
+(894 Python, 15 CTest and independent Astra approval). Now integrate inline
+submission and the fixed synthetic-lab job, preserving legacy path submissions,
+retry identities, process supervision and catalog disclosure. No browser form
+or core/economic change in this backend slice.
+G5b.3 forms/browser QA follow the complete backend gate. The numbered list below
+is milestone history, not a request to restart completed work.
 
 1. DONE: approved locked packages installed; imports and `pip check` passed.
    Optional extras, CLI integration and loopback launcher are saved. No reinstall
@@ -83,9 +119,9 @@ system workflows unavailable until their milestone. No arbitrary static mounts.
    scoped execution); native build and 15/15 CTest still pass. Real browser tests
    verified typed disclosure and old-file available/new-file blocked after a
    later addition, using isolated synthetic fixtures only. Astra passes G2.
-5. G3a/G3b/G3c review completed; NOW G4 safe lab projections and GUI integration.
+5. G1 through G4 review completed; NOW G5a bounded local research job runner.
    Never mutate legacy artifacts or change engine accounting/execution. Old
-   missing fields remain explicitly not recorded. G4/G5 are not started.
+   missing fields remain explicitly not recorded. G5 implementation is next.
 6. Update this log with exact commands/results, outstanding review findings,
    running process IDs/ports (no access codes), and next file/action at each gate
    and before stopping. Log checkpoints are not a scheduled automatic restart.
@@ -337,3 +373,453 @@ reader tests; Terra saved the modular frontend and 20 passing static tests.
 Next: finish and integrate projector, run actual-engine API/security regressions,
 measure cold/warm paging on the large saved lab read-only, browser-test isolated
 lab controls, full suites, then Astra G4 review. Only then begin G5a/G5b.
+
+### G4 gate passed — 2026-09-30
+
+The user resumed manually. Git was clean before the current test-portability
+and Unicode hardening changes; the user owns that history, and no Git operation
+other than status/diff inspection was performed. Sol added portable 14/15-slate
+fixtures; saved ignored artifacts are optional supplemental checks, not required
+for a fresh checkout. Their original assertions remain when the artifacts exist.
+
+Astra found a lone-surrogate JSON encoding crash. The shared artifact JSON
+boundary now rejects invalid Unicode scalars in keys and nested strings while
+preserving valid surrogate pairs. HTTP regressions cover source identity, nested
+config and candidate parameters, including JSON-within-JSON. Initial new tests
+expected projection 422 but central catalog validation correctly rejects earlier
+with the existing unavailable-view 409 contract; separate new assertions cover
+both boundaries and verify raw bytes stay blocked. No previous test was weakened.
+Astra independently re-reviewed and cleared G4 (18 artifact + 16 HTTP tests,
+plus its earlier 19 reader tests).
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_lab_views.py tests/python/test_gui_lab_api.py tests/python/test_gui_lab_privacy.py tests/python/test_gui_lab_static.py -q --basetemp=build/test-gui-g4-integration-20260929
+# recovered previous result: 38 passed in 20.86s
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-g4-full-20260930
+# before Unicode fix: 622 passed in 38.85s
+.venv/bin/python -m pytest tests/python/test_gui_artifacts.py tests/python/test_gui_lab_api.py -q --basetemp=build/test-gui-g4-unicode-20260930
+# initial new-test contract mismatch: 28 passed, 3 failed (explained above)
+.venv/bin/python -m pytest tests/python/test_gui_artifacts.py tests/python/test_gui_lab_api.py -q --basetemp=build/test-gui-g4-unicode-final-20260930
+# 34 passed in 9.87s
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-g4-gate-20260930
+# 632 passed in 42.31s; scoped async thread-wakeup access
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# native build succeeded (no work), 15/15 CTest passed, build/local-dev only
+git diff --check
+# passed
+```
+
+Browser QA: generated a two-clock, 15-entry isolated lab under
+`build/gui-browser-20260930/repository`, deliberately injecting trend-candidate
+failures through the QA-only helper while other candidates used the real engine.
+Verified slate order, failure/no-trade/benchmark rows, full base/stress errors and
+fields, actual nested cost context, explicit safe-window choice, macro paging and
+source/vintage details, recorded regime decisions, daily-24h label and window
+reset, catalog fallback and raw mixed files still unavailable. At 390px the page
+width and scroll width both measured 375px; viewport override reset. No user
+artifact was registered or revealed. QA server session 13560 stopped (130), tab
+4 closed. Explicit 200% zoom and native save-file flow remain manual gaps.
+
+Terra's read-only measurement of saved `build/strategy-lab-20260922`: 3,309 files,
+uncached verifier 1.907s, warm detail 0.013s; first pages 0.013s candidates,
+0.012s windows, 0.017s comparison, 0.032s macro, 0.062s decisions. All 6 macro
+pages and 21 decision pages remained bounded; later-page totals 0.175s/1.185s.
+Legacy 3,093-file lab verification: 1.821s. These are direct Python reader timings,
+excluding HTTP/catalog journal overhead; OS disk-cache state is uncontrolled.
+
+Next: write/review concrete G5a contract, then assign disjoint runner/input/API
+work. No broker/provider jobs, no new dependencies, no automatic launches on read.
+
+### G5a active — 2026-10-01
+
+User resumed after usage interruption. Sol's first build turn errored before any
+job implementation files existed; it was explicitly resumed, not counted as
+completed. `docs/gui-jobs.md` records the concrete contract and Astra's design
+clarifications: recheck protection at launch, inherit protected input lineage,
+fresh CLI process, four source-identity checks, leave output nonexistent, retain
+owner lock through supervisor cleanup, no inherited liveness write FD, no
+pipe-backpressure deadlock, and no persisted-PID signaling on recovery.
+
+Root added authenticated job routes, app lifespan hooks, catalog input/output
+protection helpers and regression files. Sol owns durable scheduling/supervision;
+Terra owns stable bounded input snapshots. **Integration is partial:** imports
+may be temporarily unresolved until those assigned modules land. Do not report
+G5a as usable or run G5b yet. The G4 gate above remains the last full green suite.
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_job_protection.py tests/python/test_gui_catalog.py tests/python/test_gui_documents.py -q --basetemp=build/test-gui-g5a-protection-20261001
+# 33 passed in 0.67s before app job imports were connected
+.venv/bin/python -m pytest tests/python/test_gui_requests.py -q --basetemp=build/test-gui-requests-20261001
+# 7 passed in 0.15s before app job imports were connected
+```
+
+No GUI server/browser remains running. No dependencies, broker requests, Git
+history/remote operations, or automatic artifact registrations were performed.
+
+G5a integration update: all assigned modules now exist and imports resolve.
+Real HTTP launch/dedup/invalid-config tests pass, with report/fill/equity/order
+event/position byte parity against the normal v2 CLI. An initial API run had two
+failures: job-first database initialization omitted the unrelated artifacts table,
+so catalog input authorization could not query it. Catalog now treats a missing
+artifact table as an empty lazy registry; the fresh run passes unchanged tests.
+
+Astra's root-hook review found a publication race after CLI completion but before
+derived-output protection, plus corrupt output-protection records. Catalog now
+requires durable `succeeded` job state for all owned job artifact reads/registers;
+the internal protection hook verifies records before and after writing. Missing,
+failed, running or interrupted jobs stay blocked. Noncanonical repeated-separator
+and dot-component paths are normalized before the guard and in saved registry
+paths; old noncanonical rows are guarded too. Relevant corrupt/symlinked input
+disclosure history fails closed. No implicit input or derived-output reveal.
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_job_api.py -q --basetemp=build/test-gui-g5a-api-first-20261001
+# 2 passed / 2 failed, shared-table initialization defect, fixed above
+.venv/bin/python -m pytest tests/python/test_gui_job_api.py -q --basetemp=build/test-gui-g5a-api-second-20261001
+# 4 passed in 0.90s; scoped async thread-wakeup access
+.venv/bin/python -m pytest tests/python/test_gui_job_protection.py tests/python/test_gui_catalog.py tests/python/test_gui_job_inputs.py -q --basetemp=build/test-gui-g5a-lineage-paths-20261001
+# 53 passed
+.venv/bin/python -m compileall -q python/qte/gui tests/python/test_gui_job_api.py tests/python/test_gui_job_protection.py
+# passed at integration checkpoint; not a test-suite substitute
+```
+
+Next: Sol finishes scheduler/cancel/restart/storage/provenance regressions;
+Terra additionally owns `test_gui_job_worker.py` for real-process watchdog,
+timeout/cancellation/forced cleanup and environment/FD checks. Astra reviews
+implementation independently. Root owns API/catalog integration and full gate.
+Do not advance to forms or claim G5a complete on the four HTTP passes alone.
+
+Further G5a checkpoint: root readers passed 46 tests and native build/15 CTest
+passed again; no native source changed. Terra's real subprocess tests now assert
+the required timeout state (`interrupted`), exposing the current worker's
+`failed` result; this is an implementation fix pending Sol, not a test to weaken.
+Owner EOF, cancellation, forced kill of a TERM-ignoring child and exception
+cleanup are otherwise covered. Sol also owns Astra's pending fixes for per-call
+SQLite/sidecar validation and lock release on initialization failure, plus
+post-close submission rejection, signal cleanup and provenance reason accuracy.
+No active QTE worker was found by exact executable/module process inspection.
+
+Terra performed read-only G5b preflight (no implementation): keep config-path
+jobs, add explicit inline-config origin, exact decimal-string web integers,
+shared CLI validation, family-specific fields and a distinct fixed lab handler
+with config-only snapshots. Root must settle/review the concrete G5b contract
+only after G5a passes its implementation gate.
+
+Coordination update: Sol stopped responding to follow-ups and had not saved the
+review fixes. Interrupt returned `pending_init`, not an active editing turn.
+Root reassigned the concrete remaining runner fixes/tests to approved Terra and
+told Sol not to edit. Saved initial Sol work remains intact. No gate was inferred
+from an uninitialized/errored turn.
+
+### Resume — 2026-10-04
+
+Recovered the October 1 files without Git changes. The saved close guards now
+reject a closed manager before the opened shortcut and recheck inside submission
+locking. All prior agent sessions are gone; fresh Terra/Astra tasks are verifying
+the implementation, and Sol is doing read-only G5b preflight. G5a is not cleared.
+
+The preceding turn also added an explicit 64-level JSON nesting limit at the
+artifact boundary. A new test initially failed because Python 3.14 accepted the
+deep input; the implementation now enforces the bound rather than relying on a
+parser recursion exception. The corrected artifact/input run passed 32 tests:
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_artifacts.py tests/python/test_gui_job_inputs.py -q --basetemp=build/test-gui-g5a-json-boundaries-fixed-20261001
+```
+
+Current resume work: verify shutdown/protocol/provenance and process cleanup,
+add authenticated end-to-end derived-protection coverage, then full Python/native
+tests and independent Astra clearance. In particular, Astra reproduced a surviving
+TERM-ignoring descendant after the CLI group leader exited; Terra owns that fix.
+Do not treat direct-child cleanup alone as complete group cleanup. No G5b forms
+are implemented yet, no new packages installed, no broker or remote Git calls.
+
+October 4 verification so far (not the final gate):
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_artifacts.py tests/python/test_gui_job_protection.py tests/python/test_gui_requests.py -q --basetemp=build/test-gui-g5a-root-boundaries-20261004
+# interrupted (130) at the known sandbox async wakeup stall; no pass claimed
+.venv/bin/python -m pytest tests/python/test_gui_artifacts.py tests/python/test_gui_job_protection.py tests/python/test_gui_requests.py -q --basetemp=build/test-gui-g5a-root-boundaries-scoped-20261004
+# 49 passed in 0.61s, scoped async access
+.venv/bin/python -m pytest tests/python/test_gui_job_api.py -q --basetemp=build/test-gui-g5a-api-20261004
+# 5 passed in 1.36s, including actual protected-input/output lineage
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# native build: no work; 15/15 CTest, 0.08s, build/local-dev
+git diff --check
+# passed at this checkpoint
+```
+
+Astra additionally reproduced dual-pipe EOF being mislabeled as cancellation and
+a second TERM interrupting cleanup. Terra is addressing both with process-level
+regressions, owned descendant reaping and signal-safe cleanup. A signal test's
+incorrect `None` exit-code expectation was tightened to the actual terminated
+child code; no assertion was removed to hide the implementation failure. The
+final source-stable runner gate and full-suite result are still pending.
+
+### Resume — 2026-10-05
+
+The user resumed after the usage interruption. All three October 4 agent turns
+had errored; none was counted as a completed review. The same assigned tasks
+were resumed. Saved worker code now records termination in a pending flag rather
+than blocking signals around spawn (the latter was rejected because children
+inherited blocked TERM/INT). Standalone supervisor tests are present, but need
+fresh verification and review. The draft `docs/gui-research-forms.md` describes
+G5b.1 shared validators, G5b.2 inline/fixed-lab backend, and G5b.3 forms. It is a
+plan, not implemented functionality. Root also saved an additional actual-job
+regression for harmless original-file edits after acceptance, not yet run.
+
+October 5 integration checkpoint:
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_job_api.py tests/python/test_gui_documents.py -q --basetemp=build/test-gui-g5a-api-docs-20261005
+# 13 passed in 1.91s, including the new copied-input regression
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-g5a-full-20261005
+# 711 passed in 55.88s; baseline only, overlapped final runner fixes
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# no work; 15/15 CTest in 0.05s
+```
+
+Final review additionally reproduced a stale-descriptor race: `RunningJob.wait`
+closed control pipes while the manager still exposed the active job, allowing a
+late cancel/close to act on a reused descriptor. Terra added per-job descriptor
+locking, atomic invalidation and one-shot cancellation plus a regression. This
+post-baseline fix requires the source-stable full rerun. Independent review also
+checks actual standalone orphan adoption, inherited-lock exclusion, repeated
+signals, and worker completion-versus-cancel, not only fake scheduler objects.
+The G5b draft now states authorization-before-validation, exact captured bytes,
+honest inline origin and the compatibility tradeoff of earlier sampling errors.
+
+### G5a gate passed; G5b.1 active — 2026-10-06
+
+Recovered the completed final suite after the user resumed. Astra explicitly
+passed G5a implementation review: 72 focused tests passed in 13.24s, then four
+final hardened regressions passed in 5.16s. Actual standalone-process tests
+cover descendant adoption/reaping, repeated TERM, unblocked child TERM/INT and
+inherited owner-lock retention; descriptor reuse is asserted, not assumed.
+Terra's last final message errored on usage after its saved 49-pass checkpoint;
+that error was not substituted for review. Astra's explicit PASS and root's
+complete suite provide the gate evidence.
+
+```sh
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-g5a-gate-20261005
+# 711 passed in 52.97s; source-stable final gate, recovered October 6
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# final native checkpoint already passed: no work, 15/15 CTest, 0.05s
+git diff --check
+# passed
+```
+
+G5a provides the fixed authenticated offline API, not launch forms. No GUI server
+was started for this API-only milestone; HTTP integration exercised actual v2 CLI
+jobs and byte parity, failure visibility, copied inputs and protected lineage.
+No user research root was registered/revealed, no new dependency installed, no
+Git history/remote operation or broker request performed.
+
+G5b.1 now starts under the reviewed `gui-research-forms.md` contract. Sol owns
+single-run preparation and CLI extraction; Terra owns internal byte-loading
+adapter seams and pure lab preparation. The shared preparation does not execute
+an engine. Moving invalid sampling checks earlier is intentional; valid economics
+and exports must retain parity. Result-dependent C++ checks remain authoritative.
+Do not add inline endpoints, lab runner changes or forms before this small gate.
+
+G5b.1 implementation checkpoint: the adapter byte seams and deep-copied pure
+lab preparation are saved. Review preserved CSV invalid-option validation before
+source-file opening, including through the CLI capture path. Single-run
+preparation owns copied configuration, canonical data, a fresh strategy/config,
+engine config and optional sampling settings; it does not execute a backtest.
+Shared configuration checks do not pretend to validate future equity-event
+staleness or undefined metrics; those remain in real-result C++ analytics.
+
+Terra reported 36 focused passes before the concurrent CLI extraction. A later
+35-pass/1-failure run hit the existing source-mutation guard during concurrent
+Sol edits; this is not waived or weakened. Rerun after all source files settle.
+Full G5b.1 tests and Astra review are pending. G5a's 711-pass gate above remains
+the last completed full gate, not a claim that this extraction is already done.
+
+After the next usage interruption the same agents resumed. Terra's source-stable
+rerun cleared the earlier concurrent-edit failure:
+
+```sh
+.venv/bin/python -m pytest tests/python/test_research_adapters.py tests/python/test_lab_config.py tests/python/test_adapters.py tests/python/test_strategy_lab.py -q --basetemp=build/terra-g5b-sourcequiet-20261006
+# 36 passed in 6.56s
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# native build no work; 15/15 CTest in 0.08s
+git diff --check
+# passed at checkpoint
+```
+
+G5b.1 independent pre-gate evidence: Astra compared the pre-extraction HEAD CLI
+with the refactor in isolated namespaces. All seven strategy types traded in
+v1/v2 (14 pairs), saved Alpaca SMA ran in both versions (2 pairs), and a small
+fixed lab ran (1 pair). All 373 exported file pairs were byte-identical, including
+metadata/completion, without normalization. Evidence stays ignored under
+`build/astra-g5b1-parity-8h8ZrP/`. Fifty focused tests passed independently.
+
+The broader regression exposed an existing reversal-test patch target at the old
+CLI import location. An initial private-constructor injection compatibility fix
+was rejected as unnecessary production surface. The approved correction moves
+only that test's patch target to `qte.research_config`; its real reversal and
+accounting assertions remain unchanged.
+
+```sh
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-g5b1-gate-20261006
+# 754 passed, 1 failed in 56.15s; NOT a passing G5b.1 gate
+```
+
+Failure: `test_standalone_subreaper_adopts_descendant_before_releasing_lock`
+did not see its fixture's final readiness file. The child waits for the
+descendant JSON path to exist, then immediately parses it; existence alone does
+not guarantee the writer has finished. Terra owns diagnosis and an atomic
+readiness/failure-cleanup fix in `test_gui_job_worker.py`, with Astra review.
+Do not conflate this with a passing production cleanup test. Full stable rerun
+and final review are required before starting G5b.2.
+
+### G5b.1 gate passed — 2026-10-06
+
+The user resumed and root recovered the final full-suite result. Atomic readiness
+publication fixed the fixture race without extending its 3-second readiness
+deadline or weakening any process-group/lock assertion. Setup-failure cleanup
+allows 8 seconds (beyond the worker's 2-second TERM grace) and closes owned lock
+FDs. No production supervisor change was needed. The reversal test now patches
+the extracted module only; no constructor-injection parameters remain.
+
+```sh
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-g5b1-final-20261006
+# 755 passed in 53.32s
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# October 6 native checkpoint: no work, 15/15 in 0.08s
+git diff --check
+# passed
+```
+
+Astra explicitly reviewed the latest code and fixture fixes: 76 focused
+preparation/export tests and 18 worker lifecycle tests passed. It repeated the
+independent HEAD comparison on final source: 17 paired runs / 373 byte-identical
+files, no normalization, stable identity. Final evidence directory:
+`build/astra-g5b1-final-parity-QNQuYN`. G5b.1 is complete, not the whole G5b.
+
+Next: G5b.2a preview boundary (no new launches). Sol owns form conversion,
+metadata/assumptions and unit tests; Terra owns bounded inline capture and tests;
+root owns HTTP wiring, authorization and integration. Astra reviews independently.
+
+### G5b.2a resume checkpoint — 2026-10-07
+
+Saved strict form conversion/metadata/assumptions, bounded wire/data capture,
+explicit nullable lab identity validation, and authenticated metadata/preview
+routes. Preview orders capture → protection authorization → shared preparation;
+it does not execute research or create snapshots/jobs. Exact captured wire config
+hash and typed config fingerprint remain distinct. Invalid protected data does
+not disclose financial/adapter diagnostics before an explicit existing reveal.
+
+Before the interruption Terra reported 35 focused capture/legacy-input passes;
+Sol reported 83 shared preparation/form passes. Astra reviewed capture (35
+passes) and found CSV field-limit exception sanitization, which Sol fixed.
+Agents then hit usage limits before the final independent preview decision.
+Root's integration tool cell was lost across the interruption: its result is
+unknown, not a pass. Rerun under a new unique build test directory. Root also
+fixed the lab effective-configuration schema version DTO exception on resume.
+Full stable gate and final Astra review are still required. No new launches yet.
+
+October 7 root integration first returned 103 passed / 2 failed in 1.21s.
+Both were newly written lab-success fixtures using 96 bars, below the existing
+128-bar minimum. Corrected fixture to 128; validation rules and all assertions
+remain intact. Added exact ordered registry-key and CandidateConfig field-inventory
+drift assertions. Final source-stable root checks:
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_form_api.py tests/python/test_gui_form_protection.py tests/python/test_gui_form_inputs.py tests/python/test_gui_research_forms.py tests/python/test_gui_job_protection.py -q --basetemp=build/test-gui-g5b2a-focused-final-20261007
+# 105 passed in 1.13s
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-g5b2a-full-20261007
+# 837 passed in 53.16s
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# no work; 15/15 passed in 0.07s
+git diff --check
+# passed
+```
+
+API/full pytest used scoped execution approval for the documented sandbox async
+wakeup failure. No packages, broker calls, user exports or Git history changed.
+Final independent Astra review is pending at this checkpoint; this is not yet
+permission to add a launch path. The next backend slice should first add immutable
+inline snapshots and compatibility tests without exposing a new launch route.
+
+### G5b.2a independent review passed — 2026-10-07
+
+Astra explicitly passed current code review with no blockers, verified the final
+DTO/fixture/drift corrections, and retained its independent 122-unit pass.
+Its additional API rerun waited on a separate `timeout`-wrapper approval and was
+aborted without a result; it is not counted. Root's 105 focused / 837 full and
+15 native results above are the completed integration gate. Reviewer stopped
+its owned stalled session (exit 130); bounded diagnostic ended at timeout (124).
+
+Now G5b.2b snapshot-only slice under the documented small gate: new explicit
+inline origin/versioned immutable inventory, existing legacy snapshot bytes and
+fingerprints unchanged, no new job submission or worker surface. Gate before
+manager/worker/lab verification integration. No additional dependency approval
+or installation is needed.
+
+Snapshot-slice interruption checkpoint: Sol saved the pre-change legacy-byte,
+manifest/inventory and `_fingerprint` golden test (1 pass before interruption).
+Root saved two real CLI parity tests in `test_gui_inline_snapshot_cli.py`; they
+await the new snapshot module and have not run yet. At the next user resume,
+`inline_inputs.py` had not been saved, so the current working test tree was not
+collectable as a full suite. Terra/Sol/Astra resumed their same owned slice.
+837 Python / 15 native remains the last completed full gate, not a claim about
+the unfinished snapshot implementation. Finish the module before a new full run.
+
+Snapshot source was subsequently saved and stabilized. `inline_inputs.py` adds
+the explicit v2 envelope/manifest, one canonical wire identity, recompiled typed
+identity, copied-data path only for research, honest null lab data fields, and
+pre-write/verify bounds. Only late dispatch was added to legacy `job_inputs.py`;
+no launch route, manager or worker change. Reviewer/root findings on path
+association, malformed types, fake source filename and symmetric size limits
+were fixed, with regressions. Root's separate invalid suite now has 42 cases for
+forged prepared values and rehashed semantic corruption. Partial snapshots fail
+verification and cannot be overwritten/reused.
+
+Terra reported 92 combined focused passes before the latest usage interruption.
+The root session result was unavailable after resume, so it was rerun:
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_inline_inputs.py tests/python/test_gui_inline_snapshot_invalid.py tests/python/test_gui_inline_snapshot_cli.py tests/python/test_gui_snapshot_compatibility.py tests/python/test_gui_job_inputs.py -q --basetemp=build/test-gui-inline-snapshot-resume-20261007
+# 74 passed in 3.06s
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# no work; 15/15 passed in 0.04s
+git diff --check
+# passed
+```
+
+Astra independently passed the latest snapshot-only code review: 74 focused
+tests passed in 3.03s under `build/test-g5b2b-astra-snapshots-reviewed-20261007`,
+with no remaining blockers. Approval covers snapshots only, not future launch
+or worker integration. Full Python gate has been launched under
+`build/test-gui-inline-snapshot-full-20261007`; record its result before moving
+to the next backend slice.
+
+### Inline snapshot gate passed — 2026-10-07
+
+Full result recovered before further edits:
+
+```sh
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-inline-snapshot-full-20261007
+# 894 passed in 55.70s
+```
+
+Together with 74 focused, 15 native and Astra's explicit latest-source PASS,
+this completes the snapshot-only slice. Existing CSV/Alpaca v1 inventory and
+research retry hashes remain frozen by golden tests. Research economic artifacts
+match direct CLI output after original data changes; every small synthetic-lab
+artifact matches direct CLI bytes after original config changes.
+
+Next active backend work: exact alternative inline request shape, fresh
+capture→authorize→shared preview→fingerprint comparison→snapshot submission;
+only fixed research/lab worker dispatch; new-lab-only completeness/provenance
+verification. No browser controls, external provider calls or broker actions.

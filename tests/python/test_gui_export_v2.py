@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import qte.cli
+import qte.research_config
 from qte.cli import run_research
 from qte.gui.artifacts import ArtifactError, inspect_artifact
 from qte.gui.catalog import Catalog
@@ -207,7 +208,7 @@ def test_v2_reader_accepts_a_full_engine_reversal_with_carry_sampling(tmp_path, 
         "risk": {"max_order_quantity": 10, "allow_short": True},
         "sampling": {"timestamps_ns": grid, "max_staleness_ns": INTERVAL, "periods_per_year": 8766},
     }), encoding="utf-8")
-    monkeypatch.setattr(qte.cli, "MovingAverageRegimeStrategy", lambda *_: Reversal())
+    monkeypatch.setattr(qte.research_config, "MovingAverageRegimeStrategy", lambda *_: Reversal())
     output = tmp_path / "build" / "v2-real-reversal"
     run_research(config, output, export_version=2)
 

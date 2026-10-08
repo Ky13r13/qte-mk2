@@ -1,5 +1,6 @@
 """Boundary regression tests independent of stored artifacts or the engine."""
 import asyncio
+import json
 
 import httpx
 import pytest
@@ -7,7 +8,7 @@ from starlette.requests import Request
 
 from qte.gui import create_app
 from qte.gui.dto import artifact_value
-from qte.gui.requests import json_request, strict_json
+from qte.gui.requests import json_request, json_request_one_of, strict_json
 from qte.gui.security import SecurityError
 
 
@@ -30,6 +31,29 @@ def test_chunked_login_stops_at_size_limit_before_consuming_more():
             await json_request(request, {'code'})
         assert error.value.status == 413
         assert requests == 2
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('payload,padding,status', [
+    ({'schema_version': 1, 'path': 'local'}, 0, None),
+    ({'schema_version': 1, 'form': {}}, 200, None),
+    ({'schema_version': 1, 'path': 'local'}, 200, 413),
+    ({'schema_version': 1, 'path': 'local', 'form': {}}, 0, 400),
+    ({'schema_version': True, 'form': {}}, 0, 400),
+])
+def test_exact_alternative_envelopes_keep_their_individual_body_bounds(payload, padding, status):
+    async def scenario():
+        raw = json.dumps(payload).encode() + b' ' * padding
+        async def receive():
+            return {'type': 'http.request', 'body': raw, 'more_body': False}
+        request = Request({'type': 'http', 'headers': [(b'content-type', b'application/json')]}, receive)
+        shapes = (({'path'}, 100), ({'form'}, 300))
+        if status is None:
+            assert await json_request_one_of(request, shapes) == payload
+        else:
+            with pytest.raises(SecurityError) as error:
+                await json_request_one_of(request, shapes)
+            assert error.value.status == status
     asyncio.run(scenario())
 
 

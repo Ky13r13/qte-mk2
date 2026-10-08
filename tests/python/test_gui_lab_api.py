@@ -217,3 +217,31 @@ def test_malformed_projection_fields_are_sanitized_http_errors(lab_repository, m
         assert "SECRET" not in response.text and "Traceback" not in response.text
 
     visit(repository, check)
+
+
+@pytest.mark.parametrize("field", ["source_identity", "config_json", "parameters_json"])
+@pytest.mark.parametrize("escaped_inner_json", [False, True])
+def test_lone_surrogates_fail_closed_at_catalog_or_nested_json_boundary(lab_repository, field, escaped_inner_json):
+    repository, output = lab_repository
+    path = output / "hourly/report.json"
+    value = json.loads(path.read_text())
+    invalid = "SECRET\ud800"
+    # Nested JSON may contain the literal escape instead of a decoded surrogate.
+    # It is then rejected by the projection parser, not the initial catalog pass.
+    inner = escaped_inner_json and field != "source_identity"
+    replacement = json.dumps(invalid) if inner else invalid
+    target = value["candidates"][0] if field == "parameters_json" else value
+    target[field] = replacement
+    path.write_text(json.dumps(value)); rehash(output)
+
+    async def check(client, headers, item_id):
+        response = await client.get(f"/api/v1/experiments/{item_id}", headers=headers)
+        assert response.status_code == (422 if inner else 409), response.text
+        assert response.json()["error"]["code"] == ("artifact_invalid" if inner else "lab_view_unavailable")
+        assert "SECRET" not in response.text and "Traceback" not in response.text
+        files = await client.get(f"/api/v1/artifacts/{item_id}/files?limit=200", headers=headers)
+        mixed = next(row for row in files.json()["items"] if row["name"] == "hourly/report.json")
+        assert mixed["available"] is False
+        assert (await client.get(f"/api/v1/artifacts/{item_id}/files/{mixed['id']}/download", headers=headers)).status_code == 403
+
+    visit(repository, check)

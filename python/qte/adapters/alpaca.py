@@ -22,9 +22,21 @@ def load_alpaca_fixture(
     tick_size: float = 0.01,
     currency: str = "USD",
 ) -> AdapterResult:
-    """Load one complete saved Alpaca stock-bars response; never performs I/O beyond the file."""
-    fixture_path = Path(path)
-    raw = fixture_path.read_bytes()
+    """Read one saved Alpaca response once, then normalize its exact bytes."""
+    raw = Path(path).read_bytes()
+    return _load_alpaca_bytes(raw, interval_ns=interval_ns, tick_size=tick_size, currency=currency)
+
+
+def _load_alpaca_bytes(
+    raw: bytes,
+    *,
+    interval_ns: int,
+    tick_size: float = 0.01,
+    currency: str = "USD",
+) -> AdapterResult:
+    """Load one captured saved response without reopening a fixture path."""
+    if not isinstance(raw, bytes):
+        raise TypeError("Alpaca fixture bytes must be bytes")
     try:
         payload = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as error:

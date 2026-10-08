@@ -16,6 +16,9 @@ G1 provides searchable original documentation with source hashes and status.
 G2 provides explicit artifact registration, verification and guarded downloads;
 G3a single-run charts/tables and G3b owned-result bindings are reviewed.
 G3c richer exports/views are implemented, regression-tested and reviewed.
+G4 adds role-filtered candidate, window, comparison, macro and regime views.
+G5a adds an authenticated offline single-run job API. G5b.2a adds form metadata
+and a read-only validation preview API; browser forms remain planned work.
 Consult the
 [checkpoint](gui-task-log.md) for the current tested milestone. Later job, data,
 test-execution and broker controls are not enabled merely by opening a page.
@@ -24,6 +27,36 @@ The interface uses neutral colors, square corners, local assets and native
 keyboard controls. It starts in Library rather than a performance dashboard.
 Documents are read-only; an architecture target or narrative test note is not a
 machine-verified pass result.
+
+## Offline job API
+
+The [job contract](gui-jobs.md) documents the fixed `research_run` API: explicit
+configuration-path submission, durable retry identity, one active job, bounded
+FIFO queue, status/log reads and cancellation. It uses the existing `.venv`,
+copies inputs into a fresh job directory and invokes the ordinary v2 CLI. It
+does not download data, contact brokers, run arbitrary commands or auto-register
+results. Known protected inputs require prior explicit disclosure; derived
+outputs remain protected. Restarted jobs are interrupted, not silently retried.
+
+The current runner requires Linux process supervision. No job launches merely
+by browsing a page. There are no launch buttons yet; the terminal `qte run`
+workflow remains available while [G5b forms](gui-research-forms.md) are built.
+
+## Research preview API
+
+Authenticated clients can read `GET /api/v1/research/form-options` and submit
+`POST /api/v1/configs/validate` using the fixed [form contract](gui-research-forms.md).
+The preview accepts one registered strategy on a local CSV/saved Alpaca input,
+or a fixed synthetic lab configuration. It shows validated configuration and
+execution/risk/research assumptions without running a backtest or creating a job.
+It checks known input protection before returning validation details, never
+records a disclosure, and makes no claim that unknown data is untouched.
+
+The request is bounded to 16 KiB; captured research data is bounded to 16 MiB.
+Simulation integers are exact decimal strings, not browser-rounded numbers.
+The preview fingerprint records captured content/configuration, but reserves
+neither bytes nor authorization. Inline submission and lab workers are a later
+backend step; the existing job API still accepts only a configuration path.
 
 ## Inspecting a recorded run
 
@@ -55,7 +88,20 @@ exports remain v1. V2 adds focused positions, closed/open trades and order-event
 views, plus exact event sequences. Positions contain inventory and valuation
 marks, not position cost basis or PnL. Carried sampled values retain their source
 event sequence. See the [format contract](gui-export-v2.md).
-Lab comparison and job forms are later G4/G5 work, not yet available.
+
+## Inspecting a recorded strategy lab
+
+Explicitly register its export directory in Research. A verified lab opens the
+recorded candidate slate, including exclusions and benchmarks, without ranking
+by return. Choose a timeframe, then a train/validation window for Comparison,
+Macro inputs or Regime decisions. Full records retain failures and missing facts;
+independent windows are never stitched into a portfolio curve. `daily_24h` is a
+synthetic clock, not a US exchange session.
+
+Test-role structured views remain withheld even after a raw-file disclosure.
+Mixed raw files retain their separate confirmation requirement. Synthetic prices
+and scripted macro inputs are mechanics evidence, not validated trading alpha or
+observed dealer positioning. Job forms are G5 work, not yet available.
 
 ## Session and storage
 

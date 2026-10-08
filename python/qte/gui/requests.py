@@ -33,6 +33,12 @@ def strict_json(raw: bytes):
 
 
 async def json_request(request: Request, fields: set[str], *, limit: int = 4096) -> dict:
+    return await json_request_one_of(request, ((fields, limit),))
+
+
+async def json_request_one_of(request: Request, field_limits: tuple[tuple[set[str], int], ...]) -> dict:
+    """Accept only complete fixed envelopes, with a byte bound for each shape."""
+    limit = max(bound for _, bound in field_limits)
     content_type = unique_header(request.scope, b'content-type') or ''
     if content_type.split(';', 1)[0].strip().lower() != 'application/json':
         raise SecurityError('unsupported_media_type', 415, 'Content-Type must be application/json.')
@@ -51,8 +57,13 @@ async def json_request(request: Request, fields: set[str], *, limit: int = 4096)
         chunks.append(chunk)
     try:
         payload = strict_json(b''.join(chunks))
-        if not isinstance(payload, dict) or set(payload) != fields | {'schema_version'}:
+        if not isinstance(payload, dict):
             raise ValueError('shape')
+        matching = [bound for fields, bound in field_limits if set(payload) == fields | {'schema_version'}]
+        if not matching:
+            raise ValueError('shape')
+        if size > min(matching):
+            raise SecurityError('request_too_large', 413, 'Request body exceeds the size limit.')
         if type(payload['schema_version']) is not int or payload['schema_version'] != 1:
             raise ValueError('version')
     except (ValueError, UnicodeError, RecursionError):

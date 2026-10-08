@@ -56,16 +56,18 @@ def _complete(root: Path) -> None:
     _write_json(root / "complete.json", {"schema_version": 1, "sha256": hashes})
 
 
-def _fixture(tmp_path: Path, *, missing=False, selected=True) -> Path:
+def _fixture(tmp_path: Path, *, missing=False, selected=True, candidate_count=2) -> Path:
     root = tmp_path / "build/lab"; folder = root / "hourly"
     folder.mkdir(parents=True)
     candidates = [{"name": "alpha", "parameters": {"kind": "safe"}, "eligible": True},
                   {"name": "cash", "parameters": {"benchmark": "cash"}, "eligible": False}]
+    candidates.extend({"name": f"candidate-{index:02d}", "parameters": {"kind": f"family-{index:02d}"},
+                       "eligible": True} for index in range(2, candidate_count))
     windows = [_window("train-safe", "train", 0, 100),
                _window("validation-safe", "validation", 110, 210),
                _window("test-SECRET-SENTINEL", "test", 220, 320)]
     scenarios = []
-    for candidate in ("alpha", "cash"):
+    for candidate in (value["name"] for value in candidates):
         for window in windows:
             for cost in ("base", "stress"):
                 if missing and candidate == "alpha" and window["name"] == "validation-safe" and cost == "stress":
@@ -81,11 +83,12 @@ def _fixture(tmp_path: Path, *, missing=False, selected=True) -> Path:
              "parameters_json": json.dumps(c["parameters"], sort_keys=True, separators=(",", ":"))}
             for c in candidates],
         "windows": windows, "scenarios": scenarios,
-        "assessments": [
-            {"candidate": "alpha", "eligible": True, "exclusions": [],
-             "validation_score": [0.1, 0.2], "validation_mean_stressed_return": 0.2},
-            {"candidate": "cash", "eligible": False, "exclusions": ["benchmark"],
-             "validation_score": None, "validation_mean_stressed_return": None}],
+        "assessments": [({"candidate": candidate["name"], "eligible": False,
+            "exclusions": ["benchmark"], "validation_score": None,
+            "validation_mean_stressed_return": None} if "benchmark" in candidate["parameters"] else
+            {"candidate": candidate["name"], "eligible": True, "exclusions": [],
+             "validation_score": [0.1, 0.2], "validation_mean_stressed_return": 0.2})
+            for candidate in candidates],
         "selected_candidate": "alpha" if selected else None,
         "holdout_status": "completed_SECRET_SENTINEL" if selected else "not_run_no_selection",
         "holdout_reasons": ["SECRET_SENTINEL"], "limitations": [], "parameter_status": "frozen"}
@@ -112,7 +115,7 @@ def _fixture(tmp_path: Path, *, missing=False, selected=True) -> Path:
         {"timestamp_ns": 210, "macro_regime": "risk_off", "volatility_regime": "high", "permitted_families": "range"},
         {"timestamp_ns": 211, "macro_regime": "SECRET-SENTINEL", "volatility_regime": "x", "permitted_families": ""}])
     _write_json(root / "summary.json", {"evidence": "historical_declared", "experiments": [{
-        "timeframe": "hourly", "candidate_count": 2, "scenario_count": len(scenarios),
+        "timeframe": "hourly", "candidate_count": len(candidates), "scenario_count": len(scenarios),
         "scenario_failures": sum(value["status"] != "ok" for value in scenarios),
         "selected_candidate": report["selected_candidate"], "holdout_status": report["holdout_status"]}]})
     _complete(root)
@@ -121,6 +124,8 @@ def _fixture(tmp_path: Path, *, missing=False, selected=True) -> Path:
 
 @pytest.mark.parametrize(("root", "count"), [(ACTUAL[0], 14), (ACTUAL[1], 15)])
 def test_actual_legacy_labs_project_safe_recorded_views(root, count):
+    if not root.is_dir():
+        pytest.skip(f"optional saved read-only lab artifact is unavailable: {root.name}")
     artifact = inspect_artifact(root)
     detail = project_lab(artifact, "hourly")
     assert detail["timeframe"] == "hourly" and detail["timeframes"] == ["hourly", "daily_24h"]
@@ -135,6 +140,25 @@ def test_actual_legacy_labs_project_safe_recorded_views(root, count):
         value = project_lab(artifact, "hourly", table, selected, 0, 2)
         assert value["timeframe"] == "hourly" and value["table"] == table and len(value["rows"]) <= 2
     assert "test-" not in json.dumps(detail)
+
+
+@pytest.mark.parametrize("count", [14, 15])
+def test_portable_verified_lab_fixtures_preserve_legacy_slate_sizes(tmp_path, count):
+    artifact = inspect_artifact(_fixture(tmp_path, candidate_count=count))
+    detail = project_lab(artifact, "hourly")
+    assert {row["role"] for row in detail["windows"]} == {"train", "validation"}
+    candidates = project_lab(artifact, "hourly", "candidates", offset=count - 1, limit=1)
+    assert candidates["total"] == count
+    assert candidates["rows"] == [{
+        "candidate": f"candidate-{count - 1:02d}", "eligible": True,
+        "validation_score": [0.1, 0.2], "exclusions": [],
+        "validation_mean_stressed_return": 0.2, "benchmark": False}]
+    comparison = project_lab(artifact, "hourly", "comparison", "validation-safe", 0, 200)
+    assert comparison["total"] == count
+    assert [row["candidate"] for row in comparison["rows"]] == [
+        "alpha", "cash", *(f"candidate-{index:02d}" for index in range(2, count))]
+    assert "SECRET-SENTINEL" not in json.dumps({"detail": detail, "candidates": candidates,
+                                                 "comparison": comparison})
 
 
 def test_detail_and_tables_never_expose_test_sentinels_and_keep_missing_trials(tmp_path):
