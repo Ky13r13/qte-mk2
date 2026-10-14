@@ -20,6 +20,10 @@ class _SupervisorSignal(BaseException):
     pass
 
 
+_DOWNLOAD_ENVIRONMENT = ("APCA_API_KEY_ID", "APCA_API_SECRET_KEY")
+_DOWNLOAD_SECRET_LIMIT = 1024
+
+
 def _result(fd: int, **value) -> None:
     data = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("ascii")
     if len(data) > 4096:
@@ -38,13 +42,20 @@ def _snapshot(repository: Path, job_id: str, expected: dict[str, str]):
 
 def _snapshot_kind(value) -> tuple[str, str | None] | None:
     """Extract the fixed v2 kind, retaining v1 as implicit research only."""
-    if value is None:
+    try:
+        from qte.gui.inline_inputs import InlineSnapshotInputs
+        from qte.gui.job_inputs import SnapshotInputs
+    except Exception:
         return None
-    kind = getattr(value, "kind", "research_run")
-    hashes = getattr(value, "hashes", None)
+    if isinstance(value, InlineSnapshotInputs):
+        kind, hashes = value.kind, value.hashes
+    elif isinstance(value, SnapshotInputs):
+        kind, hashes = "research_run", value.hashes
+    else:
+        return None
     canonical = hashes.get("canonical_config_sha256") if isinstance(hashes, dict) else None
-    if not isinstance(kind, str) or kind not in {"research_run", "strategy_lab"} or (canonical is not None and (
-            not isinstance(canonical, str) or re.fullmatch(r"[0-9a-f]{64}", canonical) is None)):
+    if (not isinstance(kind, str) or kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca"}
+            or not isinstance(canonical, str) or re.fullmatch(r"[0-9a-f]{64}", canonical) is None):
         return None
     return kind, canonical
 
@@ -180,13 +191,17 @@ def supervise(spec_path: Path, parent_fd: int, cancel_fd: int, result_fd: int) -
                             "TMPDIR", "XDG_CACHE_HOME"}
         kind = spec["kind"]
         if (not isinstance(job_id, str) or re.fullmatch(r"[0-9a-f]{32}", job_id) is None
-                or not isinstance(kind, str) or kind not in {"research_run", "strategy_lab"}
+                or not isinstance(kind, str) or kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca"}
                 or executable != Path(sys.executable).absolute()
                 or config != job_root / "inputs/effective-config.json"
                 or output != job_root / "artifacts"
                 or not isinstance(spec["environment"], dict) or set(spec["environment"]) != safe_environment
                 or spec["environment"].get("TMPDIR") != (job_root / "tmp").as_posix()
                 or spec["environment"].get("XDG_CACHE_HOME") != (job_root / "cache").as_posix()):
+            raise ValueError
+        if kind == "download_alpaca" and any(
+                not isinstance(os.environ.get(name), str) or not 1 <= len(os.environ[name]) <= _DOWNLOAD_SECRET_LIMIT
+                for name in _DOWNLOAD_ENVIRONMENT):
             raise ValueError
         if pending_signal[0]:
             raise _SupervisorSignal
@@ -207,8 +222,15 @@ def supervise(spec_path: Path, parent_fd: int, cancel_fd: int, result_fd: int) -
             raise RuntimeError("subreaper unavailable")
         argv = ([str(executable), "-m", "qte", "run", "--config", str(config), "--output", str(output),
                  "--export-version", "2"] if kind == "research_run" else
-                [str(executable), "-m", "qte", "lab", "--config", str(config), "--output", str(output)])
-        process = subprocess.Popen(argv, cwd=repository, env=spec["environment"], shell=False,
+                [str(executable), "-m", "qte", "validate-data", "--config", str(config), "--output", str(output)]
+                if kind == "dataset_validate" else
+                [str(executable), "-m", "qte", "lab", "--config", str(config), "--output", str(output)]
+                if kind == "strategy_lab" else
+                [str(executable), "-m", "qte", "download-alpaca-config", "--config", str(config), "--output", str(output)])
+        child_environment = dict(spec["environment"])
+        if kind == "download_alpaca":
+            child_environment.update({name: os.environ[name] for name in _DOWNLOAD_ENVIRONMENT})
+        process = subprocess.Popen(argv, cwd=repository, env=child_environment, shell=False,
                                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                    stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
         if pending_signal[0]:
@@ -252,13 +274,49 @@ def supervise(spec_path: Path, parent_fd: int, cancel_fd: int, result_fd: int) -
                     manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
                     valid = (artifact.kind == "research_export_v2" and artifact.metadata.get("integrity") == "verified"
                              and manifest.get("source_identity") == spec["source_identity"])
-                else:
+                elif kind == "strategy_lab":
                     canonical = verified_info[1]
                     if canonical is None:
                         valid = False
                     else:
                         from qte.gui.job_outputs import verify_fixed_lab_output
                         valid = bool(verify_fixed_lab_output(output, spec["source_identity"], canonical))
+                elif kind == "dataset_validate":
+                    from qte.data_validation import verify_dataset_output
+                    validation = verify_dataset_output(output)
+                    expected_data = verified.hashes.get("data_sha256")
+                    configuration_bytes = config.read_bytes()
+                    expected_configuration = json.loads(configuration_bytes)
+                    input_name = ("input.csv" if expected_configuration.get("data", {}).get("adapter") == "csv"
+                                  else "input.json")
+                    expected_configuration["data"]["path"] = input_name
+                    canonical = lambda value: json.dumps(
+                        value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False)
+                    valid = (isinstance(validation, dict)
+                             and hashlib.sha256(configuration_bytes).hexdigest()
+                             == verified.hashes.get("effective_config_sha256")
+                             and canonical(validation.get("configuration")) == canonical(expected_configuration)
+                             and validation.get("manifest", {}).get("data_sha256") == expected_data
+                             and validation.get("manifest", {}).get("source_identity")
+                             == spec["source_identity"])
+                else:
+                    from qte.download_artifact import verify_download_output
+                    download = verify_download_output(output)
+                    configuration_bytes = config.read_bytes()
+                    canonical = lambda value: json.dumps(
+                        value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False)
+                    valid = (isinstance(download, dict)
+                             and set(download) == {"manifest", "configuration", "summary"}
+                             and canonical(download.get("configuration"))
+                             == canonical(json.loads(configuration_bytes))
+                             and hashlib.sha256(configuration_bytes).hexdigest()
+                             == verified.hashes.get("effective_config_sha256")
+                             and hashlib.sha256(canonical(json.loads(configuration_bytes)).encode("utf-8")).hexdigest()
+                             == verified.hashes.get("canonical_config_sha256")
+                             and isinstance(download.get("summary"), dict)
+                             and isinstance(download.get("manifest"), dict)
+                             and download["manifest"].get("artifact_kind") == "alpaca_download_v1"
+                             and download["manifest"].get("source_identity") == spec["source_identity"])
             except Exception:
                 valid = False
             if valid:

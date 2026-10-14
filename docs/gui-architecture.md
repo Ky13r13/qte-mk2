@@ -1,11 +1,17 @@
 # QTE local research library
 
-Status: architecture approved for incremental implementation. As of 2026-10-06,
-G0 dependencies are installed and G1 through G5b.2a are implemented and reviewed.
-G5b.2b starts with immutable inline snapshots under the [forms contract](gui-research-forms.md).
-Browser forms, inline submission and the lab job handler are not implemented yet. See the
+Status: architecture approved for incremental implementation. As of 2026-10-08,
+G0 dependencies are installed and G1 through G5b.2b are implemented and reviewed.
+Inline submission and the fixed lab worker passed the [forms contract](gui-research-forms.md)
+backend gate; G5b.3 forms/job views are available as a test build, with extended
+browser/accessibility acceptance pending. See the
 [active checkpoint](gui-task-log.md) for tested capability and remaining work;
-later milestones below remain targets, not claims of shipped functionality.
+G6a local dataset validation and checksum-pinned source reuse are accepted.
+G6b adds offline request previews and explicitly gated Alpaca download/cache
+inspection (mock-tested; network disabled by default). G7a.1 adds reviewed
+[declarative CLI comparisons](gui-comparisons.md); comparison GUI launch and
+holdout-aware views remain pending, followed by G7b–G9. Current gate:
+1050 Python / 15 CTest; the unchanged browser's last gate is 11 JS tests.
 The user requested a locally hosted, minimally colored, square-cornered interface
 covering existing functionality, documentation and test artifacts. This is a
 presentation/orchestration layer, not a new trading engine. Read with
@@ -169,7 +175,9 @@ read-only and retain their original bytes, identifiers and source identity.
 Store only UI catalog/job metadata in `.cache/qte-gui/catalog.sqlite3`, never the
 paper coordinator database. Config/input snapshots and new job outputs live in
 `build/gui/jobs/<uuid>/`; workers write into a new `artifacts/` child. Imported
-datasets are copied to immutable `build/gui/datasets/<uuid>/`. Append-only
+datasets currently retain copied raw inputs inside validation job artifacts;
+G6a reuses a checksum-matching original path, not an arbitrary immutable registry
+reference. A dedicated `build/gui/datasets/<uuid>/` replay store remains deferred. Append-only
 holdout-disclosure records live in `build/gui/disclosures/`, outside the
 rebuildable index, keyed by protocol/artifact and dataset/window identities.
 Re-registration, path renames and restarts must retain those restrictions;
@@ -398,7 +406,7 @@ trustworthy.
 | G5b — research forms | Family-specific fields, advanced costs/risk/sampling, lab handler; G5a | Same valid/invalid config results as CLI; equivalent metrics/fills; explicit pre-run assumptions; legacy SMA works |
 | G6a — local dataset workflows | CSV mapping, saved Alpaca imports, bounded validation jobs; G5a | Existing interval/availability/action preflight unchanged; unsupported session semantics explicit, no exchange-calendar validation claim; no repair/bar filling |
 | G6b — Alpaca download UI | Explicit feed/date/symbol/action declaration, cache lineage; G6a | Offline pagination/corruption/retry parity; no request on page load; real check requires separate user-authorized credentials |
-| G7a — declarative comparison bridge | Config adapters for existing SMA and registered `run_experiment` workflows; G5b/G6a | Chronology/universe/currency checks preserved; frozen slate before holdout; no arbitrary factory imports; all trials retained |
+| G7a — declarative comparison bridge (CLI increment accepted; GUI pending) | Config adapters for existing SMA and registered `run_experiment` workflows; G5b/G6a | Chronology/universe/currency checks preserved; frozen slate before holdout; no arbitrary factory imports; all trials retained |
 | G7b — macro/router bridge | Explicit local observations, as-of inspection, router params/route-event export; G7a/G3c | Availability/vintage/staleness/dealer provenance and proxy rejection; exit-before-switch parity; no false dealer inference |
 | G8a — test evidence | Fixed CTest and pytest jobs plus machine records; G5a | JUnit/log/command/test-source+binary hashes, exit status and complete marker; failed jobs remain visible; skip != pass; stale records labeled |
 | G8b — benchmark evidence | Bounded existing benchmark job and machine/build/workload record; G8a | Timing not research performance; no-op `hold` correctly labeled; no automatic million-bar runs or unrelated build/install commands |

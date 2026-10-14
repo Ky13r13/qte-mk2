@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import math
 from dataclasses import dataclass
@@ -66,7 +67,7 @@ def _sections(configuration: dict[str, Any]):
     )
     return fields(
         configuration["data"],
-        ("adapter", "path", "interval_ns", "tick_size", "currency", "action_free", "schema"),
+        ("adapter", "path", "interval_ns", "tick_size", "currency", "action_free", "schema", "expected_sha256"),
         ("adapter", "path", "interval_ns"),
     )
 
@@ -96,6 +97,13 @@ def _preflight_capture(data: dict[str, Any]) -> None:
 
 
 def _load_data(data: dict[str, Any], raw: bytes) -> AdapterResult:
+    if "expected_sha256" in data:
+        expected = data["expected_sha256"]
+        if (not isinstance(expected, str) or len(expected) != 64
+                or any(char not in "0123456789abcdef" for char in expected)):
+            raise ValueError("expected_sha256 must be a lowercase SHA-256 hex digest")
+        if hashlib.sha256(raw).hexdigest() != expected:
+            raise ValueError("captured data does not match expected_sha256")
     kwargs = {key: data[key] for key in ("interval_ns", "tick_size", "currency") if key in data}
     if data["adapter"] == "alpaca":
         if "schema" in data or "action_free" in data:

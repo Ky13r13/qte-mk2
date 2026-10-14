@@ -145,7 +145,14 @@ complete result exports, bounded research jobs, data workflows, declarative
 comparison/router interfaces, test/benchmark evidence, and read-only connection
 inspection. G0 dependencies are approved/installed and G1 is implemented and
 reviewed. G2 through G5a are implemented/reviewed under the
-[job contract](gui-jobs.md). G5b.1 shared validators and G5b.2a previews are reviewed; the
+[job contract](gui-jobs.md). G5b.1 shared validators, G5b.2a previews and G5b.2b
+inline/fixed-lab jobs are reviewed. G5b.3 browser forms are test-build ready;
+extended browser acceptance is pending. G6a local data validation and pinned
+source reuse and G6b gated download controls are accepted offline. G7a.1 shared
+configuration and CLI comparison exports are reviewed (1050 Python tests,
+15/15 CTest; unchanged browser last passed 11 JS). Downloads are disabled by
+default. Remaining G7a gates are holdout-aware comparison readers and immutable
+multi-source GUI jobs/forms, followed by G7b–G9. The
 [forms contract](gui-research-forms.md) separates backend and browser gates.
 See the [task log](gui-task-log.md)
 and [usage guide](gui-usage.md) for tested capability and remaining work.

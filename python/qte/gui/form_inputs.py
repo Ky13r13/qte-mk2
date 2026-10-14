@@ -79,11 +79,11 @@ def capture_form_inputs(
     This boundary deliberately does not parse bars, construct a strategy, or
     validate financial fields. Authorization must happen before those actions.
     """
-    if not isinstance(kind, str) or kind not in {"research_run", "strategy_lab"}:
+    if not isinstance(kind, str) or kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca"}:
         raise _error("invalid")
     origin = _origin(config_origin)
     configuration_bytes, canonical = _canonical_configuration(configuration)
-    if kind == "strategy_lab":
+    if kind in {"strategy_lab", "download_alpaca"}:
         return CapturedFormInputs(
             kind, origin, configuration_bytes, sha256(configuration_bytes).hexdigest(), None,
             None, None, None, None,

@@ -2,6 +2,7 @@
 from __future__ import annotations
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -31,7 +32,16 @@ def fetch_page(params, *, retries=3):
             with build_opener(NoRedirect()).open(request,timeout=30) as response:
                 raw=response.read(32*1024*1024+1)
                 if len(raw)>32*1024*1024: raise ValueError('Alpaca page exceeds 32 MiB')
-                return json.loads(raw)
+                def pairs(items):
+                    value={}
+                    for name,item in items:
+                        if name in value: raise ValueError('Alpaca page contains a duplicate JSON key')
+                        value[name]=item
+                    return value
+                value=json.loads(raw,object_pairs_hook=pairs,
+                    parse_constant=lambda _:(_ for _ in ()).throw(ValueError('Alpaca page contains a nonfinite number')))
+                _encoded(value)
+                return value
         except HTTPError as error:
             if error.code not in (429,500,502,503,504) or attempt==retries:
                 raise ValueError(f'Alpaca HTTP {error.code}; credentials and response body omitted') from None
@@ -44,15 +54,20 @@ def fetch_page(params, *, retries=3):
             time.sleep(min(2**attempt,30))
 
 def _encoded(value):
+    pending=[value]
+    while pending:
+        item=pending.pop()
+        if isinstance(item,str):
+            try: item.encode('utf-8')
+            except UnicodeEncodeError: raise ValueError('Alpaca page contains invalid Unicode') from None
+        elif isinstance(item,float) and not math.isfinite(item):
+            raise ValueError('Alpaca page contains a nonfinite number')
+        elif isinstance(item,dict): pending.extend(item.keys()); pending.extend(item.values())
+        elif isinstance(item,(list,tuple)): pending.extend(item)
     return json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False).encode()
 
-def download_stock_bars(*,symbols,timeframe,start,end,feed,action_free,cache_dir,
-                        page_fetcher=None,max_pages=10000):
-    """Immutable complete cache keyed by explicit request. End is inclusive (Alpaca).
-
-    action_free is a user declaration; downloading does not establish it.
-    Cache reuse is offline, checksum-verified, and never refreshes implicitly.
-    """
+def stock_bars_request(*,symbols,timeframe,start,end,feed,action_free):
+    """Return the canonical, validated provider request and its cache identity."""
     interval=interval_for_timeframe(timeframe)
     if feed not in ('iex','sip'): raise ValueError('feed must explicitly be iex or sip')
     if action_free is not True: raise ValueError('action_free=True declaration required')
@@ -61,10 +76,25 @@ def download_stock_bars(*,symbols,timeframe,start,end,feed,action_free,cache_dir
         raise ValueError('symbols must be a nonempty list of normalized stock symbols')
     if len(set(symbols))!=len(symbols): raise ValueError('duplicate requested symbols')
     if parse_rfc3339_utc_ns(start)>=parse_rfc3339_utc_ns(end): raise ValueError('start must precede end')
-    if type(max_pages) is not int or max_pages<1: raise ValueError('max_pages must be positive')
     params={'symbols':','.join(sorted(symbols)),'timeframe':timeframe,'start':start,'end':end,
             'feed':feed,'adjustment':'raw','currency':'USD','sort':'asc','asof':'-','limit':10000}
     request_id=hashlib.sha256(_encoded({'version':1,'request':params})).hexdigest()
+    return params,request_id,interval
+
+def download_stock_bars(*,symbols,timeframe,start,end,feed,action_free,cache_dir,
+                        page_fetcher=None,max_pages=10000,max_page_bytes=32*1024*1024,
+                        max_total_bytes=None):
+    """Immutable complete cache keyed by explicit request. End is inclusive (Alpaca).
+
+    action_free is a user declaration; downloading does not establish it.
+    Cache reuse is offline, checksum-verified, and never refreshes implicitly.
+    """
+    params,request_id,interval=stock_bars_request(symbols=symbols,timeframe=timeframe,start=start,
+        end=end,feed=feed,action_free=action_free)
+    if type(max_pages) is not int or max_pages<1: raise ValueError('max_pages must be positive')
+    if type(max_page_bytes) is not int or max_page_bytes<1: raise ValueError('max_page_bytes must be positive')
+    if max_total_bytes is not None and (type(max_total_bytes) is not int or max_total_bytes<1):
+        raise ValueError('max_total_bytes must be positive')
     root=Path(cache_dir); root.mkdir(parents=True,exist_ok=True)
     final=root/request_id
     if final.exists():
@@ -81,12 +111,16 @@ def download_stock_bars(*,symbols,timeframe,start,end,feed,action_free,cache_dir
     # TemporaryDirectory cleans only this invocation's incomplete staging files.
     with tempfile.TemporaryDirectory(prefix='.staging-',dir=root) as temporary:
         stage=Path(temporary)
-        combined={s:[] for s in sorted(symbols)}; token=None; seen=set(); checksums={}
+        combined={s:[] for s in sorted(symbols)}; token=None; seen=set(); checksums={}; total_bytes=0
         for page_index in range(max_pages):
             page=fetch({**params,**({'page_token':token} if token else {})})
             if not isinstance(page,dict) or 'next_page_token' not in page or not isinstance(page.get('bars'),dict):
                 raise ValueError('malformed Alpaca page')
             filename=f'page-{page_index:06d}.json'; raw=_encoded(page)
+            if len(raw)>max_page_bytes: raise ValueError('Alpaca page exceeds artifact file limit')
+            total_bytes+=len(raw)
+            if max_total_bytes is not None and total_bytes>max_total_bytes:
+                raise ValueError('Alpaca pages exceed artifact byte limit')
             (stage/filename).write_bytes(raw); checksums[filename]=hashlib.sha256(raw).hexdigest()
             for symbol,rows in page['bars'].items():
                 if symbol not in combined or not isinstance(rows,list): raise ValueError('unexpected symbol or bar list')
@@ -104,7 +138,12 @@ def download_stock_bars(*,symbols,timeframe,start,end,feed,action_free,cache_dir
         if any(not rows for rows in combined.values()): raise ValueError('requested symbol returned no bars')
         fixture={'_qte':{'schema':SCHEMA_ID,'feed':feed,'timeframe':timeframe,
                          'adjustment':'raw','action_free':True},'bars':combined,'next_page_token':None}
-        raw=_encoded(fixture); (stage/'bars.json').write_bytes(raw)
+        raw=_encoded(fixture)
+        if len(raw)>max_page_bytes: raise ValueError('Alpaca dataset exceeds artifact file limit')
+        total_bytes+=len(raw)
+        if max_total_bytes is not None and total_bytes>max_total_bytes:
+            raise ValueError('Alpaca download exceeds artifact byte limit')
+        (stage/'bars.json').write_bytes(raw)
         checksums['bars.json']=hashlib.sha256(raw).hexdigest()
         load_alpaca_fixture(stage/'bars.json',interval_ns=interval)
         (stage/'download.json').write_bytes(_encoded({'version':1,'request':params,'sha256':checksums,

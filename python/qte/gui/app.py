@@ -19,6 +19,7 @@ from starlette.routing import Route
 from .documents import DocumentLibrary
 from .artifact_routes import artifact_routes
 from .catalog import Catalog
+from .dataset_routes import dataset_routes
 from .form_routes import form_routes
 from .job_routes import job_routes
 from .jobs import JobManager
@@ -28,17 +29,19 @@ from .security import IDLE_TIMEOUT_SECONDS, SecurityError, SessionController, un
 
 TOKEN_HEADER = "X-QTE-Token"
 COOKIE_NAME = "qte_session"
-STATIC_NAMES = {"index.html", "app.css", "app.js", "experiments.js"}
+STATIC_NAMES = {"index.html", "app.css", "app.js", "experiments.js", "research_forms.js", "research_jobs.js", "datasets.js"}
 
 
 def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str], object] = print,
-               clock: Callable[[], float] = time.monotonic) -> Starlette:
+               clock: Callable[[], float] = time.monotonic,
+               alpaca_download_enabled: bool = False) -> Starlette:
     controller = SessionController(code_sink, clock)
     library = DocumentLibrary(Path(repository))
     catalog = Catalog(Path(repository))
     # The job dispatcher owns its own verification cache; durable catalog and
     # protection storage are shared, not mutable request-thread cache objects.
-    jobs = JobManager(Path(repository), Catalog(Path(repository)))
+    jobs = JobManager(Path(repository), Catalog(Path(repository)),
+                      alpaca_download_enabled=alpaca_download_enabled)
     expected_host = f"127.0.0.1:{port}"
     expected_origin = f"http://{expected_host}"
     static_root = Path(__file__).with_name("static")
@@ -112,13 +115,20 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
         values = [
             {"id": "library", "state": "available" if available else "blocked", "reason":
              "Configured document source has passed validation." if available else "Library source unavailable."},
-             {"id": "research", "state": "available", "reason": "Local artifact catalog, fixed offline jobs and authorized form preview API; browser forms are not yet implemented."},
-            {"id": "data", "state": "planned", "reason": "Local adapters exist; GUI dataset workflows are not implemented."},
+             {"id": "research", "state": "available", "reason": "Local artifact catalog, exact-value research forms and explicitly launched offline run/lab jobs."},
+            {"id": "data", "state": "available", "reason": "Local validation and download request previews. Downloads require explicit server permission and credentials."},
             {"id": "test_execution", "state": "planned", "reason": "Tests run from the terminal; no GUI test runner exists."},
             {"id": "broker_reads", "state": "blocked", "reason": "GUI read controls and authorized prerequisites are unresolved."},
             {"id": "paper_execution", "state": "blocked", "reason": "Operational paper execution is not integrated."},
         ]
         return JSONResponse({"schema_version": 1, "capabilities": values}, headers={"Cache-Control": "no-store"})
+
+    async def download_prerequisites(request: Request) -> Response:
+        session_for(request, token=True)
+        if request.query_params:
+            raise SecurityError("invalid_query", 400, "This route does not accept query parameters.")
+        return JSONResponse({"schema_version": 1, **jobs.download_prerequisites()},
+                            headers={"Cache-Control": "no-store"})
 
     async def library_api(request: Request) -> Response:
         session_for(request, token=True)
@@ -141,12 +151,21 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
         Route("/api/v1/session", get_session, methods=["GET"]),
         Route("/api/v1/session", delete_session, methods=["DELETE"]),
         Route("/api/v1/capabilities", capabilities, methods=["GET"]),
+        Route("/api/v1/data/alpaca/prerequisites", download_prerequisites, methods=["GET"]),
         Route("/api/v1/library", library_api, methods=["GET"]),
         Route("/api/v1/documents/{document_id:str}", document_api, methods=["GET"]),
         Route("/library", shell, methods=["GET"]), Route("/library/{document_id:str}", shell, methods=["GET"]),
-        Route("/research", shell, methods=["GET"]), Route("/research/{artifact_id:str}", shell, methods=["GET"]),
-        Route("/data", shell, methods=["GET"]), Route("/system", shell, methods=["GET"]),
-    ] + artifact_routes(catalog, session_for) + job_routes(jobs, session_for) + form_routes(Catalog(Path(repository)), session_for)
+        Route("/research", shell, methods=["GET"]),
+        Route("/research/new/run", shell, methods=["GET"]),
+        Route("/research/new/lab", shell, methods=["GET"]),
+        Route("/research/jobs/{job_id:str}", shell, methods=["GET"]),
+        Route("/research/{artifact_id:str}", shell, methods=["GET"]),
+        Route("/data", shell, methods=["GET"]),
+        Route("/data/new", shell, methods=["GET"]),
+        Route("/data/download/alpaca", shell, methods=["GET"]),
+        Route("/data/downloads/{artifact_id:str}", shell, methods=["GET"]),
+        Route("/data/{artifact_id:str}", shell, methods=["GET"]), Route("/system", shell, methods=["GET"]),
+    ] + artifact_routes(catalog, session_for) + job_routes(jobs, session_for) + form_routes(Catalog(Path(repository)), session_for) + dataset_routes(Catalog(Path(repository)), session_for)
     class BoundaryMiddleware:
         def __init__(self, app) -> None:
             self.app = app
@@ -179,7 +198,7 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
                     raise SecurityError("same_origin_required", 403, "Same-origin request required.")
                 if fetch_site == "cross-site" or (fetch_site == "none" and request.url.path not in {
                         "/", "/login", "/library", "/research", "/data", "/system"} and
-                        not request.url.path.startswith(("/library/", "/research/"))):
+                        not request.url.path.startswith(("/library/", "/research/", "/data/"))):
                     raise SecurityError("same_origin_required", 403, "Same-origin request required.")
                 if request.method in {"POST", "PUT", "PATCH", "DELETE"} and origin != expected_origin:
                     raise SecurityError("same_origin_required", 403, "Same-origin request required.")

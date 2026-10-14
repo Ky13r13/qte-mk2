@@ -1,14 +1,25 @@
 import { createExperimentViews } from "./experiments.js";
+import { createResearchForms } from "./research_forms.js";
+import { createResearchJobs } from "./research_jobs.js";
+import { createDatasetViews } from "./datasets.js";
 
 const app = document.querySelector("#app");
 const pageStatus = document.querySelector("#page-status");
 const logoutButton = document.querySelector("#logout-button");
 const state = { token: null, session: null, library: null };
 let activeView = 0;
+let jobViews = null;
 const runViews = new Set(["overview", "metrics", "orders", "fills", "equity", "sampled_equity", "equity_table", "sampled_equity_table", "positions", "closed_trades", "open_trades", "order_events", "provenance", "files", "catalog"]);
 
-function beginView() { activeView += 1; return activeView; }
+function beginView() { jobViews?.dispose(); activeView += 1; return activeView; }
 function isCurrentView(request) { return request === activeView; }
+
+function navigate(href) {
+  const destination = new URL(href, window.location.origin);
+  if (destination.origin !== window.location.origin || !["/research", "/data"].some(prefix => destination.pathname === prefix || destination.pathname.startsWith(`${prefix}/`))) return;
+  window.history.pushState({}, "", destination.pathname + destination.search + destination.hash);
+  route();
+}
 
 function element(name, attributes = {}, children = []) {
   const node = document.createElement(name);
@@ -50,6 +61,7 @@ function apiError(response, payload) {
   const error = new Error(message);
   error.status = response.status;
   error.code = payload?.error?.code;
+  if (typeof payload?.error?.field === "string") error.field = payload.error.field.slice(0, 160);
   return error;
 }
 
@@ -227,7 +239,7 @@ function artifactTable(items) {
   const body = element("tbody");
   for (const artifact of items) {
     body.append(element("tr", {}, [
-      element("td", {}, [textLink(`/research/${encodeURIComponent(artifact.id)}`, artifact.name || "Unnamed artifact")]),
+      element("td", {}, [textLink(`/${artifact.kind === "alpaca_download_v1" ? "data/downloads" : artifact.kind === "dataset_validation_v1" ? "data" : "research"}/${encodeURIComponent(artifact.id)}`, artifact.name || "Unnamed artifact")]),
       element("td", { text: humanize(artifact.kind) }),
       element("td", { text: artifact.registered_at || "Registration time unavailable" }),
       element("td", {}, [statusWord(artifactStatus(artifact))]),
@@ -273,13 +285,20 @@ async function registerArtifact(path, submit) {
   }
 }
 
-async function loadResearch(offset = 0) {
+async function loadResearch(offset = 0, jobOffset = 0) {
   const request = beginView();
   setNavigation("research");
   setStatus("Loading registered artifacts.");
   try {
     const params = new URLSearchParams({ offset: String(offset), limit: "25" });
     const payload = await api(`/api/v1/artifacts?${params}`);
+    if (!isCurrentView(request)) return;
+    let jobs = null;
+    let jobsError = null;
+    try {
+      const jobParams = new URLSearchParams({ offset: String(jobOffset), limit: "25" });
+      jobs = await api(`/api/v1/jobs?${jobParams}`);
+    } catch (error) { jobsError = error; }
     if (!isCurrentView(request)) return;
     const heading = element("h1", { text: "Research" });
     const lede = element("p", { class: "lede", text: "Registered research artifacts. Registration is explicit; this page never scans build/." });
@@ -296,7 +315,11 @@ async function loadResearch(offset = 0) {
     const content = payload.items?.length
       ? [element("div", { class: "table-wrap" }, [artifactTable(payload.items)]), artifactPagination(payload, offset)]
       : [element("p", { text: "No research artifacts are registered." })];
-    replaceView(heading, lede, form, ...content);
+    const actions = element("nav", { class: "run-nav", "aria-label": "New offline research" }, [
+      textLink("/research/new/run", "New run"), textLink("/research/new/lab", "New synthetic lab"),
+    ]);
+    replaceView(heading, lede, actions, jobViews.recent(jobs, jobsError, (next) => loadResearch(offset, next)),
+      element("h2", { text: "Registered artifacts" }), form, ...content);
     setStatus("");
   } catch (error) { if (isCurrentView(request)) { setStatus(""); renderError(error.message); } }
 }
@@ -805,6 +828,16 @@ const experimentViews = createExperimentViews({
   displayValue, humanize, textLink, loadArtifact,
 });
 
+const researchForms = createResearchForms({
+  api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation, textLink, navigate,
+});
+const datasetViews = createDatasetViews({ api, element, replaceView, beginView, isCurrentView,
+  setStatus, setNavigation, textLink, navigate });
+jobViews = createResearchJobs({
+  api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation,
+  textLink, navigate, displayValue, humanize,
+});
+
 function renderLogin(errorMessage = "") {
   logoutButton.hidden = true;
   setNavigation("");
@@ -848,6 +881,7 @@ async function bootstrap() {
 }
 
 function route() {
+  jobViews.dispose();
   const path = window.location.pathname;
   if (path === "/library" || path === "/") loadLibrary();
   else if (path.startsWith("/library/")) {
@@ -855,6 +889,12 @@ function route() {
     if (id !== null) loadDocument(id);
   }
   else if (path === "/research") loadResearch();
+  else if (path === "/research/new/run") researchForms.loadRun(new URLSearchParams(window.location.search).get("dataset"));
+  else if (path === "/research/new/lab") researchForms.loadLab();
+  else if (path.startsWith("/research/jobs/")) {
+    const id = decodeRouteSegment(path, "/research/jobs/");
+    if (id !== null) jobViews.load(id);
+  }
   else if (path.startsWith("/research/")) {
     const id = decodeRouteSegment(path, "/research/");
     const query = new URLSearchParams(window.location.search);
@@ -867,7 +907,17 @@ function route() {
     const view = runViews.has(requestedView) ? requestedView : "overview";
     if (id !== null) loadArtifact(id, 0, view === "catalog", view);
   }
-  else if (path === "/data") loadUnavailable("data", "Data");
+  else if (path === "/data") datasetViews.list();
+  else if (path === "/data/new") researchForms.loadDataset();
+  else if (path === "/data/download/alpaca") researchForms.loadDownload();
+  else if (path.startsWith("/data/downloads/")) {
+    const id = decodeRouteSegment(path, "/data/downloads/");
+    if (id !== null) datasetViews.download(id);
+  }
+  else if (path.startsWith("/data/")) {
+    const id = decodeRouteSegment(path, "/data/");
+    if (id !== null) datasetViews.detail(id);
+  }
   else if (path === "/system") loadUnavailable("system", "System");
   else { beginView(); renderError("This page is unavailable."); }
 }
@@ -897,6 +947,7 @@ logoutButton.addEventListener("click", async () => {
     }
     state.token = null;
     state.session = null;
+    beginView();
     window.location.assign("/login");
   } finally {
     logoutButton.disabled = false;

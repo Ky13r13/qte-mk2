@@ -1,10 +1,26 @@
 # G5b research forms and fixed synthetic lab jobs
 
-Status: G5b.1 shared validators and G5b.2a authorized previews are implemented,
-tested and independently reviewed. G5b.2b starts with immutable snapshots; inline jobs and forms remain
-planned, not implemented. G5a passed its full native/Python and Astra gates. This
+Status: G5b.1 shared validators, G5b.2a authorized previews and G5b.2b immutable
+inline jobs/fixed lab workers are implemented, tested and independently reviewed.
+G5b.3 forms/job views are implemented for the local test build; extended browser
+acceptance remains pending as recorded in the task log. G5a passed its full
+native/Python and Astra gates. This
 contract adds no command, strategy factory, output path, environment, arbitrary
 configuration, network, broker, or account-control surface.
+
+G6a adds the fixed `dataset_validate` kind: the same `data` form, without strategy,
+engine or analytics sections. Optional `data.expected_sha256` pins captured bytes
+for validated-source reuse in research runs. It is part of the submitted config,
+preview fingerprint and immutable snapshot; it never grants disclosure access.
+Data → Validate local dataset uses the existing preview and job endpoints.
+
+G6b adds `download_alpaca`: exact `symbols`, `timeframe`, UTC `start`/inclusive
+`end`, explicit `feed` and `action_free: true`. No input path or credential
+field is accepted. The pure preview works offline; the separate job needs an
+opted-in server and environment credentials. Readiness is exposed as booleans
+only at `GET /api/v1/data/alpaca/prerequisites`. The browser blocks launch when
+either is absent, and the server independently enforces both gates. See the
+[job contract](gui-jobs.md) for bounded acquisition and immutable cache checks.
 
 ## Scope and invariants
 
@@ -30,8 +46,8 @@ candidate slate, or create Python objects that cross HTTP.
   the previewed bytes. Preview first captures bounded configuration and data
   bytes, then authorizes both content identities before adapter or financial
   validation can disclose anything about them. Submission performs a new stable
-  capture, compares the preview fingerprint, rechecks holdout protection and
-  disclosure, then validates and snapshots those same captured bytes without a
+  capture, rechecks holdout protection and disclosure, compiles identity and
+  compares the preview fingerprint, then validates and snapshots those bytes without a
   path-based reread before invoking the normal job authority.
 - Successful synthetic lab execution never promotes a candidate. Candidate
   failures remain rows in a complete lab; they do not by themselves turn a
@@ -151,7 +167,8 @@ The inline variant of `POST /api/v1/jobs` accepts exactly:
 The same envelope with `kind: strategy_lab` uses the lab shape. Timeout remains
 a control-plane JSON integer in `[1, 1800]`. Submission performs a fresh stable
 capture, authorizes the captured configuration and data hashes before adapter or
-financial validation, compares the fingerprint, and then validates and snapshots
+financial validation, compiles the wire configuration to compare the fingerprint,
+and only then performs full shared validation and snapshots
 that exact captured object. It must not authorize one read and validate or save a
 later path reread. Changed previewed bytes return a conflict; newly protected
 inputs fail closed even when their bytes have not changed. G5a's existing launch-

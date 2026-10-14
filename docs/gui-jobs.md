@@ -1,13 +1,14 @@
-# Bounded local research jobs (G5a)
+# Bounded local research and data jobs (G5a–G6b)
 
-Status: G5a implemented, full-suite tested and independently reviewed by Astra.
-This extends the read-only library with explicit local launches only. G5b adds
-forms and the fixed synthetic lab handler after the runner gate. No test,
-download, account, arbitrary command or strategy-import handler is exposed.
+Status: G5a and the G5b.2 backend are implemented, full-suite tested and
+independently reviewed by Astra. Browser forms remain a separate G5b.3 gate.
+This extends the read-only library with explicit fixed-kind launches. The
+historical download kind is opt-in; no test, account, arbitrary command or
+strategy-import handler is exposed.
 
 ## Request and ownership
 
-`POST /api/v1/jobs` accepts exactly `schema_version: 1`, `kind: research_run`,
+The legacy variant of `POST /api/v1/jobs` accepts exactly `schema_version: 1`, `kind: research_run`,
 `config_path` (repository-relative JSON), `idempotency_key` (16–128 ASCII
 letters/digits/hyphen/underscore), and `timeout_seconds` (integer 1–1800).
 The default UI timeout will be 1800; the API requires it explicitly. The existing
@@ -18,7 +19,46 @@ The runner invokes the fixed equivalent of `.venv/bin/python -m qte run
 --config <snapshot> --output <new artifacts directory> --export-version 2`.
 The CLI remains the authority for strategy/data/config validation and economics.
 G5a validates only the input envelope needed to copy local data; no second set of
-financial validation rules. G5b may extract shared validation for form previews.
+financial validation rules. G5b uses the shared pure preparation boundary for
+authorized inline previews and submissions; it does not change the legacy path
+request's bytes, retry identity or financial authority.
+
+The alternative [inline request](gui-research-forms.md) accepts a fixed nested
+configuration, explicit inline origin and preview fingerprint, with kind
+`research_run`, `strategy_lab`, `dataset_validate` or `download_alpaca`. Its 16 KiB envelope is distinct from the legacy
+4 KiB envelope; mixing fields is rejected. Submission captures and authorizes
+inputs, compiles and checks the preview identity, then fully validates those same
+bytes. Stale previews return 409 before adapter diagnostics. New v2 snapshots
+record submitted/effective configurations honestly; labs have no source data.
+The lab worker invokes only `qte lab` and verifies the accepted configuration,
+fixed slate, every non-holdout attempt/failure and no synthetic selection.
+Legacy catalog lab readers are unchanged. All kinds share the lifecycle below.
+
+G6a `dataset_validate` accepts only the `data` section and real captured input.
+It invokes `qte validate-data --config <snapshot> --output <new artifacts>`;
+no strategy or engine is constructed. Completion checks exact raw bytes,
+effective configuration, canonical adapter replay and source identity. Dataset
+summaries inherit input disclosure protection. Registration stays explicit.
+
+G6b `download_alpaca` accepts only `symbols` (1–100 unique normalized symbols),
+`timeframe`, UTC RFC3339 `start`/inclusive `end`, `feed` (`iex`/`sip`) and an
+explicit `action_free: true` declaration. Preview performs no provider request.
+Server startup must explicitly enable downloads and both Alpaca credential
+environment variables must exist; submission and dispatch recheck the gate.
+The fixed child is `qte download-alpaca-config --config <snapshot> --output
+<new artifacts>`. Credential values are passed only in the download process
+environment, never saved in specs, configuration, catalog, logs or argv.
+All other job environments remain credential-free. Child diagnostics are omitted.
+
+The download wrapper bounds acquisition to 1000 pages, 16 MiB per page/merged
+file and a 254 MiB running data budget, below the 256 MiB artifact reader limit.
+Completion verifies exact recursive hashes, request identity, page-token/merged
+bar consistency, canonical adapter replay, source identity and both exact and
+canonical accepted configuration hashes. It does not authenticate historical
+data or verify corporate actions. No automatic refresh or retry on restart.
+The existing downloader's bounded HTTP retry policy remains unchanged.
+Each GUI job owns its cache; cross-job cache reuse is not implemented. The
+existing terminal downloader retains checksum-verified offline cache reuse.
 
 `GET /api/v1/jobs` is paged (25 default, 200 maximum); `GET /api/v1/jobs/{id}`
 returns one record; `GET /api/v1/jobs/{id}/log?offset=0&limit=65536` returns bounded

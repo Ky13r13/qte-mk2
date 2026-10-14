@@ -14,13 +14,27 @@ from types import SimpleNamespace
 import pytest
 
 from qte.gui import job_worker
+from qte.gui.job_inputs import SnapshotInputs
 
 
 _REAL_POPEN = subprocess.Popen
 
 
 def _verified_snapshot(kind="research_run"):
-    return SimpleNamespace(kind=kind, hashes={"canonical_config_sha256": "a" * 64})
+    if kind != "research_run":
+        from qte.gui.inline_inputs import InlineSnapshotInputs
+        return InlineSnapshotInputs(
+            "a" * 32, kind, "build/gui/jobs/" + "a" * 32 + "/inputs",
+            "build/gui/jobs/" + "a" * 32 + "/inputs/effective-config.json", None, None, None,
+            "build/gui/jobs/" + "a" * 32 + "/inputs/effective-config.json", None, None,
+            {"canonical_config_sha256": "a" * 64, "data_sha256": None}, {}, "b" * 64,
+        )
+    return SnapshotInputs(
+        "a" * 32, "build/gui/jobs/" + "a" * 32 + "/inputs",
+        "build/gui/jobs/" + "a" * 32 + "/inputs/effective-config.json", "examples/run.json", "data/bars.csv",
+        "build/gui/jobs/" + "a" * 32 + "/inputs/effective-config.json", "build/gui/jobs/" + "a" * 32 + "/inputs/input.csv",
+        {"canonical_config_sha256": "a" * 64}, {}, "b" * 64,
+    )
 
 
 def _spec(root: Path, *, timeout_seconds: int = 30, kind: str = "research_run") -> Path:
@@ -53,8 +67,13 @@ descendant_marker = {descendant_path}
 if descendant_marker is not None:
     descendant = """import os, signal, time
 signal.signal(signal.SIGTERM, lambda *_: None)
-with open({descendant_path}, 'w', encoding='ascii') as stream:
+marker = {descendant_path}
+temporary = marker + "." + str(os.getpid()) + ".tmp"
+with open(temporary, "x", encoding="ascii") as stream:
     stream.write(str(os.getpid()))
+    stream.flush()
+    os.fsync(stream.fileno())
+os.replace(temporary, marker)
 while True:
     time.sleep(0.02)
 """
@@ -68,8 +87,12 @@ if probe is not None:
         state = "inherited"
     except OSError:
         state = "closed"
-with open(marker, "w", encoding="ascii") as stream:
+temporary = marker + "." + str(os.getpid()) + ".tmp"
+with open(temporary, "x", encoding="ascii") as stream:
     stream.write(state)
+    stream.flush()
+    os.fsync(stream.fileno())
+os.replace(temporary, marker)
 if {exit_after!r} is not None:
     time.sleep({exit_after!r})
     raise SystemExit(0)
@@ -178,11 +201,11 @@ while True:
     script = f'''import subprocess, sys
 from pathlib import Path
 from qte.gui import job_worker
+from qte.gui.job_inputs import SnapshotInputs
 import qte.provenance
 real_popen = subprocess.Popen
 qte.provenance.source_identity = lambda: "test-source"
-from types import SimpleNamespace
-job_worker._snapshot = lambda *_: SimpleNamespace(kind="research_run", hashes={{"canonical_config_sha256": "a" * 64}})
+job_worker._snapshot = lambda *_: SnapshotInputs("a" * 32, "inputs", "inputs/effective-config.json", "examples/run.json", "data/bars.csv", "inputs/effective-config.json", "inputs/input.csv", {{"canonical_config_sha256": "a" * 64}}, {{}}, "b" * 64)
 def controlled(_argv, **kwargs):
     return real_popen([sys.executable, "-c", {child!r}], **kwargs)
 job_worker.subprocess.Popen = controlled
@@ -277,6 +300,24 @@ def test_prelaunch_provenance_mutation_never_starts_a_child(monkeypatch, tmp_pat
     result_r, result_w = os.pipe()
     try:
         assert job_worker.supervise(spec, parent_r, cancel_r, result_w) == 1
+        os.close(result_w)
+        assert json.loads(os.read(result_r, 4096)) == {
+            "state": "failed", "reason": "provenance_changed", "exit_code": None}
+    finally:
+        for descriptor in (parent_r, parent_w, cancel_r, cancel_w, result_r, result_w):
+            try: os.close(descriptor)
+            except OSError: pass
+
+
+@pytest.mark.parametrize("verified", [True, False, object(), SimpleNamespace(
+    kind="research_run", hashes={"canonical_config_sha256": "a" * 64})])
+def test_untyped_snapshot_result_never_launches_a_child(monkeypatch, tmp_path, verified):
+    monkeypatch.setattr(job_worker, "_snapshot", lambda *_: verified)
+    monkeypatch.setattr(job_worker.subprocess, "Popen",
+                        lambda *_args, **_kwargs: pytest.fail("untyped result launched a child"))
+    parent_r, parent_w = os.pipe(); cancel_r, cancel_w = os.pipe(); result_r, result_w = os.pipe()
+    try:
+        assert job_worker.supervise(_spec(tmp_path), parent_r, cancel_r, result_w) == 1
         os.close(result_w)
         assert json.loads(os.read(result_r, 4096)) == {
             "state": "failed", "reason": "provenance_changed", "exit_code": None}
@@ -406,7 +447,7 @@ def test_postrun_provenance_mutation_cannot_publish_success(monkeypatch, tmp_pat
     if mutation == "source":
         source[0] = "changed-source"
     else:
-            snapshot[0] = None
+        snapshot[0] = None
     code, payload, _, _ = finish()
     assert code == 1
     assert payload == {"state": "failed", "reason": "provenance_changed", "exit_code": 0}

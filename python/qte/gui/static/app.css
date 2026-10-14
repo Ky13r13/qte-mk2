@@ -88,6 +88,26 @@ summary { cursor: pointer; font-weight: 600; }
 .chart-label { fill: var(--muted); font-family: system-ui, sans-serif; font-size: 12px; }
 .file-download { margin: 0.35rem 0 0; padding: 0.2rem 0.4rem; }
 .record-open { border: 0; padding: 0; text-decoration: underline; text-underline-offset: 0.18em; }
+.research-jobs { border-top: 1px solid var(--rule); margin-top: 2rem; padding-top: 1.25rem; }
+.research-jobs h2 { margin-top: 0; }
+.job-detail { max-width: 76ch; }
+.job-meta { border-top: 1px solid var(--rule); margin: 1.5rem 0; padding-top: 0.5rem; }
+.job-actions, .job-poll-controls { align-items: center; display: flex; flex-wrap: wrap; gap: 0.65rem; margin: 1.25rem 0; }
+.job-log { border: 1px solid var(--rule); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8125rem; margin: 0; max-height: 24rem; max-width: 100%; overflow: auto; padding: 0.75rem; white-space: pre-wrap; word-break: break-word; }
+.job-state { font-variant-numeric: tabular-nums; }
+.research-form fieldset { border: 0; margin: 0; min-width: 0; padding: 0; }
+.research-form .research-form-section { border-top: 1px solid var(--rule); margin: 1.25rem 0; padding-top: 0.75rem; }
+.research-form legend { font-weight: 600; padding: 0; }
+.research-form-field { margin: 0.65rem 0; min-width: 0; }
+.research-form input[type="text"], .research-form select, .research-form textarea { max-width: 100%; min-width: 0; width: 100%; }
+.research-form textarea { background: var(--background); border: 1px solid var(--rule); color: inherit; font: inherit; padding: 0.45rem; }
+.research-form-include { color: var(--muted); display: block; font-size: 0.875rem; }
+.research-form-checks > label { display: block; margin: 0.35rem 0; }
+.research-form-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; margin: 1.5rem 0; }
+.research-form-error { border-left: 3px solid var(--ink); padding-left: 0.75rem; overflow-wrap: anywhere; }
+.research-form-preview { overflow-wrap: anywhere; }
+.research-form-config pre { max-width: 100%; overflow: auto; font-size: 0.8125rem; }
+.research-form [hidden] { display: none !important; }
 .login-form { display: grid; gap: 0.8rem; max-width: 28rem; }
 .visually-hidden { height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; clip: rect(0 0 0 0); white-space: nowrap; }
 dt { font-weight: 700; margin-top: 0.75rem; }
@@ -99,4 +119,5 @@ dd { margin: 0.15rem 0 0; }
   main { padding-top: 1.5rem; }
   input[type="search"], input[type="text"], select { min-width: 0; width: 100%; }
   .field-label { width: 100%; }
+  .job-actions button, .job-poll-controls button { width: 100%; }
 }

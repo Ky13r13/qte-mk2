@@ -54,3 +54,16 @@ def test_missing_credentials_fail_without_network(monkeypatch):
     monkeypatch.delenv('APCA_API_KEY_ID',raising=False)
     monkeypatch.delenv('APCA_API_SECRET_KEY',raising=False)
     with pytest.raises(ValueError,match='environment'): module.fetch_page({})
+
+def test_artifact_byte_limits_stop_before_page_publication(tmp_path):
+    rows=json.loads(ALPACA.read_text())['bars']['SPY']
+    with pytest.raises(ValueError,match='file limit'):
+        request(tmp_path,lambda _: {'bars':{'SPY':rows},'next_page_token':None},max_page_bytes=8)
+    assert list(tmp_path.iterdir())==[]
+
+def test_mock_provider_nonfinite_and_invalid_unicode_are_rejected(tmp_path):
+    rows=json.loads(ALPACA.read_text())['bars']['SPY']
+    for invalid in (float('inf'),'\ud800'):
+        page={'bars':{'SPY':[dict(rows[0],extra=invalid)]},'next_page_token':None}
+        with pytest.raises(ValueError): request(tmp_path,lambda _, page=page: page)
+        assert list(tmp_path.iterdir())==[]

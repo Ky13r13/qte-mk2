@@ -24,6 +24,7 @@ async def accepted_preview(client, headers, kind="research_run"):
 def test_real_inline_jobs_deduplicate_match_cli_and_register_only_explicitly(repository, kind):
     async def check(client, headers):
         payload = await accepted_preview(client, headers, kind)
+        original_data = (repository / "data/bars.csv").read_bytes() if kind == "research_run" else None
         direct_config = repository / "direct.json"
         direct_config.write_text(json.dumps(compile_configuration(kind, payload["configuration"])))
         if kind == "research_run":
@@ -43,6 +44,20 @@ def test_real_inline_jobs_deduplicate_match_cli_and_register_only_explicitly(rep
         assert job["state"] == "succeeded", job
         assert job["kind"] == kind
         assert job["input_disclosure"] == ("unknown" if kind == "research_run" else "not_required")
+        if kind == "research_run":
+            stale_retry = await client.post("/api/v1/jobs", headers=headers, json=payload)
+            assert stale_retry.status_code == 409
+            assert stale_retry.json()["error"]["code"] == "stale_preview"
+            changed_data = original_data.replace(b",1000\n", b",1001\n", 1)
+            assert changed_data != original_data
+            (repository / "data/bars.csv").write_bytes(changed_data)
+            refreshed = await accepted_preview(client, headers, kind)
+            assert refreshed["preview_fingerprint"] != payload["preview_fingerprint"]
+            conflict = await client.post("/api/v1/jobs", headers=headers, json=refreshed)
+            assert conflict.status_code == 409
+            assert conflict.json()["error"]["code"] == "idempotency_conflict"
+            listing = await client.get("/api/v1/jobs", headers=headers)
+            assert listing.status_code == 200 and listing.json()["total"] == 1
         actual = repository / job["output_path"]
         files = {path.relative_to(direct).as_posix() for path in direct.rglob("*") if path.is_file()}
         if kind == "research_run": files -= {"manifest.json", "complete.json"}

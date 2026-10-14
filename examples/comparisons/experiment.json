@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "workflow": "historical_experiment",
+  "windows": [
+    {
+      "name": "train", "role": "train", "regime": "fixture",
+      "data": {"adapter": "csv", "path": "../research-bars.csv", "interval_ns": 3600000000000, "action_free": true},
+      "evidence": {"kind": "synthetic", "source": "QTE fabricated mechanics fixture",
+        "source_sha256": "939e601058227310898b4405c71c3d6571b288df8c0244c41d05005ef9dba7b5",
+        "availability_policy": "bar_end_ns", "corporate_action_policy": "fabricated_action_free_prices"}
+    },
+    {
+      "name": "validation", "role": "validation", "regime": "fixture",
+      "data": {"adapter": "csv", "path": "validation.csv", "interval_ns": 3600000000000, "action_free": true},
+      "evidence": {"kind": "synthetic", "source": "QTE fabricated mechanics fixture",
+        "source_sha256": "36fff54130013cffe55d4ad5db7ac69cbb00d10133d5ea0bbb4c4169d8ead033",
+        "availability_policy": "bar_end_ns", "corporate_action_policy": "fabricated_action_free_prices"}
+    },
+    {
+      "name": "test", "role": "test", "regime": "fixture",
+      "data": {"adapter": "csv", "path": "test.csv", "interval_ns": 3600000000000, "action_free": true},
+      "evidence": {"kind": "synthetic", "source": "QTE fabricated mechanics fixture",
+        "source_sha256": "90c8836b683090cc97626f06999c6d59cd5cb2c615b3a2e3813d7fcb1f88b7ec",
+        "availability_policy": "bar_end_ns", "corporate_action_policy": "fabricated_action_free_prices"}
+    }
+  ],
+  "candidates": [
+    {"name": "sma-2-3", "type": "moving_average_regime", "symbol": "SPY", "parameters": {"fast_period": 2, "slow_period": 3, "quantity": 10}},
+    {"name": "sma-2-5", "type": "moving_average_regime", "symbol": "SPY", "parameters": {"fast_period": 2, "slow_period": 5, "quantity": 10}}
+  ],
+  "experiment": {}
+}

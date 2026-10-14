@@ -7,7 +7,6 @@ from pathlib import Path
 import sys
 import threading
 import time
-from types import SimpleNamespace
 
 import pytest
 
@@ -18,7 +17,7 @@ from qte.gui.research_forms import config_origin, prepare_form
 from qte.gui import job_worker
 
 from test_gui_inline_inputs import lab_wire, repository, research_wire
-from test_gui_job_worker import _run_worker, _spec
+from test_gui_job_worker import _run_worker, _spec, _verified_snapshot
 
 
 class _Process:
@@ -99,12 +98,15 @@ def test_manager_rejects_crossed_inline_kind_and_path_style_lab(repository):
     with pytest.raises(JobError) as error:
         manager.submit("legacy-lab", "strategy_lab", object(), "legacy_lab_inline_key", 30)
     assert error.value.code == "invalid_job_request"
+    with pytest.raises(JobError) as error:
+        manager.submit("malformed-kind", [], object(), "malformed_kind_key", 30)
+    assert error.value.code == "invalid_job_request"
     assert not (repository / "build/gui/jobs").exists()
     manager.close()
 
 
 def test_worker_uses_lab_argv_and_strict_lab_verifier(monkeypatch, tmp_path):
-    verified = SimpleNamespace(kind="strategy_lab", hashes={"canonical_config_sha256": "a" * 64})
+    verified = _verified_snapshot("strategy_lab")
     calls = []
     import qte.gui.job_outputs as outputs
     monkeypatch.setattr(outputs, "verify_fixed_lab_output", lambda output, source, canonical: calls.append(
@@ -127,8 +129,7 @@ def test_worker_uses_lab_argv_and_strict_lab_verifier(monkeypatch, tmp_path):
 
 
 def test_worker_rejects_lab_snapshot_kind_mismatch_before_launch(monkeypatch, tmp_path):
-    monkeypatch.setattr(job_worker, "_snapshot", lambda *_: SimpleNamespace(
-        kind="research_run", hashes={"canonical_config_sha256": "a" * 64}))
+    monkeypatch.setattr(job_worker, "_snapshot", lambda *_: _verified_snapshot())
     monkeypatch.setattr(job_worker.subprocess, "Popen", lambda *_a, **_k: pytest.fail("mismatch launched"))
     parent_r, parent_w = os.pipe(); cancel_r, cancel_w = os.pipe(); result_r, result_w = os.pipe()
     try:
@@ -145,7 +146,7 @@ def test_worker_rejects_lab_snapshot_kind_mismatch_before_launch(monkeypatch, tm
 
 
 def test_lab_completion_requires_strict_verifier_and_cancel_remains_canceled(monkeypatch, tmp_path):
-    verified = SimpleNamespace(kind="strategy_lab", hashes={"canonical_config_sha256": "a" * 64})
+    verified = _verified_snapshot("strategy_lab")
     import qte.gui.job_outputs as outputs
     monkeypatch.setattr(outputs, "verify_fixed_lab_output", lambda *_: False)
     parent_w, cancel_w, finish = _run_worker(

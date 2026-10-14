@@ -8,6 +8,7 @@ from typing import Callable
 
 
 def serve(repository: Path, *, port: int = 8765,
+          alpaca_download_enabled: bool = False,
           announce: Callable[[str], object] = print) -> int:
     if type(port) is not int or not 1 <= port <= 65535:
         raise ValueError('GUI port must be an integer in [1, 65535]')
@@ -39,6 +40,7 @@ def serve(repository: Path, *, port: int = 8765,
         listener.listen(128)
         listener.setblocking(False)
         app = create_app(repository, port=port,
+                         alpaca_download_enabled=alpaca_download_enabled,
                          code_sink=lambda code: announce(f'QTE local access code: {code}'))
         config = uvicorn.Config(
             app, host='127.0.0.1', port=port, workers=1, reload=False,

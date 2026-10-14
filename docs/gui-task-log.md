@@ -1,6 +1,8 @@
 # Active GUI implementation checkpoint
 
-Last checkpoint: 2026-10-07, inline snapshots reviewed; G5b.2b job integration active.
+Last checkpoint: 2026-10-13, user requested the next phase. G7a.2a comparison
+artifact verification/classification is in progress; G7a.1 is accepted.
+G7a GUI controls are not implemented. Network remains disabled by default.
 **Read this file before resuming.**
 
 ## Authority and scope
@@ -15,8 +17,138 @@ User explicitly wants to keep pushing manually. Local inspection found `origin`
 at `github.com:Ky13r13/qte-mk2.git`; push credentials/rights were not tested. Do not
 commit, push, probe remote write access, or change remotes/history.
 Read `AGENTS.md`, `docs/gui-architecture.md` and `docs/gui-dependencies.md`.
+On October 8 the user explicitly authorized continuing all remaining G6–G9
+milestones to support strategy development, while retaining the request for
+token-efficient work and concise documentation. This authorizes implementation
+and offline/mock checks, not credential acquisition, live downloads, broker
+requests, new dependencies or Git operations. Each external capability retains
+its explicit approval/prerequisite boundary.
+On October 12 the user authorized task-scoped local commands to finish the GUI
+and explicitly prohibited internet connections. Continue offline with the
+existing tools; no provider/broker requests, remote Git operations or downloads.
+The one-time resume heartbeat was updated for October 13 at 03:45 Los Angeles
+time. It fired, resumed this work, and was deleted after use; it is not a
+nightly schedule or usage-reset guarantee.
 
 ## Baseline / environment
+
+### G7a.2a active scope
+
+Sol `g7a2_sol_reader` owns the new pure comparison verifier and its unit tests.
+Root owns stable-capture dispatch, catalog protection inheritance, CLI/catalog/
+API regressions and docs. Astra `g7a2_astra_review` reviews independently. No
+engine, form, route, job or browser code is added. Existing CLI exports remain
+read-only, including the earlier advisory unsupported-reader marker.
+
+Verify all role/file mappings before classifying bytes. Test inputs/scenarios
+and mixed metadata require explicit disclosure; invalid/incomplete exports
+remain entirely guarded. If a nominally safe input is already protected by the
+disclosure journal, protect all derivatives too. Generic catalog status keeps
+selection, holdout evaluation and scenario outcome unknown until role-filtered
+views exist; no report metrics or failure reasons are public metadata.
+
+### October 13 G6b acceptance
+
+- Fixed `download_alpaca` form/preview/snapshot/worker; explicit startup and
+  credential gates before submission/dispatch; no credentials in persisted
+  artifacts/logs/argv. Pure GETs and preview never download.
+- Bounded acquisition, exact request/cache/page/merged-bar verification,
+  inherited disclosure protections and authenticated lineage view.
+- Full command `.venv/bin/python -m pytest tests/python -q --maxfail=1
+  --tb=short --basetemp=build/test-gui-g6b-confirm-20261013
+  --junitxml=build/gui-g6b-confirm-20261013.xml`: **1009 passed, 68.29s**.
+  Initial full run reached 761 passes then failed an outdated mocked launcher
+  signature; updated it to assert both default-disabled and explicit-enabled
+  forwarding. The artifact-kind test also caught a misplaced branch, now fixed.
+- `PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev`: no work;
+  `PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure`:
+  **15/15 passed**. `git diff --check`: clean.
+- `/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
+  --test tests/javascript/research_ui.test.mjs`: **11 passed**.
+- Astra reviewed acquisition bounds, strict JSON, FIFO/symlink safety,
+  credential gates/env isolation and provenance. Seven adversarial safety
+  regressions are included in the full suite. Raw and canonical snapshot hashes
+  are both checked; a fixture was corrected without removing provenance checks.
+- Actual local browser: authenticated, opened Alpaca form, entered SPY/1Hour/
+  explicit iex/UTC window/action declaration, preview succeeded and download
+  stayed disabled. No provider/broker requests, downloads, installs or Git writes.
+  Isolated state: `build/gui-browser-g6b-20261013`, port 8770. Temporary tab
+  closed and server stopped; no credentials/access codes recorded here.
+- Astra final review closed with no blocking findings after confirming both
+  provenance hashes. The full suite includes the seven safety regressions.
+- Final closure command `.venv/bin/python -m pytest
+  tests/python/test_download_capture_safety.py tests/python/test_gui_download_jobs.py
+  tests/python/test_gui_download_api.py tests/python/test_gui_server.py -q
+  --basetemp=build/test-gui-g6b-closure-20261013`: **30 passed, 1.04s**.
+- Next: G7a declarative comparison bridge, then G7b/G8/G9. Real acquisition
+  needs separate authorization, credentials and entitlement/action-free checks.
+
+### October 13 G7a.1 acceptance
+
+Root owns CLI integration, the unsupported comparison artifact guard,
+documentation registry, examples, integration/export tests and docs. Sol
+`g7a_sol_config` finished `comparison_config.py` and its tests; Terra
+`g7a_terra_export` saved `comparison_export.py`/initial tests before reaching
+usage limit. Root completed failure/provenance/export regressions. Astra
+`g6b_astra_review_oct12` approved the independent review without blocking
+findings and passed 37 targeted tests before the four final regressions. No GUI job,
+account or engine change is included.
+
+CLI evidence is caller-declared and tied to raw SHA-256, not authenticated
+historical status. Both existing APIs are preserved: the exact four-scenario
+SMA comparison and frozen-slate `run_experiment`. Synthetic examples cannot
+promote candidates. Registry identities include family, symbol and parameters.
+Outputs use indexed paths and explicit scenario mapping; failures are retained.
+The catalog refuses to interpret this new format as a lab until holdout-aware
+readers exist. Original user work remains untouched.
+
+Commands run from the repository root, using the existing `.venv`:
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+.venv/bin/python -m pytest tests/python/test_comparison_config.py tests/python/test_comparison_export.py tests/python/test_comparison_cli.py -q --maxfail=1 --tb=short --basetemp=build/test-g7a-reviewed-20261013
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-g7a-full-20261013 --junitxml=build/gui-g7a-full-20261013.xml
+git diff --check
+.venv/bin/python -m qte compare --config examples/comparisons/sma.json --output build/g7a-demo-sma-20261013
+.venv/bin/python -m qte compare --config examples/comparisons/experiment.json --output build/g7a-demo-experiment-20261013
+```
+
+Results: native build no work; **15/15 CTest passed**; final comparison gate
+**41 passed, 1.08s**; full Python **1050 passed, 68.322s**, zero failures/errors/
+skips in the saved JUnit report. Full Python ran with scoped local execution
+after earlier sandbox async-test stalls; no network/dependencies were used.
+The focused CLI tests invoke both new example commands and verify recursive
+checksums, retained failed trials, exact API parity, repeatability, source-change
+failure and fail-closed catalog protection. No browser code changed in G7a.1;
+the last browser gate remains G6b's 11 JS tests/local browser check.
+Both explicit CLI demos succeeded in ignored `build/` directories: four SMA
+scenarios and eight experiment train/validation scenarios. Synthetic evidence
+selects nobody and leaves the final test unevaluated. `git diff --check` is clean.
+Do not mark all of G7a complete: comparison GUI launching/views are still pending.
+
+### Remaining G7a implementation seam
+
+Sol inspected `experiments.py` (`Candidate`, `Evidence`, `ResearchWindow`,
+`ExperimentConfig`, `run_experiment`) and `research.py`
+(`compare_moving_average`). Reuse their chronological/universe/currency/interval
+checks, frozen slate and validation-only selection; never import browser-named
+factories. The shared preparation/CLI slice now exists with exact two-split SMA
+parity; do not mislabel historical exports as synthetic labs. Next add a strict
+role-aware export verifier/reader before multi-source snapshots and GUI jobs/views.
+Sol's read-only next-gate recommendation: a dedicated `gui/comparison_artifacts.py`
+verifier, dispatched from `artifacts.py`, with strict cross-file checks and
+catalog disclosure regressions before adding routes/forms/JS. Verify every role
+classification rather than trusting manifest labels; incomplete/invalid inputs
+remain fully guarded. Never expose holdout outcomes/reasons in catalog metadata.
+Current bounds: 1–32 allowlisted candidates, 3–24 ordered experiment windows,
+one final test window, existing engine/cost/selection defaults.
+Before implementation settle historical evidence declaration vs validation-ID
+selection. Validation-ID-only GUI is the safer recommendation, but existing
+G6a reuses original paths rather than immutable registry input bytes. Resolve
+that real boundary instead of bypassing reserved paths. Holdout execution must
+not implicitly disclose test values or require a reveal merely to compute;
+do not reuse ordinary input authorization without a protocol-aware contract.
 
 Repository `/home/glsu6/Documents/qte`; native compiler `/usr/bin/g++`, CMake
 `build/local-dev`, Python only `.venv`. SSL and scoped RPM verification passed
@@ -28,6 +160,23 @@ failed; scoped network approval allowed the install. No system package changed.
 
 ## File ownership during active build
 
+- October 12 G6b: Sol `g6b_sol_plan_oct12` owns bounded download wrapper/verifier,
+  adapter hardening and form compiler; Terra `g6a_terra_diagnose_oct12` owns
+  capture/snapshot/runner gates; root owns catalog/API/browser/CLI integration.
+  Astra `g6b_astra_review_oct12` reviews independently. No real network tests.
+  G6a command `.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short
+  --basetemp=build/test-gui-g6a-resume-confirm-20261012
+  --junitxml=build/gui-g6a-resume-confirm-20261012.xml`: **979 passed in 70.24s**.
+  Sandbox run stalled and was interrupted; scoped execution completed normally.
+- October 9 G6a: Sol `g6_sol_validation` owns shared `data_validation.py`,
+  `research_config.py`, CLI/forms and corresponding new unit tests; Terra
+  `g6_terra_runner` finished capture/snapshot/manager/worker changes and tests.
+  Root owns dataset catalog/routes/views/browser, API tests and documentation.
+  Astra `g6_astra_review` reviews independently. Previous assignments are history.
+- October 8 browser gate: Sol owns `static/research_forms.js` and its new static
+  test; Terra owns `static/research_jobs.js`, its new static test and `app.css`.
+  Root owns `app.js`/`app.py` integration, API tests, docs and real-control QA.
+  Astra reviews independently. No validator, runner or financial changes.
 - October 7 post-snapshot gate: Terra owns `jobs.py`, `job_worker.py` and
   manager/lifecycle tests. Sol owns new `job_outputs.py` and its strict fixed-lab
   verifier tests. Root owns `job_routes.py`/request shape parsing, new inline API
@@ -77,13 +226,82 @@ system workflows unavailable until their milestone. No arbitrary static mounts.
 
 ## Next actions
 
-Current resume target (October 7): inline immutable snapshots are complete
-(894 Python, 15 CTest and independent Astra approval). Now integrate inline
-submission and the fixed synthetic-lab job, preserving legacy path submissions,
-retry identities, process supervision and catalog disclosure. No browser form
-or core/economic change in this backend slice.
-G5b.3 forms/browser QA follow the complete backend gate. The numbered list below
+Current resume target (October 12): finish G6a final test gate, then G6b
+downloads, G7a comparisons, G7b macro/router, G8a test evidence, G8b benchmarks
+and G9 connection inspection in reviewable increments, OFFLINE. The approved
+same-version CMake repair succeeded and CTest passed 15/15; no reinstall needed.
+Full Python gate still needs final confirmation. See checkpoint below. G5b.3 is saved:
+954 Python, 15 CTest and 6 executable JavaScript state tests pass; real browser
+run/lab preview→launch→success→explicit registration is verified. Extended
+accessibility/200% zoom and exhaustive browser lifecycle acceptance remain
+pending. Use `docs/test-build-guide.md` for data flow and strategy development.
+No external calls or dependency installs without the applicable approval. The numbered list below
 is milestone history, not a request to restart completed work.
+
+### G6a checkpoint — October 9
+
+- Added data-only `qte validate-data` and GUI Data → Validate local dataset;
+  CSV mappings/saved Alpaca use existing adapter preflight. Validation never
+  constructs a strategy or runs the engine. Fixed job, snapshots, explicit
+  registration and inherited disclosure protection reuse the current framework.
+- Export `dataset_validation_v1`: unique wrapper, configuration, summary,
+  captured input and completion hashes. Exact canonical replay, strict JSON,
+  historical source identity, full input/config/source binding at worker exit.
+- Dataset view reuses the matching original source with `expected_sha256` pinned
+  in run preview/snapshot. No reserved-path bypass. Moved/deleted/changed sources
+  must be validated again; immutable raw-byte replay by registry ID is deferred.
+- New files: `python/qte/data_validation.py`, GUI `dataset_routes.py`,
+  `dataset_views.py`, `static/datasets.js`, four `test_*dataset*.py` modules.
+  Updated CLI/config, forms/capture/snapshots/worker/catalog and browser routing.
+  Existing G5b.3 untracked files and user changes remain preserved.
+- Full command `.venv/bin/python -m pytest tests/python -q
+  --basetemp=build/test-gui-g6a-final-20261009`: **970 passed, 73.78s**.
+  Earlier full run: 969 passed/1 static navigation assertion failed; preserved
+  explicit research navigation and added dataset branch/assertion, then reran.
+  Additional selection regression command `.venv/bin/python -m pytest
+  tests/python/test_gui_datasets.py -q
+  --basetemp=build/test-gui-g6a-selection-final-20261009`: **6 passed, 1.76s**.
+- `/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
+  --test tests/javascript/research_ui.test.mjs`: **9 passed**. Existing Node only;
+  sandbox subprocess EPERM required scoped execution. No runtime installed.
+- `PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev`: passed, no work.
+  `PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure`: exit 135
+  inside and outside sandbox; direct packaged `ctest --version` also exit 135.
+  Ran each `build/local-dev/tests/cpp/qte_<name>_tests` directly for names
+  bar, domain_types, price_instrument, order, fill, open_only_execution, position,
+  portfolio, trade, risk, strategy, dataset, schedule, backtest, analytics:
+  **all 15 passed**. `/usr/bin/g++ --version` reports GCC 16.2.1.
+- Read-only CTest diagnosis: installed CMake 4.4.3 binary size 22614984 matches
+  RECORD but reading fails EIO at byte 6946816. Expected SHA256
+  `10e5d9bad3af7c3cfb59a4e906847a719e4d550299c4608e26e0d32e3cea915b`.
+  Sibling cmake/cpack hashes match RECORD and run. Unreadable extent on Btrfs
+  explains SIGBUS; underlying storage cause is not established. User subsequently
+  approved same-version repair: downloaded and verified the exact CMake 4.4.3
+  wheel (4167 RECORD entries, CTest hash above), then installed with
+  `TMPDIR="$PWD/build" PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+  .venv/bin/python -m pip install --force-reinstall --no-deps --no-index
+  --no-cache-dir build/cmake-repair-20261009/cmake-4.4.3-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl`.
+  Wheel SHA256 `bae3c4954623ec4d62e62c70443f0da7988b733111c2871fcc6a31ead5137e20`.
+  CTest checksum/version and pip check passed; build/local-dev regenerated and
+  built successfully; `ctest --preset dev --output-on-failure` passed **15/15**.
+  Repair predates October 12's no-internet instruction. No system packages changed.
+  Recommend user/admin filesystem health inspection if EIO recurs.
+- A one-time task heartbeat `resume-qte-milestones` was scheduled and fired
+  October 9 at 03:00 America/Los_Angeles (PDT, 10:00 UTC). It retained all approval
+  boundaries. This is not an ongoing nightly schedule.
+- Browser QA used isolated `build/gui-browser-g6a-20261008`, loopback port 8769.
+  Validation preview→launch→success→registration→pinned-source SMA run→success→
+  registration→result chart verified. Server session 26871 stopped cleanly and
+  temporary tab closed. No real data, provider calls or persistent QA server.
+- Astra final review passed after malformed/deep JSON and regular-file capture
+  race fixes. Sol's final focused unit gate passed 14 tests; final JS gate 9 passed.
+- The later Oct9 full run `--basetemp=build/test-gui-g6a-reviewed-20261009`
+  showed one failure then stalled; this was NOT a passing run. A subsequent
+  repair-era Python invocation was aborted. Reproduce rather than dismiss it.
+  October 12 fresh command `.venv/bin/python -m pytest tests/python -q
+  --maxfail=1 --tb=short --basetemp=build/test-gui-g6a-resume-20261012
+  --junitxml=build/gui-g6a-resume-20261012.xml` is in progress.
+  Extended zoom/narrow-screen acceptance remains separate.
 
 1. DONE: approved locked packages installed; imports and `pip check` passed.
    Optional extras, CLI integration and loopback launcher are saved. No reinstall
@@ -823,3 +1041,129 @@ Next active backend work: exact alternative inline request shape, fresh
 capture→authorize→shared preview→fingerprint comparison→snapshot submission;
 only fixed research/lab worker dispatch; new-lab-only completeness/provenance
 verification. No browser controls, external provider calls or broker actions.
+
+### Backend recovery — 2026-10-08
+
+The preceding resume was blocked by an unresponsive command runner, including
+read-only `pwd`. Its attempted checkpoint write and pending test result could
+not be confirmed and were not counted. The next user continuation restored
+terminal access. Read-only inspection found a clean checkout at `abc7586 oct7`
+with the saved backend implementation; Codex performed no Git history or remote
+operation. Last completed full gate remains the snapshot-only 894 Python / 15
+native above, not a pass for the newer launch changes.
+
+Root's saved work includes exact path/inline envelopes and individual size
+limits, compile-only fingerprint comparison after protection authorization but
+before financial/adapter diagnostics, and same-captured-bytes submission. Added
+retry regressions now require stale409 after source edits and same-key conflict
+after obtaining a fresh changed-input preview; no second job may be created.
+
+Sol's saved strict fixed-lab verifier matches accepted configuration/current
+fixed factories, exact candidate parameters/history, actual macro identities,
+stored generator/data/window declarations, integer summary counts, comparison
+columns and full attempt/failure/log inventories. Its recovered focused run
+passed 14 tests, including hourly+daily_24h gap-shock/multiple-regime coverage.
+Terra/Astra identified one remaining worker issue: generic snapshot attribute
+fallback could accept False as legacy research. Terra is replacing it with real
+v1/v2 snapshot type checks and adapting fixtures without weakening assertions.
+Wait for source quiet, then focused API/lifecycle, full Python/native, and final
+independent review. No G5b.3 browser work before the backend gate passes.
+
+### Backend integration gate in progress — 2026-10-08
+
+The lost API session could not be recovered, so it was rerun rather than counted.
+The real-snapshot worker guard is saved and independently Astra-reviewed PASS.
+Review also passed strict fixed-lab verification and stale/rekeyed API retries;
+approved process cleanup/signal/descriptor ownership remains unchanged.
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_inline_job_api.py tests/python/test_gui_job_api.py tests/python/test_gui_form_api.py tests/python/test_gui_requests.py -q --basetemp=build/test-gui-inline-api-recovered-20261008
+# 41 passed in 6.63s
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# no build work; 15/15 passed in 0.08s
+git diff --check
+# passed
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-inline-backend-full-20261008
+# 934 passed, 1 failed in 67.94s
+```
+
+The failure is `test_owner_eof_terminates_owned_child_and_uses_fixed_environment`:
+its helper waits only for marker existence, then signals owner loss while the
+child can still be between opening and writing the readiness file. The FD-probe
+assertion sees empty text rather than `closed`. Terra is fixing the readiness
+handshake without weakening FD/environment/cleanup assertions; Astra reviews.
+No browser edits yet. Sol's bounded forms/jobs ownership plan is prepared;
+implementation must wait for this gate. Tests use scoped local execution for
+the previously documented async wakeup issue, not Full Access or installation.
+
+### Backend gate passed; browser implementation started — 2026-10-08
+
+Terra atomically publishes both parent FD-probe readiness and descendant PID
+markers after complete writes; no assertions, deadlines or production behavior
+were weakened. Astra explicitly passed the final fixture review before its turn
+hit usage limits. That review message and the full result were recovered on the
+next user continuation, rather than assuming the errored final message passed.
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_job_worker.py -q --basetemp=build/terra-worker-markers-atomic-20261008
+# Terra: 22 passed in 11.99s
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-inline-backend-final-20261008
+# root: 935 passed in 67.55s
+```
+
+Together with the 41 API / 15 CTest results and independent backend reviews,
+G5b.2b is complete. Browser changes now begin under the ownership above. Planned
+routes are `/research/new/run`, `/research/new/lab`, `/research/jobs/{id}`.
+No new dependencies, external data calls, broker actions or Git operations.
+
+### G5b.3 local test build — 2026-10-08
+
+User narrowed this turn to finishing the existing test build efficiently and
+requested a full data-flow/strategy guide. Sol built the metadata-driven forms;
+Terra built paged job views and bounded polling. Root integrated routes/assets,
+added module state-machine tests, completed sparse form styles, and kept optional
+CSV mapping collapsed. Astra reviewed fixes for exact wire values, stale preview,
+uncertain retry identity, cancel DTOs, view disposal, polling/focus and error
+recovery; latest module review has no code-level blockers.
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_research_browser_routes.py tests/python/test_gui_research_forms_static.py tests/python/test_gui_research_jobs_static.py tests/python/test_gui_static.py tests/python/test_gui_app.py -q --basetemp=build/test-gui-browser-focused-recovered-20261008
+# 40 passed in 0.42s
+.venv/bin/python -m pytest tests/python -q --basetemp=build/test-gui-test-build-final-20261008
+# 954 passed in 71.13s
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# no build work; 15/15 passed in 0.05s
+/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --test tests/javascript/research_ui.test.mjs
+# 6 passed; no npm packages or runtime installed
+sed -n '/^```python$/,/^```$/p' docs/test-build-guide.md | sed '1d;$d' | .venv/bin/python -
+# runnable guide example: 2 fills, total return 8.991000000002636e-05
+git diff --check
+# passed
+```
+
+The new route test initially assumed an incorrect `default-src 'none'` policy;
+it was corrected to assert the existing reviewed same-origin CSP rather than
+changing production security. A minimal DOM test-double needed action dataset
+support; six executable module tests now pass. They are not layout/browser tests.
+Scoped test execution addresses sandbox thread/spawn restrictions. Existing
+bundled Node was discovered read-only; Python remained in `.venv` throughout.
+
+Browser smoke used only `build/gui-browser-20261008/repository` and the local
+loopback server. Actual controls validated the example SMA run, enabled launch
+only after assumptions, observed success, explicitly registered it and rendered
+event equity. A synthetic hourly lab with 128 bars/window and exact maximum
+62-bit seed also succeeded and registered; its view retained all 15 candidates,
+synthetic exclusions and withheld test-role values. No user catalog/export was
+registered or revealed. This does not claim exhaustive browser cancellation,
+restart, narrow-screen or 200% zoom acceptance; those remain manual follow-up.
+Automated API/process tests still cover these backend safety boundaries.
+
+Astra's final bounded review of root navigation, collapsed CSV mapping, form
+styles and the guide is clear for the stated test-build scope, without claiming
+the outstanding extended browser acceptance is complete.
+Final style/static check: 31 passed in 0.06s using
+`.venv/bin/python -m pytest tests/python/test_gui_research_forms_static.py tests/python/test_gui_research_jobs_static.py tests/python/test_gui_static.py -q --basetemp=build/test-gui-test-build-layout-final-20261008`.
+`git diff --check` passed. Temporary browser tab closed and owned QA server
+stopped with Ctrl-C (exit 130). No background GUI server remains from this task.

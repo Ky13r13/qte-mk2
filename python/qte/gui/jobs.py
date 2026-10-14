@@ -19,6 +19,10 @@ from uuid import uuid4
 from .artifacts import ArtifactError
 
 
+_DOWNLOAD_ENVIRONMENT = ("APCA_API_KEY_ID", "APCA_API_SECRET_KEY")
+_DOWNLOAD_SECRET_LIMIT = 1024
+
+
 class JobError(Exception):
     def __init__(self, code: str, status: int, message: str) -> None:
         super().__init__(message); self.code = code; self.status = status; self.message = message
@@ -37,11 +41,11 @@ def _plain(value):
 def _fingerprint(kind: str, prepared, timeout: int) -> str:
     canonical = getattr(prepared, "canonical_config_sha256", None)
     data = getattr(prepared, "data_sha256", None)
-    if kind == "research_run":
+    if kind in {"research_run", "dataset_validate"}:
         # Keep the accepted G5a research formula byte-for-byte unchanged.
         if not all(isinstance(value, str) for value in (canonical, data)):
             raise JobError("invalid_job_input", 400, "Prepared job inputs are invalid.")
-    elif kind == "strategy_lab":
+    elif kind in {"strategy_lab", "download_alpaca"}:
         if not isinstance(canonical, str) or data is not None:
             raise JobError("invalid_job_input", 400, "Prepared job inputs are invalid.")
     else:
@@ -154,17 +158,38 @@ class Supervisor:
 
 class JobManager:
     def __init__(self, repository: Path, catalog, *, input_authorizer=None, output_protector=None,
-                 supervisor_factory=Supervisor, clock=time.time_ns) -> None:
+                 supervisor_factory=Supervisor, clock=time.time_ns,
+                 alpaca_download_enabled: bool = False) -> None:
         self.repository, self.catalog = Path(repository).absolute(), catalog
         self.database = self.repository / ".cache/qte-gui/catalog.sqlite3"
         self.lock_path = self.repository / ".cache/qte-gui/jobs.lock"
         self.input_authorizer = input_authorizer or getattr(catalog, "authorize_job_inputs", None)
         self.output_protector = output_protector or getattr(catalog, "protect_job_output", None)
         self.supervisor_factory, self.clock = supervisor_factory, clock
+        self.alpaca_download_enabled = alpaca_download_enabled
         self._guard = threading.RLock(); self._condition = threading.Condition(self._guard)
         self._opened = False; self._closing = False; self._lock_fd = None; self._thread = None
         self._active: tuple[str, RunningJob] | None = None
         self._prepared: dict[str, object] = {}; self._snapshots: dict[str, dict] = {}
+
+    @staticmethod
+    def _download_credentials() -> dict[str, str] | None:
+        values = {name: os.environ.get(name) for name in _DOWNLOAD_ENVIRONMENT}
+        if any(not isinstance(value, str) or not 1 <= len(value) <= _DOWNLOAD_SECRET_LIMIT
+               for value in values.values()):
+            return None
+        return values  # type: ignore[return-value]
+
+    def download_prerequisites(self) -> dict[str, bool]:
+        """Report capability state without disclosing secret values or lengths."""
+        return {"enabled": bool(self.alpaca_download_enabled),
+                "credentials_present": self._download_credentials() is not None}
+
+    def require_download_enabled(self) -> None:
+        if not self.alpaca_download_enabled:
+            raise JobError("alpaca_download_disabled", 403, "Alpaca downloads are disabled.")
+        if self._download_credentials() is None:
+            raise JobError("alpaca_credentials_unavailable", 503, "Alpaca download credentials are unavailable.")
 
     def _open(self) -> None:
         with self._guard:
@@ -228,7 +253,7 @@ class JobManager:
           executable TEXT, cwd TEXT, exit_code INTEGER, output_path TEXT NOT NULL, log TEXT NOT NULL)""")
 
     def submit(self, request_id, kind, prepared, idempotency_key, timeout_seconds) -> dict:
-        if (not isinstance(kind, str) or kind not in {"research_run", "strategy_lab"}
+        if (not isinstance(kind, str) or kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca"}
                 or not isinstance(request_id, str) or not request_id):
             raise JobError("invalid_job_request", 400, "Invalid job request.")
         if (not isinstance(idempotency_key, str) or not 16 <= len(idempotency_key) <= 128
@@ -236,6 +261,8 @@ class JobManager:
             raise JobError("invalid_idempotency_key", 400, "Invalid idempotency key.")
         if type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 1800:
             raise JobError("invalid_timeout", 400, "Invalid job timeout.")
+        if kind == "download_alpaca":
+            self.require_download_enabled()
         try:
             from .inline_inputs import PreparedInlineInputs
         except Exception:
@@ -243,9 +270,9 @@ class JobManager:
         if isinstance(prepared, PreparedInlineInputs):
             if prepared.kind != kind:
                 raise JobError("invalid_job_request", 400, "Invalid job request.")
-        elif kind == "strategy_lab":
+        elif kind != "research_run":
             raise JobError("invalid_job_request", 400, "Invalid job request.")
-        if kind == "strategy_lab" and any(value is not None for value in (
+        if kind in {"strategy_lab", "download_alpaca"} and any(value is not None for value in (
                 prepared.adapter, prepared.original_data_path, prepared.data_bytes, prepared.data_sha256,
                 prepared.original_config_path)):
             raise JobError("invalid_job_request", 400, "Invalid job request.")
@@ -378,6 +405,13 @@ class JobManager:
         if config is None or not isinstance(hashes, dict): raise JobError("job_snapshot_failed", 409, "Job snapshot invalid.")
         config = self.repository / config
         environment = self._environment(job_root)
+        supervisor_environment = environment
+        if row["kind"] == "download_alpaca":
+            self.require_download_enabled()
+            credentials = self._download_credentials()
+            if credentials is None:
+                raise JobError("alpaca_credentials_unavailable", 503, "Alpaca download credentials are unavailable.")
+            supervisor_environment = {**environment, **credentials}
         spec = {"repository": self.repository.as_posix(), "executable": executable.as_posix(),
                 "config": str(config), "output": (job_root / "artifacts").as_posix(),
                 "job_id": row["id"], "kind": row["kind"], "snapshot_hashes": hashes,
@@ -387,7 +421,7 @@ class JobManager:
         with spec_path.open("x", encoding="utf-8") as stream: json.dump(spec, stream, sort_keys=True); stream.write("\n")
         os.chmod(spec_path, 0o400)
         launch_id = uuid4().hex
-        running = self.supervisor_factory(self.repository, self._lock_fd).launch(spec_path, environment)
+        running = self.supervisor_factory(self.repository, self._lock_fd).launch(spec_path, supervisor_environment)
         try:
             with self._connect() as db:
                 db.execute("UPDATE gui_jobs SET state='running',phase='executing',start_ns=?,launch_identity=?,"

@@ -16,6 +16,8 @@ from types import MappingProxyType
 from typing import Any
 
 import qte
+from qte.data_validation import prepare_data
+from qte.download_artifact import compile_download_configuration as _compile_download_configuration
 from qte.experiments import ExperimentConfig
 from qte.research_config import prepare_research
 from qte.strategy_lab import _CLOCKS, prepare_lab
@@ -162,11 +164,8 @@ def _compile_candidate(section: dict[str, Any], strategy_type: str, path: str) -
     return result
 
 
-def _compile_research(wire: object) -> dict[str, Any]:
-    top = _object(wire, {"data", "strategy", "engine", "execution", "risk", "sampling"}, "configuration")
-    _required(top, ("data", "strategy", "engine"), "configuration")
-
-    data = _object(top["data"], {"adapter", "path", "interval_ns", "tick_size", "currency", "action_free", "schema"}, "configuration.data")
+def _compile_data(value: object) -> dict[str, Any]:
+    data = _object(value, {"adapter", "path", "interval_ns", "tick_size", "currency", "action_free", "schema", "expected_sha256"}, "configuration.data")
     _required(data, ("adapter", "path", "interval_ns"), "configuration.data")
     adapter = _choice(data["adapter"], ("csv", "alpaca"), "configuration.data.adapter")
     typed_data: dict[str, Any] = {
@@ -186,6 +185,26 @@ def _compile_research(wire: object) -> dict[str, Any]:
             name: _text(value, f"configuration.data.schema.{name}", maximum=128)
             for name, value in schema.items()
         }
+    if "expected_sha256" in data:
+        digest = _text(data["expected_sha256"], "configuration.data.expected_sha256", maximum=64)
+        if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise _error("configuration.data.expected_sha256", "Must be a lowercase SHA-256 hex digest.")
+        typed_data["expected_sha256"] = digest
+    return typed_data
+
+
+def compile_download_configuration(wire_config: object) -> dict[str, Any]:
+    """Translate the shared download contract into bounded form diagnostics."""
+    try:
+        return _compile_download_configuration(wire_config)
+    except (ValueError, TypeError, OverflowError, UnicodeError, RecursionError):
+        raise _error("configuration", "Download configuration is invalid.") from None
+
+
+def _compile_research(wire: object) -> dict[str, Any]:
+    top = _object(wire, {"data", "strategy", "engine", "execution", "risk", "sampling"}, "configuration")
+    _required(top, ("data", "strategy", "engine"), "configuration")
+    typed_data = _compile_data(top["data"])
 
     strategy = _object(top["strategy"], {"type", "symbol", "fast_period", "slow_period", "quantity", *_CANDIDATE_INTEGER_FIELDS, *_CANDIDATE_NUMBER_FIELDS}, "configuration.strategy")
     _required(strategy, ("type", "symbol"), "configuration.strategy")
@@ -306,6 +325,12 @@ def compile_configuration(kind: str, wire_config: object) -> dict[str, Any]:
         return _compile_research(wire_config)
     if kind == "strategy_lab":
         return _compile_lab(wire_config)
+    if kind == "dataset_validate":
+        top = _object(wire_config, {"data"}, "configuration")
+        _required(top, ("data",), "configuration")
+        return {"data": _compile_data(top["data"])}
+    if kind == "download_alpaca":
+        return compile_download_configuration(wire_config)
     raise _error("kind", "Must be a supported fixed research kind.")
 
 
@@ -348,6 +373,16 @@ def form_options() -> dict[str, Any]:
         "fields": {name: copy.deepcopy(candidate_fields[name]) for name in _FAMILY_FIELDS[family]},
         "hidden_defaults": {name: candidate_defaults[name] for name in candidate_defaults if name not in _FAMILY_FIELDS[family]},
     } for family in FAMILIES)
+    data_fields = {
+        "data.adapter": _field("choice", required=True, choices=("csv", "alpaca")),
+        "data.path": _field("string", required=True),
+        "data.interval_ns": _field("integer_string", required=True),
+        "data.tick_size": _field("number", default=0.01),
+        "data.currency": _field("string", default="USD"),
+        "data.action_free": _field("boolean"),
+        "data.schema.*": _field("string"),
+        "data.expected_sha256": _field("sha256"),
+    }
     return {
         "schema_version": 1,
         "config_origin": config_origin(),
@@ -355,13 +390,7 @@ def form_options() -> dict[str, Any]:
             "adapters": ["csv", "alpaca"],
             "strategies": strategies,
             "fields": {
-                "data.adapter": _field("choice", required=True, choices=("csv", "alpaca")),
-                "data.path": _field("string", required=True),
-                "data.interval_ns": _field("integer_string", required=True),
-                "data.tick_size": _field("number", default=0.01),
-                "data.currency": _field("string", default="USD"),
-                "data.action_free": _field("boolean"),
-                "data.schema.*": _field("string"),
+                **copy.deepcopy(data_fields),
                 "strategy.type": _field("choice", required=True, choices=("moving_average_regime", *FAMILIES)),
                 "strategy.symbol": _field("string", required=True),
                 "engine.initial_cash": _field("number", required=True),
@@ -387,6 +416,22 @@ def form_options() -> dict[str, Any]:
                          "max_gross_leverage": 1.0, "allow_short": False, "cash_floor": 0.0},
                 "sampling": {"annual_risk_free_rate": 0.0},
             },
+        },
+        "dataset_validate": {
+            "adapters": ["csv", "alpaca"],
+            "fields": copy.deepcopy(data_fields),
+            "defaults": {"data": {"tick_size": 0.01, "currency": "USD"}},
+        },
+        "download_alpaca": {
+            "fields": {
+                "symbols": _field("string_array", required=True),
+                "timeframe": _field("string", required=True),
+                "start": _field("string", required=True),
+                "end": _field("string", required=True),
+                "feed": _field("choice", required=True, choices=("iex", "sip")),
+                "action_free": _field("boolean", required=True),
+            },
+            "defaults": {"feed": "iex", "action_free": False},
         },
         "strategy_lab": {
             "timeframes": list(_CLOCKS),
@@ -488,9 +533,9 @@ def _compiled_identity(kind: str, config: dict, data_hash: str | None) -> dict[s
 def form_identity(kind: str, wire_config: object, data_sha256: str | None) -> dict[str, str]:
     """Compile identity after authorization, before diagnostics about stale data."""
     config = compile_configuration(kind, wire_config)
-    if ((kind == "research_run" and (not isinstance(data_sha256, str)
+    if ((kind in ("research_run", "dataset_validate") and (not isinstance(data_sha256, str)
                                      or re.fullmatch(r"[0-9a-f]{64}", data_sha256) is None))
-            or (kind == "strategy_lab" and data_sha256 is not None)):
+            or (kind in ("strategy_lab", "download_alpaca") and data_sha256 is not None)):
         raise _error("data_sha256", "Captured data identity does not match the research kind.")
     return _compiled_identity(kind, config, data_sha256)
 
@@ -505,12 +550,36 @@ def prepare_form(kind: str, wire_config: object, data_bytes: bytes | None) -> di
             prepared = prepare_research(config, data_bytes)
             data_hash: str | None = sha256(data_bytes).hexdigest()
             assumptions = _research_assumptions(config, prepared)
-        else:
+        elif kind == "dataset_validate":
+            if type(data_bytes) is not bytes:
+                raise _error("data_bytes", "Captured dataset data is required.")
+            prepared = prepare_data(config, data_bytes)
+            data_hash = sha256(data_bytes).hexdigest()
+            data = config["data"]
+            assumptions = [
+                f"Captured {data['adapter']} bytes are validated at fixed interval_ns={data['interval_ns']}.",
+                "Timestamps are UTC and bars become available at interval end.",
+                "No exchange calendar or session semantics are inferred.",
+                "Observed gaps are reported without repair or bar filling.",
+            ]
+        elif kind == "strategy_lab":
             if data_bytes is not None:
                 raise _error("data_bytes", "Synthetic labs do not accept data bytes.")
             prepared = prepare_lab(config)
             data_hash = None
             assumptions = _lab_assumptions(prepared)
+        else:
+            if kind != "download_alpaca":
+                raise _error("kind", "Must be a supported fixed research kind.")
+            if data_bytes is not None:
+                raise _error("data_bytes", "Downloads do not accept captured data bytes.")
+            data_hash = None
+            assumptions = [
+                f"Request {','.join(config['symbols'])} from the explicit {config['feed']} feed between {config['start']} and {config['end']} at {config['timeframe']}.",
+                "Adjustment is fixed to raw and currency to USD.",
+                "The action-free flag is a user declaration; downloading does not establish it.",
+                "No request occurs during preview; acquisition requires a separate explicit launch.",
+            ]
     except FormError:
         raise
     except (ValueError, TypeError, OverflowError, UnicodeError, RecursionError, csv.Error):

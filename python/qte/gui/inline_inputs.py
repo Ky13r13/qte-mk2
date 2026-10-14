@@ -163,7 +163,7 @@ def _normalized_data_path(value: object) -> str:
 def _build_prepared(captured: CapturedFormInputs, preview: object) -> PreparedInlineInputs:
     if not isinstance(captured, CapturedFormInputs) or not isinstance(preview, dict):
         raise _error("invalid")
-    if (not isinstance(captured.kind, str) or captured.kind not in {"research_run", "strategy_lab"}
+    if (not isinstance(captured.kind, str) or captured.kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca"}
             or captured.original_config_path is not None):
         raise _error("invalid")
     if type(captured.configuration_bytes) is not bytes or len(captured.configuration_bytes) > CONFIG_LIMIT:
@@ -187,7 +187,7 @@ def _build_prepared(captured: CapturedFormInputs, preview: object) -> PreparedIn
             or _hex(preview.get("canonical_config_sha256")) != canonical_hash):
         raise _error("invalid")
 
-    if captured.kind == "research_run":
+    if captured.kind in {"research_run", "dataset_validate"}:
         adapter, path, data, data_hash = _research_identity(
             captured.adapter, captured.original_data_path, captured.data_bytes, captured.data_sha256,
         )
@@ -238,7 +238,7 @@ def _validated_prepared(prepared: PreparedInlineInputs) -> PreparedInlineInputs:
         raise _error("invalid")
     wire = _configuration(prepared.configuration_bytes)
     origin = _origin(prepared.config_origin)
-    if (not isinstance(prepared.kind, str) or prepared.kind not in {"research_run", "strategy_lab"}
+    if (not isinstance(prepared.kind, str) or prepared.kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca"}
             or prepared.original_config_path is not None):
         raise _error("invalid")
     if _digest(prepared.configuration_bytes) != _hex(prepared.config_sha256):
@@ -251,7 +251,7 @@ def _validated_prepared(prepared: PreparedInlineInputs) -> PreparedInlineInputs:
     canonical_hash = _digest(typed_bytes)
     if canonical_hash != _hex(prepared.canonical_config_sha256):
         raise _error("invalid")
-    if prepared.kind == "research_run":
+    if prepared.kind in {"research_run", "dataset_validate"}:
         adapter, path, data, data_hash = _research_identity(
             prepared.adapter, prepared.original_data_path, prepared.data_bytes, prepared.data_sha256,
         )
@@ -305,7 +305,7 @@ def _job_id(value: object) -> str:
 
 
 def _inventory(prepared: PreparedInlineInputs) -> tuple[set[str], str | None]:
-    if prepared.kind == "strategy_lab":
+    if prepared.kind in {"strategy_lab", "download_alpaca"}:
         return set(_INLINE_NAMES), None
     name = "input.csv" if prepared.adapter == "csv" else "input.json"
     return set(_INLINE_NAMES) | {name}, name
@@ -322,7 +322,7 @@ def _snapshot_result(repository: Path, job_id: str, prepared: PreparedInlineInpu
         "data_sha256": prepared.data_sha256,
     }
     data_name = None
-    if prepared.kind == "research_run":
+    if prepared.kind in {"research_run", "dataset_validate"}:
         data_name = "input.csv" if prepared.adapter == "csv" else "input.json"
     return InlineSnapshotInputs(
         job_id, prepared.kind, root, f"{root}/effective-config.json", None, prepared.original_data_path,
@@ -415,7 +415,7 @@ def verify_inline_snapshot(repository: Path, job_id: str,
         if type(manifest.get("schema_version")) is not int or manifest["schema_version"] != 2 or manifest.get("job_id") != job_id:
             _snapshot_error()
         kind = manifest.get("kind")
-        if not isinstance(kind, str) or kind not in {"research_run", "strategy_lab"}:
+        if not isinstance(kind, str) or kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca"}:
             _snapshot_error()
         try:
             origin = _origin(manifest.get("config_origin"))
@@ -456,7 +456,7 @@ def verify_inline_snapshot(repository: Path, job_id: str,
         canonical_hash = _digest(typed_bytes)
         if canonical_hash != manifest["canonical_config_sha256"]:
             _snapshot_error()
-        if kind == "research_run":
+        if kind in {"research_run", "dataset_validate"}:
             adapter = manifest.get("adapter")
             original_data_path = manifest.get("original_data_path")
             if len(data_names) != 1:

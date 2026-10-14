@@ -242,11 +242,11 @@ class Catalog:
                     or origin.get("path_base") != "repository_root"
                     or type(origin.get("form_schema_version")) is not int
                     or origin["form_schema_version"] != 1
-                    or not isinstance(kind, str) or kind not in {"research_run", "strategy_lab"}
+                    or not isinstance(kind, str) or kind not in {"research_run", "strategy_lab", "dataset_validate", "download_alpaca"}
                     or config_path is not None):
                 invalid()
             synthetic = kind == "strategy_lab"
-            if synthetic:
+            if kind in {"strategy_lab", "download_alpaca"}:
                 if any(getattr(prepared, field, False) is not None for field in
                        ("original_data_path", "adapter", "data_bytes", "data_sha256")):
                     invalid()
@@ -393,6 +393,24 @@ class Catalog:
             raise ArtifactError("disclosure_unavailable", 503, "Disclosure storage is unavailable.") from exc
 
     def _projection_protection(self, artifact: Artifact, protected: set[str]) -> set[str]:
+        if artifact.kind == "comparison_export_v1" and artifact.metadata.get("integrity") == "verified":
+            hashes = artifact.metadata.get("file_hashes", {})
+            # A CLI export can reuse previously protected data outside the GUI.
+            # Its derived runs must not become a disclosure bypass. Intrinsic
+            # mixed/test files do not trigger this: only nominally safe inputs.
+            safe_inputs = {name for name in artifact.known - artifact.protected - artifact.mixed
+                           if name.startswith("inputs/")}
+            if any(f"file-sha256:{hashes[name]}" in protected or
+                   self.disclosures.protected(f"file-sha256:{hashes[name]}") for name in safe_inputs):
+                return {f"file-sha256:{value}" for value in hashes.values()}
+            return set()
+        if artifact.kind in {"dataset_validation_v1", "alpaca_download_v1"} and artifact.metadata.get("integrity") == "verified":
+            identities = {f"file-sha256:{value}" for value in artifact.metadata.get("file_hashes", {}).values()}
+            # Counts, symbols, timestamps and mappings are derived from raw data.
+            # Copying a protected input into a validation export cannot reveal them.
+            if any(value in protected or self.disclosures.protected(value) for value in identities):
+                return identities
+            return set()
         if artifact.kind != "research_export_v2" or artifact.metadata.get("integrity") != "verified":
             return set()
         hashes = artifact.metadata.get("file_hashes", {})

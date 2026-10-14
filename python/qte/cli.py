@@ -69,6 +69,14 @@ def main(argv=None):
     run.add_argument('--export-version',type=int,choices=(1,2),default=1)
     lab=sub.add_parser('lab',help='Run an offline synthetic multi-strategy research lab')
     lab.add_argument('--config',type=Path,required=True); lab.add_argument('--output',type=Path,required=True)
+    validate=sub.add_parser('validate-data',help='Validate and capture one local dataset')
+    validate.add_argument('--config',type=Path,required=True); validate.add_argument('--output',type=Path,required=True)
+    compare=sub.add_parser('compare',help='Run a frozen, declarative local strategy comparison')
+    compare.add_argument('--config',type=Path,required=True)
+    compare.add_argument('--output',type=Path,required=True)
+    download_config=sub.add_parser('download-alpaca-config',help='Explicit bounded acquisition with a verified artifact')
+    download_config.add_argument('--config',type=Path,required=True)
+    download_config.add_argument('--output',type=Path,required=True)
     download=sub.add_parser('download-alpaca')
     download.add_argument('--symbols',nargs='+',required=True)
     download.add_argument('--timeframe',required=True)
@@ -79,11 +87,21 @@ def main(argv=None):
     gui=sub.add_parser('gui',help='Open the read-only local documentation and evidence library')
     gui.add_argument('--repo-root',type=Path,default=Path.cwd(),help='Explicit QTE checkout containing documentation')
     gui.add_argument('--port',type=int,default=8765,help='Loopback port (default: 8765)')
+    gui.add_argument('--allow-alpaca-downloads',action='store_true',
+                     help='Explicitly permit user-launched historical downloads; credentials must be in server environment')
     args=parser.parse_args(argv)
     try:
         if args.command=='gui':
             from qte.gui.server import serve
-            return serve(args.repo_root, port=args.port)
+            return serve(args.repo_root, port=args.port,
+                         alpaca_download_enabled=args.allow_alpaca_downloads)
+        elif args.command=='download-alpaca-config':
+            from qte.download_artifact import write_download_output
+            try:
+                output=write_download_output(args.config,args.output)
+            except Exception:
+                print('qte: historical download failed; provider diagnostics omitted',file=sys.stderr)
+                return 2
         elif args.command=='download-alpaca':
             from qte.adapters.alpaca_download import download_stock_bars
             output=download_stock_bars(symbols=args.symbols,timeframe=args.timeframe,start=args.start,
@@ -91,6 +109,12 @@ def main(argv=None):
         elif args.command=='lab':
             from qte.strategy_lab import run_lab
             output=run_lab(args.config,args.output)
+        elif args.command=='validate-data':
+            from qte.data_validation import write_dataset_output
+            output=write_dataset_output(args.config,args.output)
+        elif args.command=='compare':
+            from qte.comparison_export import run_comparison
+            output=run_comparison(args.config,args.output)
         else:
             output=run_research(args.config,args.output,export_version=args.export_version)
     except (ValueError,TypeError,OSError) as error:

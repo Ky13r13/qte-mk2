@@ -17,11 +17,31 @@ G2 provides explicit artifact registration, verification and guarded downloads;
 G3a single-run charts/tables and G3b owned-result bindings are reviewed.
 G3c richer exports/views are implemented, regression-tested and reviewed.
 G4 adds role-filtered candidate, window, comparison, macro and regime views.
-G5a adds an authenticated offline single-run job API. G5b.2a adds form metadata
-and a read-only validation preview API; browser forms remain planned work.
+G5a adds an authenticated offline single-run job API. G5b.2 adds form metadata,
+read-only previews, immutable inline submission and fixed synthetic lab workers.
+G5b.3 forms and job views are available in the local test build. Start with the
+[data-flow and strategy guide](test-build-guide.md). Extended browser/accessibility
+acceptance remains separate from the passing automated checks.
+G6a adds **Data → Validate local dataset** for CSV mappings and saved Alpaca
+inputs. Preview, launch, then explicitly register the validation output. Its
+detail offers **Use matching source in run**, preserving mapping and checksum;
+changed/deleted original sources must be validated again. Data validation does
+not establish authenticity, exchange-session coverage or trading merit.
+G6b adds **Data → Prepare Alpaca download**: select symbols, timeframe, UTC
+window, entitled feed and action-free declaration, then preview offline.
+Downloads stay blocked with the normal launch command. A separately approved
+online session may start with `--allow-alpaca-downloads` and server environment
+variables `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY`; never put credentials in
+forms or configuration files. No online checks were performed for this build.
+Explicitly registered download artifacts show cache lineage and checksums.
+Copy their `bars.json` into an allowed repository data directory and validate it
+before research; job-private paths are not general input paths.
+G7a.1 provides the offline [comparison command](gui-comparisons.md) for fixed
+SMA comparisons and frozen candidate experiments. It is not yet a GUI launch
+option; its exports remain guarded as unsupported until role-aware readers land.
 Consult the
-[checkpoint](gui-task-log.md) for the current tested milestone. Later job, data,
-test-execution and broker controls are not enabled merely by opening a page.
+[checkpoint](gui-task-log.md) for the current tested milestone. Downloads,
+test-execution and broker requests never start merely by opening a page.
 
 The interface uses neutral colors, square corners, local assets and native
 keyboard controls. It starts in Library rather than a performance dashboard.
@@ -39,8 +59,12 @@ results. Known protected inputs require prior explicit disclosure; derived
 outputs remain protected. Restarted jobs are interrupted, not silently retried.
 
 The current runner requires Linux process supervision. No job launches merely
-by browsing a page. There are no launch buttons yet; the terminal `qte run`
-workflow remains available while [G5b forms](gui-research-forms.md) are built.
+by browsing a page. Research now offers **New run** and **New synthetic lab**.
+Preview assumptions before launch; edits invalidate the preview. Recent jobs
+retain failures and support pagination. Job detail offers bounded live updates,
+cancellation and explicit registration after success. Unknown submission results
+retain the same request/key for retry; check recent jobs before explicitly
+starting another run. The terminal `qte run` workflow remains available.
 
 ## Research preview API
 
@@ -55,8 +79,12 @@ records a disclosure, and makes no claim that unknown data is untouched.
 The request is bounded to 16 KiB; captured research data is bounded to 16 MiB.
 Simulation integers are exact decimal strings, not browser-rounded numbers.
 The preview fingerprint records captured content/configuration, but reserves
-neither bytes nor authorization. Inline submission and lab workers are a later
-backend step; the existing job API still accepts only a configuration path.
+neither bytes nor authorization. The job API accepts either the unchanged legacy
+configuration-path request or the exact inline request with this fingerprint.
+Inline submission reauthorizes and compares freshly captured inputs before full
+validation; stale inputs return 409 and require another preview. Successful jobs
+still require explicit artifact registration. Lab runs are synthetic mechanics
+only; they do not select candidates or establish trading profitability.
 
 ## Inspecting a recorded run
 
@@ -101,7 +129,7 @@ synthetic clock, not a US exchange session.
 Test-role structured views remain withheld even after a raw-file disclosure.
 Mixed raw files retain their separate confirmation requirement. Synthetic prices
 and scripted macro inputs are mechanics evidence, not validated trading alpha or
-observed dealer positioning. Job forms are G5 work, not yet available.
+observed dealer positioning. Job forms are available in the G5b.3 test build.
 
 ## Session and storage
 

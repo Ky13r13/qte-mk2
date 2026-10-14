@@ -49,7 +49,8 @@ def test_cli_gui_help_and_invalid_port():
     assert 'GUI port' in result.stderr
 
 
-def test_launcher_binds_loopback_before_code_and_uses_safe_server_settings(monkeypatch, tmp_path):
+@pytest.mark.parametrize('enabled', [False, True])
+def test_launcher_binds_loopback_before_code_and_uses_safe_server_settings(monkeypatch, tmp_path, enabled):
     events = []
     class Listener:
         def __enter__(self):
@@ -67,8 +68,9 @@ def test_launcher_binds_loopback_before_code_and_uses_safe_server_settings(monke
     listener = Listener()
     monkeypatch.setattr(server.socket, 'socket', lambda *_: listener)
     import qte.gui.app as app_module
-    def make_app(repository, *, port, code_sink):
+    def make_app(repository, *, port, code_sink, alpaca_download_enabled):
         assert repository == tmp_path
+        assert alpaca_download_enabled is enabled
         assert events == [('bind', ('127.0.0.1', 9876))]
         code_sink('ephemeral-test-code')
         return 'test-app'
@@ -83,7 +85,8 @@ def test_launcher_binds_loopback_before_code_and_uses_safe_server_settings(monke
         events.append('ran')
     fake_uvicorn = SimpleNamespace(Config=config, Server=lambda _: SimpleNamespace(run=run))
     monkeypatch.setattr(server.importlib, 'import_module', lambda name: fake_uvicorn if name == 'uvicorn' else object())
-    assert server.serve(tmp_path, port=9876, announce=events.append) == 0
+    options = {'alpaca_download_enabled': True} if enabled else {}
+    assert server.serve(tmp_path, port=9876, announce=events.append, **options) == 0
     assert events[-2:] == ['ran', 'closed']
     assert configs[0]['host'] == '127.0.0.1'
     for option in ('reload', 'proxy_headers', 'access_log', 'server_header'):

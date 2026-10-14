@@ -167,6 +167,10 @@ def inspect_artifact(root: Path, snapshots: dict[str, Snapshot] | None = None) -
     single = kind in {"single_run_v1", "research_export_v2"}
     base = {"export": "unsupported_format", "integrity": "unchecked", "evidence": "unknown",
             "scenario_outcome": "unknown", "selection": "unknown", "holdout_evaluation": "unknown"}
+    if kind in {"dataset_validation_v1", "alpaca_download_v1"}:
+        return _dataset_artifact(root, snaps, base, kind)
+    if kind == "comparison_export_v1":
+        return _comparison_artifact(root, snaps, base)
     if kind == "unsupported":
         identity = _content_identity(root, snaps)
         hashes = _file_hashes(root, snaps)
@@ -332,6 +336,71 @@ def invalid_artifact(root: Path, reason: str) -> Artifact:
 
 def _kind(snapshots: dict) -> str:
     # An invalid/unknown v2 wrapper must not silently downgrade to v1.
+    # Even a malformed comparison marker must not downgrade to an older layout.
+    if "comparison_artifact.json" in snapshots: return "comparison_export_v1"
+    if "download_artifact.json" in snapshots: return "alpaca_download_v1"
+    if "dataset_validation.json" in snapshots: return "dataset_validation_v1"
     if "research_export.json" in snapshots: return "research_export_v2"
     if "manifest.json" in snapshots: return "single_run_v1"
     return "strategy_lab_v1" if "configuration.json" in snapshots else "unsupported"
+
+
+def _comparison_artifact(root: Path, snaps: dict[str, Snapshot], base: dict) -> Artifact:
+    """Verify saved comparison records, never execute a research workflow.
+
+    Only classification and provenance leave the verifier. Report-derived
+    selection, evaluation, errors and metrics await a role-filtered view.
+    """
+    from .comparison_artifacts import verify_comparison_files
+
+    try:
+        files = {name: read_stable(root, name, FILE_LIMIT, snap) for name, snap in snaps.items()}
+        _unchanged(root, snaps)
+    except ArtifactIOError as exc:
+        raise ArtifactError("artifact_changed", 409, "Comparison changed during verification.") from exc
+    hashes = {name: sha256(data).hexdigest() for name, data in files.items()}
+    identity = "sha256:" + sha256("\n".join(f"{name}:{hashes[name]}" for name in sorted(hashes)).encode()).hexdigest()
+    metadata = {**base, "identity": identity, "file_hashes": hashes, "protocol_ids": []}
+    if "complete.json" not in files:
+        return Artifact(root, "comparison_export_v1", snaps,
+                        {**metadata, "export": "incomplete"}, set(), set(), set())
+    try:
+        checked = verify_comparison_files(files)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise ArtifactError("artifact_invalid", 422, "Comparison artifact is invalid.") from exc
+    _unchanged(root, snaps)
+    # Explicit keys prevent a future verifier field from becoming public status.
+    metadata.update(export="complete", integrity="verified", evidence=checked["evidence"],
+                    protocol_ids=checked["protocol_ids"], source_identities=checked["source_identities"])
+    return Artifact(root, "comparison_export_v1", snaps, metadata,
+                    checked["protected"], checked["mixed"], checked["known"])
+
+
+def _dataset_artifact(root: Path, snaps: dict[str, Snapshot], base: dict,
+                      kind: str = "dataset_validation_v1") -> Artifact:
+    """Validate captured bytes without exposing dataset facts in catalog status."""
+    from qte.data_validation import verify_dataset_files
+    if kind == "alpaca_download_v1":
+        from qte.download_artifact import verify_download_files
+        verifier = verify_download_files
+    else:
+        verifier = verify_dataset_files
+
+    hashes = _file_hashes(root, snaps)
+    identity = _content_identity(root, snaps)
+    if "complete.json" not in snaps:
+        _unchanged(root, snaps)
+        return Artifact(root, kind, snaps,
+                        {**base, "export": "incomplete", "identity": identity,
+                         "protocol_ids": [], "file_hashes": hashes}, set(), set(), set())
+    try:
+        files = {name: read_stable(root, name, FILE_LIMIT, snap) for name, snap in snaps.items()}
+        checked = verifier(files)
+    except (ValueError, TypeError, KeyError, ArtifactIOError) as exc:
+        raise ArtifactError("artifact_invalid", 422, "Dataset validation artifact is invalid.") from exc
+    _unchanged(root, snaps)
+    return Artifact(root, kind, snaps,
+                    {**base, "export": "complete", "integrity": "verified", "identity": identity,
+                     "protocol_ids": [], "file_hashes": hashes,
+                     "source_identities": [checked["manifest"]["source_identity"]]},
+                    set(), set(), set(snaps))

@@ -46,6 +46,10 @@ def job_routes(manager, authenticate):
         return value
 
     def submit_inline(payload):
+        # This gate precedes capture, authorization, and all job storage so a
+        # disabled network-capable kind has no observable submission side effect.
+        if payload["kind"] == "download_alpaca":
+            manager.require_download_enabled()
         captured = capture_form_inputs(manager.repository, payload["kind"], payload["config_origin"],
                                        payload["configuration"])
         catalog.authorize_job_inputs(captured)
