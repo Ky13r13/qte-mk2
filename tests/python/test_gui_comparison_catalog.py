@@ -56,7 +56,7 @@ def test_verified_roles_do_not_publish_report_facts_or_replay_engine(tmp_path, e
         "disclosure": "unknown", "code_match": "same", "combined_status": "complete; verified; synthetic",
     }
     manifest = read_json(root / "manifest.json")
-    protected, mixed = set(manifest["holdout_files"]), set(manifest["mixed_role_files"])
+    protected, mixed = set(manifest["holdout_files"]), set(manifest["mixed_role_files"]) | {"complete.json"}
     actual = catalog.inspect(item["id"])
     assert actual.protected == protected
     assert actual.mixed == mixed

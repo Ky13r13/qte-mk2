@@ -1,10 +1,15 @@
-# Bounded local research and data jobs (G5a–G6b)
+# Bounded local research, data and comparison jobs
 
 Status: G5a and the G5b.2 backend are implemented, full-suite tested and
 independently reviewed by Astra. Browser forms remain a separate G5b.3 gate.
 This extends the read-only library with explicit fixed-kind launches. The
 historical download kind is opt-in; no test, account, arbitrary command or
 strategy-import handler is exposed.
+
+G7a.3b adds the separately gated [comparison job contract](gui-comparisons.md).
+It uses validation IDs, v3 multi-input snapshots and role-aware finalization;
+the single-input authorization and public hash/lineage fields below do not apply
+to comparison jobs. Browser comparison launch forms are not yet implemented.
 
 ## Request and ownership
 
@@ -66,6 +71,8 @@ sanitized text and a cursor. `POST /api/v1/jobs/{id}/cancel` accepts only schema
 version. All are authenticated, no-store and reject ambiguous queries. DTOs
 include opaque ID, kind, state/phase/reason, timestamps, timeout, source identity,
 input hashes, request identity, exit status and repository-relative output path.
+Comparison DTOs instead withhold input hashes, role identities and child exit
+status; they expose only unknown holdout history and generic failure reasons.
 Exact nanosecond/PID/large-count values are decimal strings. No config bytes,
 source data, credentials or raw traceback is returned by job metadata/log routes.
 

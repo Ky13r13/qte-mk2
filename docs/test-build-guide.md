@@ -36,6 +36,13 @@ For **New synthetic lab**, try seed `7`, bars per window `128`, and Hourly.
 The server builds its fixed 15-entry slate; it does not pick a synthetic winner.
 Both successful and failed jobs remain in Research. Registration is explicit.
 
+For **New comparison**, first validate and register separate chronological data
+windows. Select SMA train/test or a frozen candidate experiment; choose validation
+IDs, declare evidence, configure candidates/costs, preview, then launch. No
+dataset contents are fetched by the chooser. Register the completed output to
+inspect train/validation results; final-test facts stay guarded. See the
+[comparison guide](gui-comparisons.md) for the full workflow.
+
 For data-first research, choose **Data → Validate local dataset**. The same CSV
 mapping and saved-Alpaca adapter checks run without a strategy. After the job
 succeeds, register its output and choose **Use matching source in run**. The
@@ -176,7 +183,11 @@ print(len(result.fills), metrics.total_return.value)
 For configuration-driven comparisons of registered strategies, the new offline
 `qte compare` command is documented in [declarative comparisons](gui-comparisons.md).
 It supports the existing SMA train/test baseline and frozen candidate experiments;
-GUI comparison launch remains a separate G7a gate.
+Its exports can now be explicitly registered in Research for verified file
+access and safe candidate/window/comparison views. Test/mixed content remains
+guarded by disclosure confirmation. Select a train/validation window to compare
+base/stressed scenarios. The comparison backend can preview and execute fixed
+jobs; browser launch forms remain a separate G7a gate.
 
 ## Test-build limits
 

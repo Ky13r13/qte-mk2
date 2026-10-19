@@ -40,24 +40,51 @@ def _snapshot(repository: Path, job_id: str, expected: dict[str, str]):
         return None
 
 
-def _snapshot_kind(value) -> tuple[str, str | None] | None:
-    """Extract the fixed v2 kind, retaining v1 as implicit research only."""
+def _comparison_snapshot(repository: Path, job_id: str, expected: dict[str, str]):
     try:
+        from qte.gui.comparison_snapshots import load_comparison_snapshot
+        return load_comparison_snapshot(repository, job_id, expected)
+    except Exception:
+        return None
+
+
+def _snapshot_kind(value) -> tuple[str, str | None] | None:
+    """Extract a fixed snapshot kind, retaining v1 as implicit research only."""
+    try:
+        from qte.gui.comparison_snapshots import ComparisonSnapshotInputs
         from qte.gui.inline_inputs import InlineSnapshotInputs
         from qte.gui.job_inputs import SnapshotInputs
     except Exception:
         return None
-    if isinstance(value, InlineSnapshotInputs):
+    if isinstance(value, ComparisonSnapshotInputs):
+        kind, hashes = value.kind, value.hashes
+    elif isinstance(value, InlineSnapshotInputs):
         kind, hashes = value.kind, value.hashes
     elif isinstance(value, SnapshotInputs):
         kind, hashes = "research_run", value.hashes
     else:
         return None
     canonical = hashes.get("canonical_config_sha256") if isinstance(hashes, dict) else None
-    if (not isinstance(kind, str) or kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca"}
+    if (not isinstance(kind, str) or kind not in {
+            "research_run", "dataset_validate", "strategy_lab", "download_alpaca", "comparison_run"}
             or not isinstance(canonical, str) or re.fullmatch(r"[0-9a-f]{64}", canonical) is None):
         return None
     return kind, canonical
+
+
+def _comparison_snapshot_matches(value, expected_source_identity: str) -> bool:
+    try:
+        from qte.gui.comparison_inputs import PreparedComparisonInputs
+        from qte.gui.comparison_snapshots import ComparisonSnapshotInputs
+        snapshot, prepared = value
+        verified_info = _snapshot_kind(snapshot)
+        return (isinstance(snapshot, ComparisonSnapshotInputs)
+                and isinstance(prepared, PreparedComparisonInputs)
+                and verified_info is not None and verified_info[0] == "comparison_run"
+                and snapshot.source_identity == expected_source_identity
+                and prepared.source_identity == expected_source_identity)
+    except Exception:
+        return False
 
 
 def _enable_subreaper() -> bool:
@@ -177,6 +204,9 @@ def supervise(spec_path: Path, parent_fd: int, cancel_fd: int, result_fd: int) -
     handlers, pending_signal = _signal_cleanup_handlers()
     try:
         spec = json.loads(spec_path.read_text(encoding="utf-8"))
+        if isinstance(spec, dict) and spec.get("kind") == "test_run":
+            from .test_worker import supervise_test
+            return supervise_test(spec, parent_fd, cancel_fd, result_fd, pending_signal)
         required = {"repository", "executable", "config", "output", "job_id", "kind", "snapshot_hashes",
                     "source_identity", "timeout_seconds", "environment"}
         if not isinstance(spec, dict) or set(spec) != required: raise ValueError
@@ -191,7 +221,8 @@ def supervise(spec_path: Path, parent_fd: int, cancel_fd: int, result_fd: int) -
                             "TMPDIR", "XDG_CACHE_HOME"}
         kind = spec["kind"]
         if (not isinstance(job_id, str) or re.fullmatch(r"[0-9a-f]{32}", job_id) is None
-                or not isinstance(kind, str) or kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca"}
+                or not isinstance(kind, str) or kind not in {
+                    "research_run", "dataset_validate", "strategy_lab", "download_alpaca", "comparison_run"}
                 or executable != Path(sys.executable).absolute()
                 or config != job_root / "inputs/effective-config.json"
                 or output != job_root / "artifacts"
@@ -213,7 +244,9 @@ def supervise(spec_path: Path, parent_fd: int, cancel_fd: int, result_fd: int) -
         if cancel_fd in ready and os.read(cancel_fd, 1):
             _result(result_fd, state="canceled", reason="canceled", exit_code=None)
             return 1
-        verified = _snapshot(repository, job_id, hashes)
+        comparison = _comparison_snapshot(repository, job_id, hashes) if kind == "comparison_run" else None
+        verified = comparison[0] if _comparison_snapshot_matches(comparison, spec["source_identity"]) else (
+            _snapshot(repository, job_id, hashes) if kind != "comparison_run" else None)
         if (source_identity() != spec["source_identity"] or _snapshot_kind(verified) is None
                 or _snapshot_kind(verified)[0] != kind):
             _result(result_fd, state="failed", reason="provenance_changed", exit_code=None)
@@ -226,6 +259,8 @@ def supervise(spec_path: Path, parent_fd: int, cancel_fd: int, result_fd: int) -
                 if kind == "dataset_validate" else
                 [str(executable), "-m", "qte", "lab", "--config", str(config), "--output", str(output)]
                 if kind == "strategy_lab" else
+                [str(executable), "-m", "qte", "compare", "--config", str(config), "--output", str(output)]
+                if kind == "comparison_run" else
                 [str(executable), "-m", "qte", "download-alpaca-config", "--config", str(config), "--output", str(output)])
         child_environment = dict(spec["environment"])
         if kind == "download_alpaca":
@@ -263,7 +298,9 @@ def supervise(spec_path: Path, parent_fd: int, cancel_fd: int, result_fd: int) -
             _terminate(process)
         # Completion wins a simultaneous cancellation only when the fixed CLI
         # exited cleanly and every accepted provenance check still succeeds.
-        verified = _snapshot(repository, job_id, hashes)
+        comparison = _comparison_snapshot(repository, job_id, hashes) if kind == "comparison_run" else None
+        verified = comparison[0] if _comparison_snapshot_matches(comparison, spec["source_identity"]) else (
+            _snapshot(repository, job_id, hashes) if kind != "comparison_run" else None)
         verified_info = _snapshot_kind(verified)
         if (status == 0 and verified_info is not None and verified_info[0] == kind
                 and source_identity() == spec["source_identity"]):
@@ -299,6 +336,10 @@ def supervise(spec_path: Path, parent_fd: int, cancel_fd: int, result_fd: int) -
                              and validation.get("manifest", {}).get("data_sha256") == expected_data
                              and validation.get("manifest", {}).get("source_identity")
                              == spec["source_identity"])
+                elif kind == "comparison_run":
+                    from qte.gui.comparison_jobs import verify_comparison_job_output
+                    valid = bool(verify_comparison_job_output(
+                        repository, job_id, hashes, spec["source_identity"]))
                 else:
                     from qte.download_artifact import verify_download_output
                     download = verify_download_output(output)
@@ -322,9 +363,14 @@ def supervise(spec_path: Path, parent_fd: int, cancel_fd: int, result_fd: int) -
             if valid:
                 _result(result_fd, state="succeeded", reason=None, exit_code=0)
                 return 0
-        final_snapshot = _snapshot_kind(_snapshot(repository, job_id, hashes))
-        unchanged = (final_snapshot is not None and final_snapshot[0] == kind
-                     and source_identity() == spec["source_identity"])
+        if kind == "comparison_run":
+            final_comparison = _comparison_snapshot(repository, job_id, hashes)
+            unchanged = (_comparison_snapshot_matches(final_comparison, spec["source_identity"])
+                         and source_identity() == spec["source_identity"])
+        else:
+            final_snapshot = _snapshot_kind(_snapshot(repository, job_id, hashes))
+            unchanged = (final_snapshot is not None and final_snapshot[0] == kind
+                         and source_identity() == spec["source_identity"])
         reason = stopped or ("provenance_changed" if not unchanged else "execution_failed")
         state = "canceled" if reason == "canceled" else "interrupted" if reason in {"owner_lost", "timeout"} else "failed"
         _result(result_fd, state=state,

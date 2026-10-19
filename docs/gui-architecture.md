@@ -9,9 +9,19 @@ browser/accessibility acceptance pending. See the
 G6a local dataset validation and checksum-pinned source reuse are accepted.
 G6b adds offline request previews and explicitly gated Alpaca download/cache
 inspection (mock-tested; network disabled by default). G7a.1 adds reviewed
-[declarative CLI comparisons](gui-comparisons.md); comparison GUI launch and
-holdout-aware views remain pending, followed by G7b–G9. Current gate:
-1050 Python / 15 CTest; the unchanged browser's last gate is 11 JS tests.
+[declarative CLI comparisons](gui-comparisons.md); G7a.2a adds verified,
+holdout-protected catalog access. G7a.2b safe comparison views and G7a.3a private
+multi-input capture/snapshots are accepted. G7a.3b adds reviewed backend preview,
+job execution and publication. G7a.3c browser forms are accepted with both
+workflows exercised on local synthetic data, explicit registration, guarded
+results and narrow-layout/error-focus checks. G7a gate: 1197 Python /
+15 CTest / 25 JavaScript tests. Next is G8 per the requested sequence; G7b and
+G9 remain queued. Extended cross-browser/zoom acceptance remains separate.
+G8a.1 and G8a.2a's internal [test-evidence foundation](gui-test-evidence.md) are
+reviewed: parsing, trusted preflight, pinned requests and completion-last writing.
+G8a.2b's private supervised execution is accepted: 1417 Python / 15 CTest /
+25 JavaScript tests. System controls (G8a.3) remain disabled.
+Private job acceptance is not a GUI test-launch capability.
 The user requested a locally hosted, minimally colored, square-cornered interface
 covering existing functionality, documentation and test artifacts. This is a
 presentation/orchestration layer, not a new trading engine. Read with
@@ -406,7 +416,7 @@ trustworthy.
 | G5b — research forms | Family-specific fields, advanced costs/risk/sampling, lab handler; G5a | Same valid/invalid config results as CLI; equivalent metrics/fills; explicit pre-run assumptions; legacy SMA works |
 | G6a — local dataset workflows | CSV mapping, saved Alpaca imports, bounded validation jobs; G5a | Existing interval/availability/action preflight unchanged; unsupported session semantics explicit, no exchange-calendar validation claim; no repair/bar filling |
 | G6b — Alpaca download UI | Explicit feed/date/symbol/action declaration, cache lineage; G6a | Offline pagination/corruption/retry parity; no request on page load; real check requires separate user-authorized credentials |
-| G7a — declarative comparison bridge (CLI increment accepted; GUI pending) | Config adapters for existing SMA and registered `run_experiment` workflows; G5b/G6a | Chronology/universe/currency checks preserved; frozen slate before holdout; no arbitrary factory imports; all trials retained |
+| G7a — declarative comparison bridge (accepted offline) | Config adapters and browser forms for existing SMA and registered `run_experiment` workflows; G5b/G6a | Chronology/universe/currency checks preserved; frozen slate before holdout; no arbitrary factory imports; all trials retained |
 | G7b — macro/router bridge | Explicit local observations, as-of inspection, router params/route-event export; G7a/G3c | Availability/vintage/staleness/dealer provenance and proxy rejection; exit-before-switch parity; no false dealer inference |
 | G8a — test evidence | Fixed CTest and pytest jobs plus machine records; G5a | JUnit/log/command/test-source+binary hashes, exit status and complete marker; failed jobs remain visible; skip != pass; stale records labeled |
 | G8b — benchmark evidence | Bounded existing benchmark job and machine/build/workload record; G8a | Timing not research performance; no-op `hold` correctly labeled; no automatic million-bar runs or unrelated build/install commands |

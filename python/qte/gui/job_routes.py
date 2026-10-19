@@ -11,6 +11,8 @@ from starlette.routing import Route
 
 from .artifacts import ArtifactError, strict_json
 from .catalog import Catalog
+from .comparison_inputs import prepare_comparison_inputs
+from .comparison_routes import COMPARISON_REQUEST_LIMIT
 from .dto import artifact_value
 from .form_inputs import capture_form_inputs
 from .inline_inputs import prepare_inline_inputs
@@ -62,25 +64,38 @@ def job_routes(manager, authenticate):
         return manager.submit(uuid4().hex, captured.kind, prepared, payload["idempotency_key"],
                               payload["timeout_seconds"])
 
-    async def submit(request):
+    def submit_comparison(payload):
+        prepared = prepare_comparison_inputs(catalog, payload["configuration"])
+        if prepared.fingerprint != payload["preview_fingerprint"]:
+            raise JobError("stale_preview", 409, "Inputs changed; preview the configuration again.")
+        return manager.submit(uuid4().hex, "comparison_run", prepared, payload["idempotency_key"],
+                              payload["timeout_seconds"])
+
+    async def submit(request, *, comparison_request=False):
         authenticate(request, token=True)
         no_query(request)
-        payload = await json_request_one_of(request, (
+        envelopes = (
+            ({"kind", "configuration", "preview_fingerprint", "idempotency_key", "timeout_seconds"}, COMPARISON_REQUEST_LIMIT),
+        ) if comparison_request else (
             ({"kind", "config_path", "idempotency_key", "timeout_seconds"}, 4096),
             ({"kind", "config_origin", "configuration", "preview_fingerprint", "idempotency_key", "timeout_seconds"}, 16384),
-        ))
+        )
+        payload = await json_request_one_of(request, envelopes)
         key, timeout = payload["idempotency_key"], payload["timeout_seconds"]
         if (not isinstance(key, str)
                 or re.fullmatch(r"[A-Za-z0-9_-]{16,128}", key) is None
                 or type(timeout) is not int or not 1 <= timeout <= 1800):
             raise SecurityError("invalid_request", 400, "Invalid local research job request.")
         if "configuration" in payload:
+            comparison = payload["kind"] == "comparison_run"
+            if comparison != comparison_request or comparison == ("config_origin" in payload):
+                raise SecurityError("invalid_request", 400, "Invalid local research job request.")
             fingerprint = payload["preview_fingerprint"]
             if not isinstance(fingerprint, str) or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
                 raise SecurityError("invalid_request", 400, "Invalid local research job request.")
             async with inline_lock:
                 try:
-                    result = await call(submit_inline, payload)
+                    result = await call(submit_comparison if comparison else submit_inline, payload)
                 except FormError as exc:
                     return response(status=400, error={"code": exc.code, "field": exc.field,
                                                        "message": exc.message, "request_id": uuid4().hex})
@@ -91,6 +106,9 @@ def job_routes(manager, authenticate):
         prepared = await call(collect_inputs, manager.repository, path)
         result = await call(manager.submit, uuid4().hex, "research_run", prepared, key, timeout)
         return response(job=artifact_value(result))
+
+    async def comparison_submit(request):
+        return await submit(request, comparison_request=True)
 
     async def listing(request):
         authenticate(request, token=True)
@@ -122,6 +140,7 @@ def job_routes(manager, authenticate):
         return response(**result)
 
     return [Route("/api/v1/jobs", submit, methods=["POST"]),
+            Route("/api/v1/comparisons/jobs", comparison_submit, methods=["POST"]),
             Route("/api/v1/jobs", listing, methods=["GET"]),
             Route("/api/v1/jobs/{job_id:str}", detail, methods=["GET"]),
             Route("/api/v1/jobs/{job_id:str}/log", log, methods=["GET"]),

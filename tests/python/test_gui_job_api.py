@@ -98,7 +98,8 @@ def test_job_api_rejects_auth_queries_commands_and_malformed_fields_without_laun
         assert (await client.post("/api/v1/jobs", json=request_body())).status_code == 403
         assert (await client.post("/api/v1/jobs", headers={**headers, "Origin": "https://outside.invalid"},
                                   json=request_body())).status_code == 403
-        for body in ({**request_body(), "kind": "download_alpaca"}, {**request_body(), "command": "echo injected"},
+        for body in ({**request_body(), "kind": "download_alpaca"}, {**request_body(), "kind": "test_run"},
+                     {**request_body(), "command": "echo injected"},
                      {**request_body(), "timeout_seconds": True}, {**request_body(), "timeout_seconds": 1801},
                      {**request_body(), "idempotency_key": "short"}, {**request_body(), "config_path": []}):
             assert (await client.post("/api/v1/jobs", headers=headers, json=body)).status_code == 400

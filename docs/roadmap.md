@@ -149,10 +149,18 @@ reviewed. G2 through G5a are implemented/reviewed under the
 inline/fixed-lab jobs are reviewed. G5b.3 browser forms are test-build ready;
 extended browser acceptance is pending. G6a local data validation and pinned
 source reuse and G6b gated download controls are accepted offline. G7a.1 shared
-configuration and CLI comparison exports are reviewed (1050 Python tests,
-15/15 CTest; unchanged browser last passed 11 JS). Downloads are disabled by
-default. Remaining G7a gates are holdout-aware comparison readers and immutable
-multi-source GUI jobs/forms, followed by G7b–G9. The
+configuration/CLI exports, G7a.2a guarded catalog access and G7a.2b safe comparison
+views are reviewed. G7a.3a snapshots, G7a.3b backend preview/job/worker and
+G7a.3c browser forms are accepted offline (1197 Python tests, 15/15 CTest,
+25 JS; both workflows passed local synthetic browser runs). Downloads are
+disabled by default. G8 is next in the requested sequence; G7b and G9 remain
+queued with their own acceptance gates. The
+G8a [evidence contract](gui-test-evidence.md) now has reviewed parsing, explicit
+identity capture, trusted discovery, pinned requests and completion-last writing
+(G8a.1/G8a.2a). Private supervised jobs (G8a.2b) are reviewed and accepted
+(1417 Python / 15 CTest / 25 JS). System controls (G8a.3) remain; no test-launch endpoint is
+enabled yet.
+The
 [forms contract](gui-research-forms.md) separates backend and browser gates.
 See the [task log](gui-task-log.md)
 and [usage guide](gui-usage.md) for tested capability and remaining work.

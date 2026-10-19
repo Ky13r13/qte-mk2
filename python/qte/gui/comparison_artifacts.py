@@ -14,6 +14,8 @@ import math
 import re
 from typing import Any
 
+from .artifact_io import FILE_LIMIT, INVENTORY_LIMIT, METADATA_LIMIT, TOTAL_ARTIFACT_BYTES
+
 
 _ROOT_FILES = {
     "comparison_artifact.json", "submitted.json", "configuration.json",
@@ -77,7 +79,11 @@ def _integer(value: object, label: str, minimum: int = 0) -> int:
 def _finite(value: object, label: str, *, optional: bool = False) -> int | float | None:
     if optional and value is None:
         return None
-    if type(value) not in (int, float) or not math.isfinite(value):
+    try:
+        valid = type(value) in (int, float) and math.isfinite(value)
+    except OverflowError:
+        valid = False
+    if not valid:
         _fail(f"{label} must be a finite number")
     return value
 
@@ -120,12 +126,21 @@ def _input_name(configuration: dict[str, Any], index: int) -> str:
 
 
 def _verify_completion(files: dict[str, bytes]) -> dict[str, str]:
-    if type(files) is not dict or not files or len(files) > 512:
+    if type(files) is not dict or not files or len(files) > INVENTORY_LIMIT:
         _fail("comparison artifact file inventory is invalid")
+    total = 0
     for name, content in files.items():
         if (type(name) is not str or type(content) is not bytes or not name or name.startswith("/")
                 or "\\" in name or any(part in ("", ".", "..") for part in name.split("/"))):
             _fail("comparison artifact contains an invalid file entry")
+        # Reports grow with the supported slate; they are stored artifacts, not
+        # HTTP metadata bodies. Only configuration/marker inputs use 1 MiB.
+        limit = METADATA_LIMIT if name in {
+            "submitted.json", "configuration.json", "comparison_artifact.json",
+        } else FILE_LIMIT
+        total += len(content)
+        if len(content) > limit or total > TOTAL_ARTIFACT_BYTES:
+            _fail("comparison artifact exceeds its byte limits")
     if "complete.json" not in files:
         _fail("comparison artifact is incomplete")
     complete = _object(_json(files["complete.json"], "complete.json"),
@@ -159,6 +174,9 @@ def _verify_configuration(files: dict[str, bytes]) -> tuple[dict[str, Any], list
         raise ValueError("comparison configuration is invalid") from error
     _same(effective, effective_normalized, "effective configuration normalization")
     names = [_input_name(effective, index) for index in range(len(effective["windows"]))]
+    from qte.comparison_config import _TOTAL_DATA_LIMIT
+    if sum(len(files.get(name, b"")) for name in names) > _TOTAL_DATA_LIMIT:
+        _fail("comparison inputs exceed the aggregate byte limit")
     copied = json.loads(_canonical(submitted_normalized))
     for index, name in enumerate(names):
         copied["windows"][index]["data"]["path"] = name
@@ -174,6 +192,21 @@ def _verify_configuration(files: dict[str, bytes]) -> tuple[dict[str, Any], list
             loaded.append(_load_data(window["data"], files[name]))
         except (ValueError, TypeError, RuntimeError) as error:
             raise ValueError(f"captured input {name} is invalid") from error
+    from qte.experiments import Evidence, ResearchWindow, _validate_windows
+    windows = tuple(ResearchWindow(spec["name"], adapter.dataset, spec["role"], spec["regime"],
+                                   Evidence(**spec["evidence"]))
+                    for spec, adapter in zip(effective["windows"], loaded, strict=True))
+    for candidate in effective["candidates"]:
+        if any(candidate["symbol"] not in window.data.symbols for window in windows):
+            _fail("candidate symbol must exist in every window")
+    if effective["workflow"] == "historical_experiment":
+        _validate_windows(windows)
+    else:
+        train, test = (window.data for window in windows)
+        if train.end_ns > test.start_ns:
+            _fail("train/test windows must be chronological and non-overlapping")
+        if train.interval_ns != test.interval_ns or train.currency != test.currency:
+            _fail("train/test windows must have matching interval and currency")
     return effective, loaded, names
 
 
@@ -190,6 +223,7 @@ def _verify_marker(marker: object, workflow: str) -> None:
 
 
 def _validate_experiment_report(report: object, configuration: dict[str, Any], loaded: list[Any]) -> tuple[list[dict[str, Any]], str | None]:
+    from qte.comparison_config import _build_candidate
     fields = {
         "protocol_id", "source_identity", "config_json", "candidates", "windows",
         "scenarios", "assessments", "selected_candidate", "holdout_status",
@@ -220,6 +254,8 @@ def _validate_experiment_report(report: object, configuration: dict[str, Any], l
         if record["parameters_json"] != _canonical(expected_parameters):
             _fail("report candidate parameters are inconsistent")
         _integer(record["history_capacity"], "candidate history capacity", 1)
+        if record["history_capacity"] != _build_candidate(configured)[0].history_capacity:
+            _fail("candidate history capacity is inconsistent")
         _text(record["factory_name"], "candidate factory name")
         identity = record["factory_source_identity"]
         if identity != "unavailable" and (type(identity) is not str or _IDENTITY.fullmatch(identity) is None):
@@ -275,7 +311,9 @@ def _validate_experiment_report(report: object, configuration: dict[str, Any], l
             for metric in ("total_return", "maximum_drawdown", "average_gross_exposure",
                            "turnover", "final_equity"):
                 _finite(scenario[metric], f"scenario {metric}")
-            _text(scenario["normalized_config"], "scenario normalized config")
+            candidate = candidates_by_name[scenario["candidate"]]
+            _validate_normalized_config(scenario["normalized_config"], configuration,
+                                        candidate, scenario["cost_scenario"], report["source_identity"])
         else:
             _text(scenario["error"], "scenario error")
             if any(scenario[name] is not None for name in ("total_return", "maximum_drawdown",
@@ -302,8 +340,12 @@ def _validate_experiment_report(report: object, configuration: dict[str, Any], l
         if assessment["eligible"] != (not exclusions):
             _fail("assessment eligibility is inconsistent with exclusions")
         if assessment["eligible"]:
-            if score is None:
+            if score is None or not candidate["eligible"]:
                 _fail("eligible assessment has no validation score")
+            if (candidates[index]["factory_source_identity"] == "unavailable" or
+                    any(row["candidate"] == candidate["name"] and row["role"] != "test" and
+                        row["status"] == "error" for row in scenarios)):
+                _fail("failed or unverified candidate cannot be eligible")
             eligible.append(assessment)
     expected_selected = None
     if eligible:
@@ -313,6 +355,8 @@ def _validate_experiment_report(report: object, configuration: dict[str, Any], l
         _fail("selected candidate is inconsistent with assessments")
     if selected is not None and any(window["evidence"]["kind"] != "historical" for window in configuration["windows"]):
         _fail("synthetic evidence cannot promote a candidate")
+    if selected is not None and any("synthetic" in adapter.dataset.source_id.lower() for adapter in loaded):
+        _fail("synthetic source cannot promote a candidate")
     reasons = _array(report["holdout_reasons"], "holdout reasons")
     if any(type(item) is not str or not item for item in reasons):
         _fail("holdout reasons are invalid")
@@ -321,6 +365,8 @@ def _validate_experiment_report(report: object, configuration: dict[str, Any], l
             _fail("holdout status is inconsistent with no selection")
     elif report["holdout_status"] not in ("failed", "passed_research_screen_only"):
         _fail("holdout status is inconsistent with selection")
+    elif (report["holdout_status"] == "failed") != bool(reasons):
+        _fail("holdout status is inconsistent with reasons")
     _text(report["parameter_status"], "parameter status")
     limitations = _array(report["limitations"], "report limitations")
     if not limitations or any(type(item) is not str or not item for item in limitations):
@@ -361,7 +407,8 @@ def _validate_legacy_report(report: object, configuration: dict[str, Any], loade
             _finite(scenario[metric], f"legacy scenario {metric}")
         for count in ("trade_count", "order_count", "fill_count"):
             _integer(scenario[count], f"legacy scenario {count}")
-        _text(scenario["normalized_config"], "legacy normalized config")
+        _validate_normalized_config(scenario["normalized_config"], configuration,
+                                    candidate, cost, scenario["source_identity"])
         if scenario["strategy_config"] != expected_strategy:
             _fail("legacy strategy configuration is inconsistent")
         identity = scenario["source_identity"]
@@ -374,6 +421,50 @@ def _validate_legacy_report(report: object, configuration: dict[str, Any], loade
     return scenarios
 
 
+def _validate_normalized_config(value: object, configuration: dict[str, Any], candidate: dict[str, Any],
+                                cost: str, identity: str) -> None:
+    """Check the stored engine snapshot against declarations, without replay."""
+    from qte.comparison_config import _build_candidate
+    text = _text(value, "normalized config")
+    pairs = [part.partition("=") for part in text.split(";")]
+    if any(not separator for _, separator, _ in pairs) or len({key for key, _, _ in pairs}) != len(pairs):
+        _fail("normalized config is invalid")
+    actual = {key: content for key, _, content in pairs}
+    experiment = configuration["experiment"]
+    historical = configuration["workflow"] == "historical_experiment"
+    if historical:
+        costs = experiment["base_costs" if cost == "base" else "stressed_costs"]
+    else:
+        costs = (dict(commission_bps=0, spread_bps=0, slippage_bps=0)
+                 if cost == "baseline_zero_cost" else experiment["stressed_costs"])
+    expected = {
+        "initial_cash": experiment["initial_cash"], **costs,
+        "max_order_quantity": experiment["max_order_quantity"] if historical else 2**63 - 1,
+        "max_symbol_allocation": experiment["max_symbol_allocation"] if historical else 1.0,
+        "max_gross_leverage": experiment["max_gross_leverage"] if historical else 1.0,
+        "allow_short": "false", "cash_floor": 0.0,
+        "history_capacity": _build_candidate(candidate)[0].history_capacity,
+        "random_seed": experiment["random_seed"] if historical else 0,
+        "build_identity": identity,
+    }
+    if set(actual) != set(expected):
+        _fail("normalized config fields are inconsistent")
+    for key, expected_value in expected.items():
+        raw = actual[key]
+        if isinstance(expected_value, str):
+            valid = raw == expected_value
+        elif key in {"max_order_quantity", "history_capacity", "random_seed"}:
+            valid = re.fullmatch(r"0|[1-9][0-9]*", raw) is not None and int(raw) == expected_value
+        else:
+            try:
+                parsed = float(raw)
+                valid = math.isfinite(parsed) and parsed == expected_value
+            except (ValueError, OverflowError):
+                valid = False
+        if not valid:
+            _fail(f"normalized config {key} is inconsistent")
+
+
 def _comparison_csv(report: dict[str, Any], fields: tuple[str, ...]) -> bytes:
     stream = io.StringIO(newline="")
     writer = csv.writer(stream)
@@ -382,7 +473,7 @@ def _comparison_csv(report: dict[str, Any], fields: tuple[str, ...]) -> bytes:
     return stream.getvalue().encode()
 
 
-def _validate_event_csv(raw: bytes, name: str, scenario: dict[str, Any], window: dict[str, Any]) -> None:
+def _validate_event_csv(raw: bytes, name: str, scenario: dict[str, Any], window: dict[str, Any]) -> list[list[str]]:
     expected_headers = {
         "equity.csv": ["timestamp_ns", "equity", "gross_exposure"],
         "fills.csv": ["fill_id", "order_id", "symbol", "side", "quantity", "timestamp_ns", "price", "commission"],
@@ -405,27 +496,45 @@ def _validate_event_csv(raw: bytes, name: str, scenario: dict[str, Any], window:
         _fail(f"{name} count is inconsistent with the report")
     if base == "orders.csv" and len(values) != scenario["order_count"]:
         _fail(f"{name} count is inconsistent with the report")
+    previous_timestamp = None
+    seen_ids: set[int] = set()
     for row in values:
         try:
             if base in ("equity.csv", "fills.csv"):
                 timestamp = int(row[0] if base == "equity.csv" else row[5])
             if base == "equity.csv":
-                if not all(math.isfinite(float(value)) for value in row[1:]):
+                if not all(math.isfinite(float(value)) for value in row[1:]) or float(row[2]) < 0:
                     raise ValueError
             elif base == "fills.csv":
                 fill_id, order_id, quantity = int(row[0]), int(row[1]), int(row[4])
-                if not 0 <= fill_id < 2**64 or not 0 <= order_id < 2**64 or not 0 < quantity < 2**63:
+                if not 0 < fill_id < 2**64 or not 0 < order_id < 2**64 or not 0 < quantity < 2**63:
                     raise ValueError
-                if not all(math.isfinite(float(row[i])) for i in (6, 7)):
+                if (not all(math.isfinite(float(row[i])) for i in (6, 7))
+                        or float(row[6]) <= 0 or float(row[7]) < 0 or row[3] not in {"BUY", "SELL"}
+                        or row[2] not in window["symbols"]):
                     raise ValueError
             else:
                 order_id = int(row[0])
-                if not 0 <= order_id < 2**64:
+                if (not 0 < order_id < 2**64 or row[1] not in window["symbols"]
+                        or row[2] not in {"NEW", "OPEN", "PARTIALLY_FILLED", "FILLED", "CANCELED", "REJECTED"}
+                        or "\x00" in row[3]):
                     raise ValueError
+            if base != "equity.csv":
+                event_id = int(row[0])
+                if event_id in seen_ids:
+                    raise ValueError
+                seen_ids.add(event_id)
         except (ValueError, OverflowError) as error:
             raise ValueError(f"{name} contains an invalid value") from error
         if base in ("equity.csv", "fills.csv") and not window["start_ns"] <= timestamp <= window["end_ns"]:
             _fail(f"{name} timestamp falls outside its mapped window")
+        if base in ("equity.csv", "fills.csv"):
+            if previous_timestamp is not None and timestamp < previous_timestamp:
+                _fail(f"{name} timestamps are not chronological")
+            previous_timestamp = timestamp
+    if base == "equity.csv" and float(values[-1][1]) != scenario["final_equity"]:
+        _fail(f"{name} final equity is inconsistent with the report")
+    return values
 
 
 def _verify_summary(summary: object, report: dict[str, Any], workflow: str) -> None:
@@ -523,11 +632,24 @@ def verify_comparison_files(files: dict[str, bytes]) -> dict[str, object]:
             _fail("scenario event mapping identity is inconsistent")
         if mapping["files"] != expected_names:
             _fail("scenario event mapping files are inconsistent")
+        records = {}
         for name in expected_names:
             if name not in files or name in mapped_files:
                 _fail("scenario event file is missing or overlaps another mapping")
             mapped_files.add(name)
-            _validate_event_csv(files[name], name, scenario, windows[scenario["window"]])
+            records[name.rsplit("/", 1)[-1]] = _validate_event_csv(files[name], name, scenario, windows[scenario["window"]])
+        orders = {int(row[0]): row for row in records["orders.csv"]}
+        symbol = next(candidate["symbol"] for candidate in configuration["candidates"]
+                      if candidate["name"] == scenario["candidate"])
+        if any(order[1] != symbol for order in orders.values()):
+            _fail("order symbol differs from its candidate")
+        for fill in records["fills.csv"]:
+            order = orders.get(int(fill[1]))
+            if order is None or order[1] != fill[2] or order[2] not in {"FILLED", "PARTIALLY_FILLED", "CANCELED"}:
+                _fail("fill references an inconsistent order")
+        for status, field in (("REJECTED", "rejected_order_count"), ("CANCELED", "canceled_order_count")):
+            if sum(row[2] == status for row in orders.values()) != scenario[field]:
+                _fail("order status count is inconsistent with the report")
 
     expected_names = required | set(input_names) | mapped_files
     if set(files) != expected_names:
@@ -546,7 +668,9 @@ def verify_comparison_files(files: dict[str, bytes]) -> dict[str, object]:
         name for mapping in mappings if mapping["role"] == "test" for name in mapping["files"]
     }
     derived_holdout = test_inputs | test_events
-    mixed = set(_ROOT_FILES)
+    # The completion inventory contains hashes for every role, including final
+    # test inputs/results. Protect it without rewriting legacy exporter manifests.
+    mixed = set(_ROOT_FILES) | {"complete.json"}
     if manifest["holdout_files"] != [
         *[name for name in input_names if name in test_inputs],
         *[name for mapping in mappings if mapping["role"] == "test" for name in mapping["files"]],

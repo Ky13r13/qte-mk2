@@ -8,6 +8,20 @@ STATIC = Path(__file__).parents[2] / "python" / "qte" / "gui" / "static"
 
 
 class GuiStaticContentTests(unittest.TestCase):
+    def test_system_view_is_wired_to_the_fixed_test_module_and_disposed_on_navigation(self) -> None:
+        script = (STATIC / "app.js").read_text(encoding="utf-8")
+        self.assertIn('import { createSystemTests } from "./system_tests.js"', script)
+        self.assertIn('systemTests = createSystemTests({', script)
+        self.assertIn('systemTests?.dispose()', script)
+        self.assertIn('path === "/system") systemTests.load()', script)
+
+    def test_comparison_view_uses_the_fixed_safe_projection(self) -> None:
+        script = (STATIC / "app.js").read_text(encoding="utf-8")
+        self.assertIn('import { createComparisonViews } from "./comparisons.js"', script)
+        self.assertIn('artifact.kind === "comparison_export_v1"', script)
+        self.assertIn('query.get("comparison_table")', script)
+        self.assertIn('comparisonViews.load(id, comparisonTable, query.get("window"), 0)', script)
+
     def test_shell_loads_only_local_external_assets(self) -> None:
         html = (STATIC / "index.html").read_text(encoding="utf-8")
         self.assertIn('href="/assets/app.css"', html)

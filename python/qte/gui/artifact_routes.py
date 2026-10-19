@@ -165,6 +165,24 @@ def artifact_routes(catalog, authenticate):
         paging = {key: result[key] for key in ('total', 'offset', 'limit')}
         return response(**{**artifact_value(result), **paging})
 
+    async def comparison_detail(request):
+        authenticate(request, token=True)
+        if request.query_params:
+            raise SecurityError('invalid_query', 400, 'This route does not accept query parameters.')
+        result = await call(catalog.comparison_view, request.path_params['artifact_id'])
+        return response(comparison=artifact_value(result))
+
+    async def comparison_table(request):
+        authenticate(request, token=True)
+        offset, limit = pagination(request, extra={'window'})
+        window = request.query_params.get('window')
+        if window is not None and (not 1 <= len(window) <= 128 or any(ord(c) < 32 for c in window)):
+            raise SecurityError('invalid_query', 400, 'Invalid comparison window.')
+        result = await call(catalog.comparison_view, request.path_params['artifact_id'],
+                            request.path_params['table_name'], window, offset, limit)
+        paging = {key: result[key] for key in ('total', 'offset', 'limit')}
+        return response(**{**artifact_value(result), **paging})
+
     return [
         Route('/api/v1/catalog/register', register, methods=['POST']),
         Route('/api/v1/artifacts', listing, methods=['GET']),
@@ -177,4 +195,6 @@ def artifact_routes(catalog, authenticate):
         Route('/api/v1/runs/{artifact_id:str}/tables/{table_name:str}', run_table, methods=['GET']),
         Route('/api/v1/experiments/{artifact_id:str}', experiment_detail, methods=['GET']),
         Route('/api/v1/experiments/{artifact_id:str}/tables/{table_name:str}', experiment_table, methods=['GET']),
+        Route('/api/v1/comparisons/{artifact_id:str}', comparison_detail, methods=['GET']),
+        Route('/api/v1/comparisons/{artifact_id:str}/tables/{table_name:str}', comparison_table, methods=['GET']),
     ]

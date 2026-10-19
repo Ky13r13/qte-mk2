@@ -309,6 +309,10 @@ def _manifest(prepared: PreparedInputs, job_id: str, hashes: dict[str, str]) -> 
 def write_snapshot(repository: Path, job_id: str, prepared: PreparedInputs) -> SnapshotInputs:
     """Create a fresh, read-only input directory without creating artifacts."""
     if not isinstance(prepared, PreparedInputs):
+        from .comparison_inputs import PreparedComparisonInputs
+        if isinstance(prepared, PreparedComparisonInputs):
+            from .comparison_snapshots import write_comparison_snapshot
+            return write_comparison_snapshot(repository, job_id, prepared)
         # Late import: form capture already imports this module for its bounded
         # descriptor helpers, while inline snapshots deliberately share them.
         from .inline_inputs import PreparedInlineInputs, write_inline_snapshot
@@ -351,6 +355,9 @@ def write_snapshot(repository: Path, job_id: str, prepared: PreparedInputs) -> S
 
 def verify_snapshot(repository: Path, job_id: str, expected_snapshot_hashes: dict[str, str]) -> SnapshotInputs:
     """Verify persisted hashes, including the manifest, rather than trusting it."""
+    if isinstance(expected_snapshot_hashes, dict) and "submitted-comparison.json" in expected_snapshot_hashes:
+        from .comparison_snapshots import verify_comparison_snapshot
+        return verify_comparison_snapshot(repository, job_id, expected_snapshot_hashes)
     if isinstance(expected_snapshot_hashes, dict) and "submitted-form.json" in expected_snapshot_hashes:
         # The v2 inventory is recognized by its required submitted envelope;
         # its verifier then checks the complete exact inventory and schema.

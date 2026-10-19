@@ -39,6 +39,19 @@ def _plain(value):
 
 
 def _fingerprint(kind: str, prepared, timeout: int) -> str:
+    if kind == "test_run":
+        from .test_preflight import validate_prepared
+        value = validate_prepared(prepared)
+        encoded = json.dumps({"kind": kind, "timeout_seconds": timeout,
+                              "request_sha256": hashlib.sha256(value.payload).hexdigest()},
+                             sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(encoded).hexdigest()
+    if kind == "comparison_run":
+        from .comparison_inputs import validate_prepared
+        value = validate_prepared(prepared)
+        encoded = json.dumps({"kind": kind, "timeout_seconds": timeout, "inputs": value.fingerprint},
+                             sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(encoded).hexdigest()
     canonical = getattr(prepared, "canonical_config_sha256", None)
     data = getattr(prepared, "data_sha256", None)
     if kind in {"research_run", "dataset_validate"}:
@@ -253,7 +266,7 @@ class JobManager:
           executable TEXT, cwd TEXT, exit_code INTEGER, output_path TEXT NOT NULL, log TEXT NOT NULL)""")
 
     def submit(self, request_id, kind, prepared, idempotency_key, timeout_seconds) -> dict:
-        if (not isinstance(kind, str) or kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca"}
+        if (not isinstance(kind, str) or kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca", "comparison_run", "test_run"}
                 or not isinstance(request_id, str) or not request_id):
             raise JobError("invalid_job_request", 400, "Invalid job request.")
         if (not isinstance(idempotency_key, str) or not 16 <= len(idempotency_key) <= 128
@@ -267,7 +280,18 @@ class JobManager:
             from .inline_inputs import PreparedInlineInputs
         except Exception:
             PreparedInlineInputs = ()  # type: ignore[assignment]
-        if isinstance(prepared, PreparedInlineInputs):
+        if kind == "test_run":
+            from .test_preflight import PreparedTestRun, validate_prepared
+            try:
+                if not isinstance(prepared, PreparedTestRun):
+                    raise ValueError
+                prepared = validate_prepared(prepared)
+            except ValueError:
+                raise JobError("invalid_job_request", 400, "Invalid test request.") from None
+        elif kind == "comparison_run":
+            from .comparison_inputs import validate_prepared
+            prepared = validate_prepared(prepared)
+        elif isinstance(prepared, PreparedInlineInputs):
             if prepared.kind != kind:
                 raise JobError("invalid_job_request", 400, "Invalid job request.")
         elif kind != "research_run":
@@ -289,9 +313,19 @@ class JobManager:
                     return self._dto(row)
                 queued = db.execute("SELECT count(*) FROM gui_jobs WHERE state='queued'").fetchone()[0]
                 if queued >= 20: raise JobError("job_queue_full", 429, "Job queue is full.")
-            if not callable(self.input_authorizer) or not callable(self.output_protector):
+            if kind != "test_run" and (not callable(self.input_authorizer) or not callable(self.output_protector)):
                 raise JobError("job_authorization_unavailable", 503, "Job input authorization is unavailable.")
-            try: lineage = self.input_authorizer(prepared)
+            try:
+                if kind == "test_run":
+                    lineage = {"input_disclosure": "unknown"}
+                elif kind == "comparison_run":
+                    from qte.provenance import source_identity as current_source_identity
+                    from .comparison_inputs import authorize_comparison_inputs
+                    if current_source_identity() != prepared.source_identity:
+                        raise JobError("stale_preview", 409, "Inputs changed; preview the configuration again.")
+                    lineage = authorize_comparison_inputs(self.catalog, prepared, reserve_test=True)
+                else:
+                    lineage = self.input_authorizer(prepared)
             except Exception as exc:
                 if all(hasattr(exc, name) for name in ("code", "status", "message")):
                     raise JobError(exc.code, exc.status, exc.message) from None
@@ -300,8 +334,13 @@ class JobManager:
                 raise JobError("job_authorization_unavailable", 503, "Job input authorization is unavailable.")
             job_id = uuid4().hex
             try:
-                from .job_inputs import write_snapshot
-                snapshot = write_snapshot(self.repository, job_id, prepared)
+                if kind == "test_run":
+                    from .test_jobs import snapshot_value as test_snapshot_value
+                    from .test_snapshots import write_test_snapshot
+                    snapshot = test_snapshot_value(write_test_snapshot(self.repository, job_id, prepared))
+                else:
+                    from .job_inputs import write_snapshot
+                    snapshot = write_snapshot(self.repository, job_id, prepared)
             except Exception as exc:
                 if all(hasattr(exc, name) for name in ("code", "status", "message")):
                     raise JobError(exc.code, exc.status, exc.message) from None
@@ -310,12 +349,18 @@ class JobManager:
             hashes = self._value(snapshot_value, "hashes", "input_hashes")
             snapshot_hashes = self._value(snapshot_value, "snapshot_hashes")
             try:
-                from qte.provenance import source_identity as current_source_identity
-                source_identity = current_source_identity()
+                if kind == "test_run":
+                    source_identity = "sha256:" + snapshot_value["request_sha256"]
+                else:
+                    from qte.provenance import source_identity as current_source_identity
+                    source_identity = current_source_identity()
             except Exception as exc:
                 raise JobError("source_identity_unavailable", 503, "Source identity is unavailable.") from exc
             if not isinstance(source_identity, str) or not isinstance(hashes, dict) or not isinstance(snapshot_hashes, dict):
                 raise JobError("job_snapshot_failed", 409, "Job input snapshot failed.")
+            if kind == "comparison_run":
+                from .comparison_jobs import load_authorized_comparison
+                _, _, lineage = load_authorized_comparison(self.catalog, job_id, snapshot_hashes, source_identity)
             now = self.clock(); output = f"build/gui/jobs/{job_id}/artifacts"
             log = "accepted\n"
             with self._connect() as db:
@@ -357,11 +402,25 @@ class JobManager:
                 if prepared is None or snapshot is None:
                     self._finish(job_id, "interrupted", "accepted_process_lost", None); continue
                 try:
-                    from .job_inputs import verify_snapshot
-                    verified = verify_snapshot(self.repository, job_id, snapshot["snapshot_hashes"])
-                    if not self._snapshot_matches_kind(verified, row["kind"], snapshot):
-                        raise JobError("job_snapshot_failed", 409, "Job snapshot invalid.")
-                    current_lineage = self.input_authorizer(prepared)
+                    if row["kind"] == "test_run":
+                        from .test_jobs import snapshot_value as test_snapshot_value
+                        from .test_snapshots import recheck_test_snapshot
+                        verified, captured = recheck_test_snapshot(self.repository, job_id, snapshot["snapshot_hashes"])
+                        if (test_snapshot_value(verified) != snapshot or captured != prepared
+                                or row["source_identity"] != "sha256:" + verified.request_sha256):
+                            raise JobError("provenance_changed", 409, "Test request changed.")
+                        current_lineage = {"input_disclosure": "unknown"}
+                    else:
+                        from .job_inputs import verify_snapshot
+                        verified = verify_snapshot(self.repository, job_id, snapshot["snapshot_hashes"])
+                        if not self._snapshot_matches_kind(verified, row["kind"], snapshot):
+                            raise JobError("job_snapshot_failed", 409, "Job snapshot invalid.")
+                    if row["kind"] == "comparison_run":
+                        from .comparison_jobs import load_authorized_comparison
+                        _, _, current_lineage = load_authorized_comparison(
+                            self.catalog, job_id, snapshot["snapshot_hashes"], row["source_identity"])
+                    elif row["kind"] != "test_run":
+                        current_lineage = self.input_authorizer(prepared)
                     if not isinstance(current_lineage, dict):
                         raise JobError("job_authorization_unavailable", 503, "Job input authorization is unavailable.")
                     with self._connect() as db:
@@ -387,7 +446,14 @@ class JobManager:
                 if state == "succeeded":
                     try:
                         relative = row["output_path"]
-                        self.output_protector(relative, json.loads(row["lineage"]))
+                        if row["kind"] == "test_run":
+                            from .test_jobs import verify_test_job_output
+                            verify_test_job_output(self.repository, job_id, snapshot["snapshot_hashes"], row["source_identity"])
+                        elif row["kind"] == "comparison_run":
+                            from .comparison_jobs import publish_comparison_job
+                            publish_comparison_job(self.catalog, job_id, snapshot["snapshot_hashes"], row["source_identity"])
+                        else:
+                            self.output_protector(relative, json.loads(row["lineage"]))
                     except ArtifactError as exc:
                         state, reason = "failed", exc.code
                     except Exception:
@@ -400,7 +466,9 @@ class JobManager:
         if executable.parent.name != "bin" or executable.parent.parent.name != ".venv":
             raise JobError("venv_required", 503, "Repository virtual environment is required.")
         job_root = self.repository / "build/gui/jobs" / row["id"]
-        config = self._value(snapshot, "effective_config_path")
+        if row["kind"] == "test_run" and executable != self.repository / ".venv/bin/python":
+            raise JobError("venv_required", 503, "Repository virtual environment is required.")
+        config = self._value(snapshot, "request_path" if row["kind"] == "test_run" else "effective_config_path")
         hashes = self._value(snapshot, "snapshot_hashes")
         if config is None or not isinstance(hashes, dict): raise JobError("job_snapshot_failed", 409, "Job snapshot invalid.")
         config = self.repository / config
@@ -436,6 +504,9 @@ class JobManager:
     @staticmethod
     def _snapshot_matches_kind(verified, kind: str, snapshot: dict) -> bool:
         """Require v2 verified kind/hash while retaining the v1 research shape."""
+        if kind == "comparison_run":
+            from .comparison_snapshots import ComparisonSnapshotInputs
+            return isinstance(verified, ComparisonSnapshotInputs) and _plain(verified) == snapshot
         try:
             from .inline_inputs import InlineSnapshotInputs
             from .job_inputs import SnapshotInputs
@@ -502,6 +573,24 @@ class JobManager:
 
     @staticmethod
     def _dto(row) -> dict:
+        if row["kind"] == "test_run":
+            result = {key: row[key] for key in ("id", "kind", "state", "phase", "created_ns", "start_ns", "end_ns",
+                "timeout_seconds", "request_id", "executable", "cwd", "output_path")}
+            result.update(reason="test_job_failed" if row["state"] == "failed" else row["reason"],
+                          source_identity=None, input_hashes={}, input_lineage={"input_disclosure": "unknown"},
+                          input_disclosure="unknown", worker_launch_identity=row["launch_identity"],
+                          supervisor_pid=row["supervisor_pid"], exit_code=None)
+            return result
+        if row["kind"] == "comparison_run":
+            # A comparison intentionally computes with unrevealed final-test data.
+            # Generic hashes/lineage would expose its private identities and roles.
+            result = {key: row[key] for key in ("id", "kind", "state", "phase", "created_ns", "start_ns", "end_ns",
+                "timeout_seconds", "source_identity", "request_id", "executable", "cwd", "output_path")}
+            result.update(reason="comparison_job_failed" if row["state"] == "failed" else row["reason"],
+                          input_hashes={}, input_lineage={"holdout_history": "unknown"}, input_disclosure="unknown",
+                          worker_launch_identity=row["launch_identity"], supervisor_pid=row["supervisor_pid"],
+                          exit_code=None)
+            return result
         lineage = json.loads(row["lineage"])
         return {"id": row["id"], "kind": row["kind"], "state": row["state"], "phase": row["phase"],
             "reason": row["reason"], "created_ns": row["created_ns"], "start_ns": row["start_ns"],

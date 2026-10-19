@@ -190,6 +190,42 @@ class Catalog:
         return {**projected, "id": artifact_id, "name": metadata["name"],
                 "kind": latest.kind, "status": status}
 
+    def comparison_view(self, artifact_id: str, table: str | None = None,
+                        window: str | None = None, offset: int = 0, limit: int = 25) -> dict:
+        """Read fixed safe-role fields, without bypassing inherited input protection."""
+        from .comparison_views import project_comparison
+        self._validate_job_disclosure_storage()
+        row = self._row(artifact_id)
+        original = self.inspect(artifact_id)
+
+        def authorize(artifact):
+            self._validate_job_disclosure_storage()
+            safe_inputs = {name for name in artifact.known - artifact.protected - artifact.mixed
+                           if name.startswith("inputs/")}
+            # A malformed journal is not evidence that copied training data is safe.
+            for name in safe_inputs:
+                self._job_input_protected(f"file-sha256:{artifact.metadata['file_hashes'][name]}")
+            inherited = self._projection_protection(artifact, set())
+            if inherited and not self.disclosures.revealed(sorted(inherited)):
+                raise ArtifactError("holdout_protected", 403, "Holdout disclosure is required.")
+
+        authorize(original)
+        projected = project_comparison(original, table, window, offset, limit)
+        latest = self.inspect(artifact_id)
+        if latest.snapshots != original.snapshots or latest.metadata != original.metadata:
+            raise ArtifactError("artifact_changed", 409, "Artifact changed while the view was being read.")
+        authorize(latest)
+        if table is not None:
+            return {**projected, "artifact_id": artifact_id}
+        metadata = self._dto(artifact_id, row["path"], row["registered_at"], latest, False)
+        # The generic catalog's aggregate evidence can depend on final-test
+        # provenance. This stricter view exposes evidence per safe window only.
+        status = dict(metadata["status"])
+        status["evidence"] = "unknown"
+        status["combined_status"] = f"{status['export']}; {status['integrity']}; unknown"
+        return {**projected, "id": artifact_id, "name": metadata["name"],
+                "kind": latest.kind, "status": status}
+
     def authorize_job_inputs(self, prepared) -> dict:
         """Check known protection without revealing input bytes or importing roots.
 
@@ -324,11 +360,14 @@ class Catalog:
         try:
             db = sqlite3.connect(f"file:{self.database}?mode=ro", uri=True)
             try:
-                row = db.execute("SELECT state,output_path FROM gui_jobs WHERE id=?", (match[1],)).fetchone()
+                columns = {item[1] for item in db.execute("PRAGMA table_info(gui_jobs)")}
+                kind = "kind" if "kind" in columns else "NULL"  # historical minimal catalogs
+                row = db.execute(f"SELECT state,output_path,{kind} FROM gui_jobs WHERE id=?", (match[1],)).fetchone()
             finally: db.close()
         except sqlite3.Error as exc:
             raise ArtifactError("job_output_unavailable", 409, "Job output is not finalized.") from exc
-        if row is None or row != ("succeeded", f"build/gui/jobs/{match[1]}/artifacts"):
+        if (row is None or row[:2] != ("succeeded", f"build/gui/jobs/{match[1]}/artifacts")
+                or row[2] == "test_run"):
             raise ArtifactError("job_output_unavailable", 409, "Job output is not finalized.")
 
     @staticmethod
@@ -376,12 +415,20 @@ class Catalog:
     def _files(self, artifact: Artifact) -> list[dict]:
         effective = set(self._effective_protected(artifact))
         hashes = artifact.metadata.get("file_hashes", {})
+        config_identity = f"file-sha256:{hashes.get('configuration.json', '')}"
+        configuration_guarded = (artifact.kind == "dataset_validation_v1"
+            and config_identity in effective and not self.disclosures.revealed([config_identity]))
         rows = artifact.files(False)
         for row in rows:
             identity = f"file-sha256:{hashes.get(row['name'], '')}"
             if identity in effective:
                 if row["protection"] == "unprotected": row["protection"] = "protected"
                 row["available"] = self.disclosures.revealed([identity])
+            if configuration_guarded:
+                # Summaries contain configuration-derived facts too. Guard the
+                # view without recording raw-data contamination from shared options.
+                if row["protection"] == "unprotected": row["protection"] = "protected"
+                row["available"] = False
         return rows
 
     def _record_protection(self, artifact: Artifact) -> None:
@@ -406,9 +453,16 @@ class Catalog:
             return set()
         if artifact.kind in {"dataset_validation_v1", "alpaca_download_v1"} and artifact.metadata.get("integrity") == "verified":
             identities = {f"file-sha256:{value}" for value in artifact.metadata.get("file_hashes", {}).values()}
+            triggers = identities
+            if artifact.kind == "dataset_validation_v1":
+                # Shared caller-supplied adapter options do not derive from raw
+                # data. A protected configuration alone must not contaminate an
+                # unrelated dataset. Direct file protection is still preserved.
+                triggers = {f"file-sha256:{value}" for name, value in
+                            artifact.metadata.get("file_hashes", {}).items() if name != "configuration.json"}
             # Counts, symbols, timestamps and mappings are derived from raw data.
             # Copying a protected input into a validation export cannot reveal them.
-            if any(value in protected or self.disclosures.protected(value) for value in identities):
+            if any(value in protected or self.disclosures.protected(value) for value in triggers):
                 return identities
             return set()
         if artifact.kind != "research_export_v2" or artifact.metadata.get("integrity") != "verified":

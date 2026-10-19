@@ -36,9 +36,18 @@ forms or configuration files. No online checks were performed for this build.
 Explicitly registered download artifacts show cache lineage and checksums.
 Copy their `bars.json` into an allowed repository data directory and validate it
 before research; job-private paths are not general input paths.
-G7a.1 provides the offline [comparison command](gui-comparisons.md) for fixed
-SMA comparisons and frozen candidate experiments. It is not yet a GUI launch
-option; its exports remain guarded as unsupported until role-aware readers land.
+G7a provides the offline [comparison command](gui-comparisons.md) for fixed SMA
+comparisons and frozen candidate experiments. G7a.2a allows explicit registration
+and verified file access in Research, with raw test/mixed files protected.
+G7a.2b opens candidate/window views and explicit train/validation comparisons;
+open a row for full details. Promotion eligibility and final-test facts remain
+withheld. **Research → New comparison** now supports fixed SMA and frozen
+candidate experiments using registered validation IDs, explicit evidence
+declarations, preview then launch. Advanced parameters and separate cost profiles
+are editable. Register successful output explicitly. The
+[comparison contract](gui-comparisons.md) documents the guarded lifecycle and
+same-request retry behavior. Both workflows passed local synthetic browser runs;
+this is not evidence of historical performance.
 Consult the
 [checkpoint](gui-task-log.md) for the current tested milestone. Downloads,
 test-execution and broker requests never start merely by opening a page.
@@ -130,6 +139,22 @@ Test-role structured views remain withheld even after a raw-file disclosure.
 Mixed raw files retain their separate confirmation requirement. Synthetic prices
 and scripted macro inputs are mechanics evidence, not validated trading alpha or
 observed dealer positioning. Job forms are available in the G5b.3 test build.
+
+## Running and inspecting tests
+
+Open **System** and choose **Run Python tests** or **Run C++ tests**. These fixed
+commands use `.venv` and the existing `build/local-dev` binaries; they do not
+install or compile anything. Build C++ first when needed. The GUI timeout is
+300 seconds. Opening System does not run tests. Use Refresh for progress or
+Cancel for a queued/running job; uncertain submissions keep the same retry key.
+
+Select a job, then explicitly reveal its evidence to see counts and paged case
+details. Reveal is durably recorded outside protocol because test output may
+contain sensitive text. Raw logs/JUnit remain local and are not downloadable.
+Failed/skipped cases stay visible; partial records are not promoted to passes.
+**Observe current identity now** compares the explicit file scope at that moment,
+not continuously. It never proves binaries came from current source. See the
+[test-evidence contract](gui-test-evidence.md) for exact limits and API details.
 
 ## Session and storage
 

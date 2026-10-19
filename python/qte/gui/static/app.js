@@ -1,7 +1,10 @@
 import { createExperimentViews } from "./experiments.js";
+import { createComparisonViews } from "./comparisons.js";
+import { createComparisonForms } from "./comparison_forms.js";
 import { createResearchForms } from "./research_forms.js";
 import { createResearchJobs } from "./research_jobs.js";
 import { createDatasetViews } from "./datasets.js";
+import { createSystemTests } from "./system_tests.js";
 
 const app = document.querySelector("#app");
 const pageStatus = document.querySelector("#page-status");
@@ -9,9 +12,10 @@ const logoutButton = document.querySelector("#logout-button");
 const state = { token: null, session: null, library: null };
 let activeView = 0;
 let jobViews = null;
+let systemTests = null;
 const runViews = new Set(["overview", "metrics", "orders", "fills", "equity", "sampled_equity", "equity_table", "sampled_equity_table", "positions", "closed_trades", "open_trades", "order_events", "provenance", "files", "catalog"]);
 
-function beginView() { jobViews?.dispose(); activeView += 1; return activeView; }
+function beginView() { jobViews?.dispose(); systemTests?.dispose(); activeView += 1; return activeView; }
 function isCurrentView(request) { return request === activeView; }
 
 function navigate(href) {
@@ -317,6 +321,7 @@ async function loadResearch(offset = 0, jobOffset = 0) {
       : [element("p", { text: "No research artifacts are registered." })];
     const actions = element("nav", { class: "run-nav", "aria-label": "New offline research" }, [
       textLink("/research/new/run", "New run"), textLink("/research/new/lab", "New synthetic lab"),
+      textLink("/research/new/comparison", "New comparison"),
     ]);
     replaceView(heading, lede, actions, jobViews.recent(jobs, jobsError, (next) => loadResearch(offset, next)),
       element("h2", { text: "Registered artifacts" }), form, ...content);
@@ -809,6 +814,10 @@ async function loadArtifact(id, fileOffset = 0, catalogRecord = false, runView =
       experimentViews.load(id);
       return;
     }
+    if (artifact.kind === "comparison_export_v1" && artifact.status?.integrity === "verified" && !catalogRecord) {
+      comparisonViews.load(id);
+      return;
+    }
     let filesPayload = null;
     let filesError = null;
     try {
@@ -828,7 +837,15 @@ const experimentViews = createExperimentViews({
   displayValue, humanize, textLink, loadArtifact,
 });
 
+const comparisonViews = createComparisonViews({
+  api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation,
+  displayValue, humanize, textLink, loadArtifact,
+});
+
 const researchForms = createResearchForms({
+  api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation, textLink, navigate,
+});
+const comparisonForms = createComparisonForms({
   api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation, textLink, navigate,
 });
 const datasetViews = createDatasetViews({ api, element, replaceView, beginView, isCurrentView,
@@ -836,6 +853,10 @@ const datasetViews = createDatasetViews({ api, element, replaceView, beginView, 
 jobViews = createResearchJobs({
   api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation,
   textLink, navigate, displayValue, humanize,
+});
+systemTests = createSystemTests({
+  api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation,
+  textLink, displayValue, humanize,
 });
 
 function renderLogin(errorMessage = "") {
@@ -882,6 +903,7 @@ async function bootstrap() {
 
 function route() {
   jobViews.dispose();
+  systemTests.dispose();
   const path = window.location.pathname;
   if (path === "/library" || path === "/") loadLibrary();
   else if (path.startsWith("/library/")) {
@@ -891,6 +913,7 @@ function route() {
   else if (path === "/research") loadResearch();
   else if (path === "/research/new/run") researchForms.loadRun(new URLSearchParams(window.location.search).get("dataset"));
   else if (path === "/research/new/lab") researchForms.loadLab();
+  else if (path === "/research/new/comparison") comparisonForms.load();
   else if (path.startsWith("/research/jobs/")) {
     const id = decodeRouteSegment(path, "/research/jobs/");
     if (id !== null) jobViews.load(id);
@@ -898,6 +921,11 @@ function route() {
   else if (path.startsWith("/research/")) {
     const id = decodeRouteSegment(path, "/research/");
     const query = new URLSearchParams(window.location.search);
+    const comparisonTable = query.get("comparison_table");
+    if (id !== null && ["candidates", "windows", "comparison"].includes(comparisonTable)) {
+      comparisonViews.load(id, comparisonTable, query.get("window"), 0);
+      return;
+    }
     const requestedLabView = query.get("lab_view");
     if (id !== null && experimentViews.isView(requestedLabView)) {
       experimentViews.load(id, { view: requestedLabView, timeframe: query.get("timeframe") || "", windowName: query.get("window") || "" });
@@ -918,7 +946,7 @@ function route() {
     const id = decodeRouteSegment(path, "/data/");
     if (id !== null) datasetViews.detail(id);
   }
-  else if (path === "/system") loadUnavailable("system", "System");
+  else if (path === "/system") systemTests.load();
   else { beginView(); renderError("This page is unavailable."); }
 }
 
