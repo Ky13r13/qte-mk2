@@ -68,10 +68,12 @@ def test_origin_and_options_are_fixed_registry_derived_metadata():
     from qte.gui.research_forms import _FAMILY_FIELDS
     assert tuple(_FAMILY_FIELDS) == FAMILIES
     strategies = options["research_run"]["strategies"]
-    assert tuple(value["type"] for value in strategies) == ("moving_average_regime", *FAMILIES)
+    assert tuple(value["type"] for value in strategies) == ("moving_average_regime", *FAMILIES, "macro_router")
+    assert strategies[-1]["fields"]["profile"]["type"] == "json_text"
+    assert strategies[-1]["fields"]["profile"]["required"] is True
     defaults = asdict(CandidateConfig())
     defaults.pop("kind")
-    for value, family in zip(strategies[1:], FAMILIES, strict=True):
+    for value, family in zip(strategies[1:-1], FAMILIES, strict=True):
         assert value["type"] == family
         assert set(value["exposed_fields"]) == set(value["fields"])
         assert set(value["fields"]) | set(value["hidden_defaults"]) == set(defaults)

@@ -6,8 +6,11 @@ import io
 from itertools import zip_longest
 import math
 import re
+from dataclasses import asdict
 
 from qte.research_export import CAPABILITIES, TABLE_COLUMNS, TABLE_FILES
+from qte.router_config import prepare_router_profile
+from qte.router_export import validate_route_events
 
 from .artifact_io import FILE_LIMIT, METADATA_LIMIT, read_stable
 from .artifacts import ArtifactError, strict_json
@@ -30,6 +33,7 @@ OPTIONAL = {"limit_price", "stop_price", "rejection_reason", "cancellation_reaso
 FLOATS = {"equity", "gross_exposure", "reference_open", "price", "gross_notional", "commission",
           "limit_price", "stop_price", "mark_price", "realized_gross_pnl",
           "allocated_commissions", "net_realized_pnl"}
+ROUTE_FILES = {"route_events": "route_events.json"}
 
 
 def invalid(message="Owned-result export is inconsistent."):
@@ -148,6 +152,34 @@ def validate_order_state(order):
         invalid("Owned-result order status and quantities disagree.")
 
 
+def validate_router_events(root, snapshots, manifest):
+    """Verify optional router diagnostics against the manifest's declared policy."""
+    try:
+        raw = strict_json(read_stable(root, "route_events.json", FILE_LIMIT, snapshots["route_events.json"]))
+        events = validate_route_events(raw, start_ns=manifest["dataset_start_ns"], end_ns=manifest["dataset_end_ns"])
+        strategy = manifest["configuration"]["strategy"]
+        if type(strategy) is not dict or strategy.get("type") != "macro_router" or set(strategy) != {"type", "symbol", "profile"}:
+            invalid("Router diagnostics require a macro_router manifest strategy.")
+        profile = prepare_router_profile(strategy["profile"])
+    except (KeyError, TypeError, ValueError, UnicodeDecodeError) as exc:
+        raise ArtifactError("artifact_invalid", 422, "Router diagnostics are invalid.") from exc
+    regime_filter = profile.make_filter()
+    for event in events:
+        decision = regime_filter.explain(event["timestamp_ns"])
+        expected = {
+            "macro_regime": decision.macro_regime,
+            "volatility_regime": decision.volatility_regime,
+            "dealer_regime": decision.dealer_regime,
+            "reasons": list(decision.reasons),
+            "macro_score": decision.macro_score,
+            "permitted_families": list(decision.permitted_families),
+            "macro_inputs": [asdict(item) for item in decision.macro_inputs],
+            "dealer_input": None if decision.dealer_input is None else asdict(decision.dealer_input),
+        }
+        if any(event[key] != value for key, value in expected.items()):
+            invalid("Router diagnostics disagree with their as-of manifest policy.")
+
+
 def validate_v2(root, snapshots, manifest, report):
     """Return recognized filenames only after a complete structural check."""
     try:
@@ -165,12 +197,22 @@ def validate_v2(root, snapshots, manifest, report):
     sampled = manifest.get("sampling") is not None
     capabilities = {**CAPABILITIES, "sampled_event_sequence": "recorded" if sampled else "not_recorded"}
     files = {k: v for k, v in TABLE_FILES.items() if sampled or k != "sampled_equity_events"}
+    has_router_events = "route_events.json" in snapshots
+    advertised_router_events = (wrapper["capabilities"].get("route_events"), wrapper["files"].get("route_events"))
+    if has_router_events:
+        capabilities["route_events"] = "recorded"
+        files.update(ROUTE_FILES)
+    if (has_router_events and advertised_router_events != ("recorded", "route_events.json")
+            or not has_router_events and advertised_router_events != (None, None)):
+        invalid("Router diagnostics capability and file map are inconsistent.")
     if wrapper["capabilities"] != capabilities or wrapper["files"] != files:
         invalid("Owned-result capabilities or file map is inconsistent.")
     if not set(files.values()) <= set(snapshots) or sampled != ("sampled_equity.csv" in snapshots):
         invalid("Owned-result files are incomplete.")
     if not sampled and "sampled_equity_events.csv" in snapshots:
         invalid("Unconfigured owned-result sampling file is present.")
+    if has_router_events:
+        validate_router_events(root, snapshots, manifest)
 
     orders = {}
     order_projection = {k: k for k in ("order_id", "symbol", "status", "detail")}

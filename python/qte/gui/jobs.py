@@ -17,6 +17,7 @@ import time
 from uuid import uuid4
 
 from .artifacts import ArtifactError
+from .fixed_jobs import KINDS as FIXED_KINDS, support as fixed_support
 
 
 _DOWNLOAD_ENVIRONMENT = ("APCA_API_KEY_ID", "APCA_API_SECRET_KEY")
@@ -39,9 +40,8 @@ def _plain(value):
 
 
 def _fingerprint(kind: str, prepared, timeout: int) -> str:
-    if kind == "test_run":
-        from .test_preflight import validate_prepared
-        value = validate_prepared(prepared)
+    if kind in FIXED_KINDS:
+        value = fixed_support(kind).validate(prepared)
         encoded = json.dumps({"kind": kind, "timeout_seconds": timeout,
                               "request_sha256": hashlib.sha256(value.payload).hexdigest()},
                              sort_keys=True, separators=(",", ":")).encode()
@@ -266,7 +266,7 @@ class JobManager:
           executable TEXT, cwd TEXT, exit_code INTEGER, output_path TEXT NOT NULL, log TEXT NOT NULL)""")
 
     def submit(self, request_id, kind, prepared, idempotency_key, timeout_seconds) -> dict:
-        if (not isinstance(kind, str) or kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca", "comparison_run", "test_run"}
+        if (not isinstance(kind, str) or kind not in {"research_run", "dataset_validate", "strategy_lab", "download_alpaca", "comparison_run", "test_run", "benchmark"}
                 or not isinstance(request_id, str) or not request_id):
             raise JobError("invalid_job_request", 400, "Invalid job request.")
         if (not isinstance(idempotency_key, str) or not 16 <= len(idempotency_key) <= 128
@@ -280,14 +280,14 @@ class JobManager:
             from .inline_inputs import PreparedInlineInputs
         except Exception:
             PreparedInlineInputs = ()  # type: ignore[assignment]
-        if kind == "test_run":
-            from .test_preflight import PreparedTestRun, validate_prepared
+        if kind in FIXED_KINDS:
+            hooks = fixed_support(kind)
             try:
-                if not isinstance(prepared, PreparedTestRun):
+                if not isinstance(prepared, hooks.prepared_type):
                     raise ValueError
-                prepared = validate_prepared(prepared)
+                prepared = hooks.validate(prepared)
             except ValueError:
-                raise JobError("invalid_job_request", 400, "Invalid test request.") from None
+                raise JobError("invalid_job_request", 400, "Invalid fixed job request.") from None
         elif kind == "comparison_run":
             from .comparison_inputs import validate_prepared
             prepared = validate_prepared(prepared)
@@ -313,10 +313,10 @@ class JobManager:
                     return self._dto(row)
                 queued = db.execute("SELECT count(*) FROM gui_jobs WHERE state='queued'").fetchone()[0]
                 if queued >= 20: raise JobError("job_queue_full", 429, "Job queue is full.")
-            if kind != "test_run" and (not callable(self.input_authorizer) or not callable(self.output_protector)):
+            if kind not in FIXED_KINDS and (not callable(self.input_authorizer) or not callable(self.output_protector)):
                 raise JobError("job_authorization_unavailable", 503, "Job input authorization is unavailable.")
             try:
-                if kind == "test_run":
+                if kind in FIXED_KINDS:
                     lineage = {"input_disclosure": "unknown"}
                 elif kind == "comparison_run":
                     from qte.provenance import source_identity as current_source_identity
@@ -334,10 +334,8 @@ class JobManager:
                 raise JobError("job_authorization_unavailable", 503, "Job input authorization is unavailable.")
             job_id = uuid4().hex
             try:
-                if kind == "test_run":
-                    from .test_jobs import snapshot_value as test_snapshot_value
-                    from .test_snapshots import write_test_snapshot
-                    snapshot = test_snapshot_value(write_test_snapshot(self.repository, job_id, prepared))
+                if kind in FIXED_KINDS:
+                    snapshot = fixed_support(kind).write(self.repository, job_id, prepared)
                 else:
                     from .job_inputs import write_snapshot
                     snapshot = write_snapshot(self.repository, job_id, prepared)
@@ -349,7 +347,7 @@ class JobManager:
             hashes = self._value(snapshot_value, "hashes", "input_hashes")
             snapshot_hashes = self._value(snapshot_value, "snapshot_hashes")
             try:
-                if kind == "test_run":
+                if kind in FIXED_KINDS:
                     source_identity = "sha256:" + snapshot_value["request_sha256"]
                 else:
                     from qte.provenance import source_identity as current_source_identity
@@ -402,13 +400,11 @@ class JobManager:
                 if prepared is None or snapshot is None:
                     self._finish(job_id, "interrupted", "accepted_process_lost", None); continue
                 try:
-                    if row["kind"] == "test_run":
-                        from .test_jobs import snapshot_value as test_snapshot_value
-                        from .test_snapshots import recheck_test_snapshot
-                        verified, captured = recheck_test_snapshot(self.repository, job_id, snapshot["snapshot_hashes"])
-                        if (test_snapshot_value(verified) != snapshot or captured != prepared
-                                or row["source_identity"] != "sha256:" + verified.request_sha256):
-                            raise JobError("provenance_changed", 409, "Test request changed.")
+                    if row["kind"] in FIXED_KINDS:
+                        verified, captured = fixed_support(row["kind"]).recheck(self.repository, job_id, snapshot["snapshot_hashes"])
+                        if (verified != snapshot or captured != prepared
+                                or row["source_identity"] != "sha256:" + verified["request_sha256"]):
+                            raise JobError("provenance_changed", 409, "Fixed job request changed.")
                         current_lineage = {"input_disclosure": "unknown"}
                     else:
                         from .job_inputs import verify_snapshot
@@ -419,7 +415,7 @@ class JobManager:
                         from .comparison_jobs import load_authorized_comparison
                         _, _, current_lineage = load_authorized_comparison(
                             self.catalog, job_id, snapshot["snapshot_hashes"], row["source_identity"])
-                    elif row["kind"] != "test_run":
+                    elif row["kind"] not in FIXED_KINDS:
                         current_lineage = self.input_authorizer(prepared)
                     if not isinstance(current_lineage, dict):
                         raise JobError("job_authorization_unavailable", 503, "Job input authorization is unavailable.")
@@ -446,9 +442,8 @@ class JobManager:
                 if state == "succeeded":
                     try:
                         relative = row["output_path"]
-                        if row["kind"] == "test_run":
-                            from .test_jobs import verify_test_job_output
-                            verify_test_job_output(self.repository, job_id, snapshot["snapshot_hashes"], row["source_identity"])
+                        if row["kind"] in FIXED_KINDS:
+                            fixed_support(row["kind"]).verify(self.repository, job_id, snapshot["snapshot_hashes"], row["source_identity"])
                         elif row["kind"] == "comparison_run":
                             from .comparison_jobs import publish_comparison_job
                             publish_comparison_job(self.catalog, job_id, snapshot["snapshot_hashes"], row["source_identity"])
@@ -466,9 +461,9 @@ class JobManager:
         if executable.parent.name != "bin" or executable.parent.parent.name != ".venv":
             raise JobError("venv_required", 503, "Repository virtual environment is required.")
         job_root = self.repository / "build/gui/jobs" / row["id"]
-        if row["kind"] == "test_run" and executable != self.repository / ".venv/bin/python":
+        if row["kind"] in FIXED_KINDS and executable != self.repository / ".venv/bin/python":
             raise JobError("venv_required", 503, "Repository virtual environment is required.")
-        config = self._value(snapshot, "request_path" if row["kind"] == "test_run" else "effective_config_path")
+        config = self._value(snapshot, "request_path" if row["kind"] in FIXED_KINDS else "effective_config_path")
         hashes = self._value(snapshot, "snapshot_hashes")
         if config is None or not isinstance(hashes, dict): raise JobError("job_snapshot_failed", 409, "Job snapshot invalid.")
         config = self.repository / config
@@ -573,10 +568,11 @@ class JobManager:
 
     @staticmethod
     def _dto(row) -> dict:
-        if row["kind"] == "test_run":
+        if row["kind"] in FIXED_KINDS:
             result = {key: row[key] for key in ("id", "kind", "state", "phase", "created_ns", "start_ns", "end_ns",
                 "timeout_seconds", "request_id", "executable", "cwd", "output_path")}
-            result.update(reason="test_job_failed" if row["state"] == "failed" else row["reason"],
+            result.update(reason=("test_job_failed" if row["kind"] == "test_run" else "benchmark_job_failed")
+                          if row["state"] == "failed" else row["reason"],
                           source_identity=None, input_hashes={}, input_lineage={"input_disclosure": "unknown"},
                           input_disclosure="unknown", worker_launch_identity=row["launch_identity"],
                           supervisor_pid=row["supervisor_pid"], exit_code=None)

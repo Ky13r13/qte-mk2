@@ -19,9 +19,14 @@ results and narrow-layout/error-focus checks. G7a gate: 1197 Python /
 G9 remain queued. Extended cross-browser/zoom acceptance remains separate.
 G8a.1 and G8a.2a's internal [test-evidence foundation](gui-test-evidence.md) are
 reviewed: parsing, trusted preflight, pinned requests and completion-last writing.
-G8a.2b's private supervised execution is accepted: 1417 Python / 15 CTest /
-25 JavaScript tests. System controls (G8a.3) remain disabled.
-Private job acceptance is not a GUI test-launch capability.
+G8a.3's System launch/status/cancel and disclosure-bound test evidence view are
+accepted: 1430 Python / 15 CTest / 37 JavaScript tests, with actual GUI-launched
+Python/CTest runs. Identity observations are explicit, not continuous freshness;
+raw output downloads remain disabled. G8b [benchmark jobs/evidence](gui-benchmarks.md)
+are implemented and independently reviewed: 1485 Python / 15 CTest / 45 JavaScript
+checks pass, and real authenticated API/supervisor no-op/SMA runs pass. G8b visual
+browser acceptance remains pending because the browser client blocked localhost.
+Next implementation: G7b macro/router bridge, then G9 connection inspection.
 The user requested a locally hosted, minimally colored, square-cornered interface
 covering existing functionality, documentation and test artifacts. This is a
 presentation/orchestration layer, not a new trading engine. Read with

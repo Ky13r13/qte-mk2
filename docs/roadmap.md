@@ -158,8 +158,13 @@ queued with their own acceptance gates. The
 G8a [evidence contract](gui-test-evidence.md) now has reviewed parsing, explicit
 identity capture, trusted discovery, pinned requests and completion-last writing
 (G8a.1/G8a.2a). Private supervised jobs (G8a.2b) are reviewed and accepted
-(1417 Python / 15 CTest / 25 JS). System controls (G8a.3) remain; no test-launch endpoint is
-enabled yet.
+(1417 Python / 15 CTest / 25 JS). G8a.3 System controls and guarded evidence views
+are now accepted (1430 Python / 15 CTest / 37 JS), including actual browser
+launch/reveal/current-observation checks. Raw test downloads remain disabled.
+G8b [bounded benchmark jobs/evidence](gui-benchmarks.md) are implemented and
+reviewed (1485 Python / 15 CTest / 45 JS; real authenticated local API jobs pass).
+Visual browser acceptance is pending: the browser client blocked localhost.
+Next implementation: G7b macro/router bridge, followed by G9 connection inspection.
 The
 [forms contract](gui-research-forms.md) separates backend and browser gates.
 See the [task log](gui-task-log.md)

@@ -156,6 +156,16 @@ Failed/skipped cases stay visible; partial records are not promoted to passes.
 not continuously. It never proves binaries came from current source. See the
 [test-evidence contract](gui-test-evidence.md) for exact limits and API details.
 
+## Measuring replay speed
+
+Choose **System → Benchmarks** for an explicit synthetic no-op or SMA workload,
+from 1 to 100,000 bars (default 10,000). Refresh for status; cancel a queued/running
+job using the existing controls. Timing is one sample without warm-up, not
+strategy performance. No-op means no trades, not buy-and-hold.
+Verified load/replay/throughput figures appear with secondary metadata collapsed.
+Raw logs remain private; no build, install or network request occurs. See the
+[benchmark contract](gui-benchmarks.md) for workload and provenance limitations.
+
 ## Session and storage
 
 This server binds only to IPv4 loopback. Local HTTP is an explicit deployment

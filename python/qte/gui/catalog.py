@@ -23,6 +23,19 @@ V2_PROJECTION_GROUPS = (
     ("orders.csv", "order_snapshots.csv"),
 )
 
+# The routing audit explains decisions derived from the run's financial state.
+# Protecting any one of these recorded financial facts therefore protects the
+# audit too.  The implication is deliberately one-way: macro routing evidence
+# alone does not contaminate otherwise unprotected engine results.
+V2_ROUTE_FINANCIAL_TRIGGERS = (
+    "report.json",
+    "equity.csv", "equity_events.csv",
+    "sampled_equity.csv", "sampled_equity_events.csv",
+    "fills.csv", "fill_events.csv",
+    "orders.csv", "order_snapshots.csv",
+    "positions.csv", "closed_trades.csv", "open_trades.csv", "order_events.csv",
+)
+
 
 class Catalog:
     def __init__(self, repository: Path) -> None:
@@ -367,7 +380,7 @@ class Catalog:
         except sqlite3.Error as exc:
             raise ArtifactError("job_output_unavailable", 409, "Job output is not finalized.") from exc
         if (row is None or row[:2] != ("succeeded", f"build/gui/jobs/{match[1]}/artifacts")
-                or row[2] == "test_run"):
+                or row[2] in {"test_run", "benchmark"}):
             raise ArtifactError("job_output_unavailable", 409, "Job output is not finalized.")
 
     @staticmethod
@@ -475,6 +488,14 @@ class Catalog:
                 continue
             if any(identity in protected or self.disclosures.protected(identity) for identity in identities):
                 expanded.update(identities)
+        if "route_events.json" in artifact.known and "route_events.json" in hashes:
+            triggers = {
+                f"file-sha256:{hashes[name]}" for name in V2_ROUTE_FINANCIAL_TRIGGERS
+                if name in artifact.known and name in hashes
+            }
+            if any(identity in protected or self.disclosures.protected(identity)
+                   for identity in triggers):
+                expanded.add(f"file-sha256:{hashes['route_events.json']}")
         return expanded
 
     @staticmethod

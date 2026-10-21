@@ -123,7 +123,7 @@ def artifact_routes(catalog, authenticate):
         offset, limit = pagination(request)
         name = request.path_params['table_name']
         if name not in {'orders', 'fills', 'equity', 'sampled_equity',
-                        'positions', 'closed_trades', 'open_trades', 'order_events'}:
+                        'positions', 'closed_trades', 'open_trades', 'order_events', 'route_events'}:
             raise SecurityError('not_recorded', 404, 'This table is not recorded in the selected format.')
         result = await call(views().table, request.path_params['artifact_id'], name, offset, limit)
         # Pagination is bounded API metadata; artifact values stay decimal text.

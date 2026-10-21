@@ -57,7 +57,10 @@ def run_research(config_path: Path, output: Path, *, export_version=1):
               ((o.id,o.symbol,o.status.name,o.detail) for o in result.orders))
     if export_version==2:
         from qte.research_export import write_owned_export
-        write_owned_export(output,result,manifest,sampled_points)
+        if prepared.strategy_type == 'macro_router':
+            write_owned_export(output,result,manifest,sampled_points,router_strategy=prepared.strategy)
+        else:
+            write_owned_export(output,result,manifest,sampled_points)
     write_json(output/'complete.json',{'schema_version':1,'sha256':{
         p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(output.iterdir()) if p.is_file()}})
     return output

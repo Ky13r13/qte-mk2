@@ -244,6 +244,81 @@ test('editing during preview discards its response and never enables launch', as
   assert.equal(h.calls.filter(x => x.url.endsWith('/jobs')).length, 0);
 });
 
+test('router profile stays exact raw text through preview and explicit launch', async () => {
+  const h = harness(url => {
+    if (url.endsWith('form-options')) return metadata;
+    if (url.endsWith('/validate')) return previewResult;
+    if (url.endsWith('/jobs')) return { job: { id: 'c'.repeat(32) } };
+    assert.fail(url);
+  });
+  await runForm(h);
+  const type = h.field('configuration.strategy.type');
+  type.value = 'macro_router'; await type.emit('change');
+  const profile = h.field('configuration.strategy.profile');
+  assert.equal(profile.tagName, 'TEXTAREA');
+  const original = '{"evidence":"synthetic","candidates":[{"kind":"trend","fast_period":"2"}],"macro_observations":[{"reference_ns":"9007199254740993","available_ns":"9007199254740995"}]}';
+  profile.value = original;
+  await preview(h);
+  assert.equal(h.calls.filter(call => call.url.endsWith('/jobs')).length, 0);
+  await h.button('Launch fixed job').emit('click');
+  for (const call of h.calls.filter(call => call.url.endsWith('/validate') || call.url.endsWith('/jobs'))) {
+    const strategy = JSON.parse(call.options.body).configuration.strategy;
+    assert.deepEqual(strategy, { type: 'macro_router', symbol: 'SPY', profile: original });
+  }
+  assert.deepEqual(h.navigations, ['/research/jobs/' + 'c'.repeat(32)]);
+});
+
+test('router profile edits invalidate preview and duplicate keys reach strict server validation intact', async () => {
+  let previews = 0;
+  const h = harness(url => {
+    if (url.endsWith('form-options')) return metadata;
+    if (url.endsWith('/validate') && ++previews === 1) return previewResult;
+    if (url.endsWith('/validate')) throw Object.assign(new Error('Invalid router profile'),
+      { status: 400, field: 'configuration.strategy.profile' });
+    assert.fail(url);
+  });
+  await runForm(h);
+  const type = h.field('configuration.strategy.type');
+  type.value = 'macro_router'; await type.emit('change');
+  await preview(h);
+  assert.equal(h.button('Launch fixed job').disabled, false);
+  const profile = h.field('configuration.strategy.profile');
+  profile.value = '{"evidence":"synthetic","evidence":"user_declared"}';
+  await profile.emit('input');
+  assert.equal(h.button('Launch fixed job').disabled, true);
+  await preview(h);
+  assert.equal(JSON.parse(h.calls.at(-1).options.body).configuration.strategy.profile, profile.value);
+  assert.ok(h.nodes().some(node => node.textContent.includes('Invalid router profile')));
+  assert.equal(h.calls.filter(call => call.url.endsWith('/jobs')).length, 0);
+});
+
+test('router route is allowed and table details preserve exact nested provenance with stale handlers inert', async () => {
+  const script = await readFile(resolve(root, 'python/qte/gui/static/app.js'), 'utf8');
+  const allowed = Function(script.match(/const runViews = new Set\([^\n]+/)[0] + '\nreturn runViews;')();
+  assert.ok(allowed.has('route_events'));
+  const source = script.slice(script.indexOf('function runTable('), script.indexOf('\nfunction runSeries('));
+  let current = true; let view = new Node('main'); const loads = [];
+  const runTable = Function('element', 'displayValue', 'humanize', 'activeView', 'isCurrentView', 'runHeader', 'replaceView', 'loadRun', source + '\nreturn runTable;')(
+    (tag, attrs, children) => new Node(tag, attrs, children), (value, fallback) => value == null ? fallback : String(value),
+    value => value, 1, () => current, () => [], (...nodes) => view.replaceChildren(...nodes), (...args) => loads.push(args));
+  const payload = { columns: ['timestamp_ns', 'target_family', 'active_family', 'phase', 'macro_inputs'], total: 3, limit: 1,
+    rows: [{ timestamp_ns: '9007199254740993', target_family: 'trend', active_family: 'trend', phase: 'active',
+      macro_inputs: [{ available_ns: '9007199254740991', source_id: '<script>not executable</script>' }] }] };
+  runTable('id', {}, payload, 'route_events', 'route_events', 0);
+  const open = walk(view).find(node => node.className === 'record-open');
+  const next = walk(view).find(node => node.textContent === 'Next');
+  assert.equal(open.textContent, '9007199254740993');
+  await open.emit('click');
+  const nested = walk(view).find(node => node.tagName === 'PRE');
+  assert.deepEqual(JSON.parse(nested.textContent), payload.rows[0].macro_inputs);
+  assert.equal(nested.childNodes.length, 0);
+  const back = walk(view).find(node => node.textContent === 'Back to records');
+  current = false; view.replaceChildren(new Node('p', { text: 'new page' }));
+  await back.emit('click'); await next.emit('click'); await open.emit('click');
+  assert.equal(view.childNodes[0].textContent, 'new page');
+  assert.deepEqual(loads, []);
+});
+
 test('root validation error is bounded and does not strand the form', async () => {
   const h = harness(url => {
     if (url.endsWith('form-options')) return metadata;

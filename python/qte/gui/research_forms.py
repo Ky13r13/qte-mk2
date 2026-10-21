@@ -206,9 +206,9 @@ def _compile_research(wire: object) -> dict[str, Any]:
     _required(top, ("data", "strategy", "engine"), "configuration")
     typed_data = _compile_data(top["data"])
 
-    strategy = _object(top["strategy"], {"type", "symbol", "fast_period", "slow_period", "quantity", *_CANDIDATE_INTEGER_FIELDS, *_CANDIDATE_NUMBER_FIELDS}, "configuration.strategy")
+    strategy = _object(top["strategy"], {"type", "symbol", "profile", "fast_period", "slow_period", "quantity", *_CANDIDATE_INTEGER_FIELDS, *_CANDIDATE_NUMBER_FIELDS}, "configuration.strategy")
     _required(strategy, ("type", "symbol"), "configuration.strategy")
-    strategy_type = _choice(strategy["type"], ("moving_average_regime", *FAMILIES), "configuration.strategy.type")
+    strategy_type = _choice(strategy["type"], ("moving_average_regime", *FAMILIES, "macro_router"), "configuration.strategy.type")
     if strategy_type == "moving_average_regime":
         strategy = _object(strategy, {"type", "symbol", "fast_period", "slow_period", "quantity"}, "configuration.strategy")
         _required(strategy, ("type", "symbol", "fast_period", "slow_period", "quantity"), "configuration.strategy")
@@ -219,6 +219,12 @@ def _compile_research(wire: object) -> dict[str, Any]:
             "slow_period": _integer(strategy["slow_period"], "configuration.strategy.slow_period", minimum=1, maximum=_UINT64_MAX),
             "quantity": _integer(strategy["quantity"], "configuration.strategy.quantity", minimum=1, maximum=_INT64_MAX),
         }
+    elif strategy_type == "macro_router":
+        from .router_forms import compile_router_profile
+        strategy = _object(strategy, {"type", "symbol", "profile"}, "configuration.strategy")
+        _required(strategy, ("profile",), "configuration.strategy")
+        typed_strategy = {"type": strategy_type, "symbol": _text(strategy["symbol"], "configuration.strategy.symbol"),
+                          "profile": compile_router_profile(strategy["profile"])}
     else:
         typed_strategy = _compile_candidate(strategy, strategy_type, "configuration.strategy")
 
@@ -373,6 +379,9 @@ def form_options() -> dict[str, Any]:
         "fields": {name: copy.deepcopy(candidate_fields[name]) for name in _FAMILY_FIELDS[family]},
         "hidden_defaults": {name: candidate_defaults[name] for name in candidate_defaults if name not in _FAMILY_FIELDS[family]},
     } for family in FAMILIES)
+    strategies.append({"type": "macro_router", "label": "Macro router", "exposed_fields": ["profile"],
+        "fields": {"profile": _field("json_text", required=True, default=json.dumps({
+            "evidence": "synthetic", "candidates": [{"kind": "trend"}], "macro_observations": []}))}})
     data_fields = {
         "data.adapter": _field("choice", required=True, choices=("csv", "alpaca")),
         "data.path": _field("string", required=True),
@@ -391,7 +400,7 @@ def form_options() -> dict[str, Any]:
             "strategies": strategies,
             "fields": {
                 **copy.deepcopy(data_fields),
-                "strategy.type": _field("choice", required=True, choices=("moving_average_regime", *FAMILIES)),
+                "strategy.type": _field("choice", required=True, choices=("moving_average_regime", *FAMILIES, "macro_router")),
                 "strategy.symbol": _field("string", required=True),
                 "engine.initial_cash": _field("number", required=True),
                 "engine.history_capacity": _field("integer_string", default=256),
@@ -491,10 +500,17 @@ def _research_assumptions(config: dict[str, Any], prepared: Any) -> list[str]:
         sampling = (f"{sampling_spec['policy']} ({grid}), max_staleness_ns={sampling_spec['max_staleness_ns']}, "
                     f"periods_per_year={sampling_spec['periods_per_year']}, "
                     f"annual_risk_free_rate={sampling_spec.get('annual_risk_free_rate', 0)}")
+    router = prepared.strategy_type == "macro_router"
+    strategy_summary = (f"Macro router on {prepared.symbol}: {len(strategy.candidates)} configured families; "
+        f"{len(strategy.macro_observations)} macro and {len(strategy.dealer_observations)} dealer observations; "
+        f"evidence={strategy.evidence}, dealer_mode={strategy.regime.dealer_mode}. "
+        "Explicit as-of releases/vintages; missing/stale inputs block entries; exits precede strategy switches. "
+        "Dealer provenance is caller-declared, not verified buying/selling flow; proxies never qualify."
+        if router else f"Strategy {prepared.strategy_type} on {prepared.symbol} uses effective parameters {json.dumps(asdict(strategy), sort_keys=True, separators=(',', ':'))}.")
     return [
         f"Source is the captured repository input at {data['path']} using the {data['adapter']} adapter; preview cannot prove untouched data.",
         f"Declared bars use interval_ns={data['interval_ns']}, currency={data.get('currency', 'USD')}, raw adjustment, and action-free assumptions required by the adapter.",
-        f"Strategy {prepared.strategy_type} on {prepared.symbol} uses effective parameters {json.dumps(asdict(strategy), sort_keys=True, separators=(',', ':'))}.",
+        strategy_summary,
         f"Orders use deterministic next-open execution with commission/spread/slippage bps {costs['commission_bps']}/{costs['spread_bps']}/{costs['slippage_bps']}.",
         f"Effective risk limits are {json.dumps(risk, sort_keys=True, separators=(',', ':'))}.",
         f"Engine random_seed={config['engine'].get('random_seed', 0)} and history_capacity={config['engine'].get('history_capacity', 256)}.",

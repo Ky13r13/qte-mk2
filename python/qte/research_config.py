@@ -21,6 +21,7 @@ from qte.strategies import (
     MovingAverageRegimeStrategy,
 )
 from qte.strategies.candidates import FAMILIES
+from qte.router_config import RouterProfile, build_macro_router, prepare_router_profile
 
 
 _INT64_MAX = 2**63 - 1
@@ -49,7 +50,7 @@ class PreparedResearch:
     configuration: dict[str, Any]
     loaded: AdapterResult
     strategy: qte.Strategy
-    strategy_config: MovingAverageConfig | CandidateConfig
+    strategy_config: MovingAverageConfig | CandidateConfig | RouterProfile
     strategy_type: str
     symbol: str
     engine_config: qte.BacktestConfig
@@ -120,6 +121,15 @@ def _load_data(data: dict[str, Any], raw: bytes) -> AdapterResult:
 
 
 def _strategy(configuration: dict[str, Any], loaded: AdapterResult):
+    original = configuration["strategy"]
+    if isinstance(original, dict) and original.get("type") == "macro_router":
+        spec = fields(original, ("type", "symbol", "profile"), ("type", "symbol", "profile"))
+        strategy_config = prepare_router_profile(spec["profile"])
+        strategy = build_macro_router(spec["symbol"], strategy_config)
+        history_required = strategy.history_required
+        if spec["symbol"] not in loaded.dataset.symbols:
+            raise ValueError("strategy symbol not in dataset")
+        return spec, strategy_config, strategy, history_required
     spec = fields(
         configuration["strategy"],
         {"type", "symbol", "quantity"} | (set(CandidateConfig.__dataclass_fields__) - {"kind"}),

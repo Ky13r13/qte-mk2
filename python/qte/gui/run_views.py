@@ -15,7 +15,8 @@ TABLES = {"orders": "orders.csv", "fills": "fills.csv", "equity": "equity.csv",
 OWNED_TABLES = {"orders": "order_snapshots.csv", "fills": "fill_events.csv",
                 "equity": "equity_events.csv", "sampled_equity": "sampled_equity_events.csv",
                 **{name: f"{name}.csv" for name in
-                   ("positions", "closed_trades", "open_trades", "order_events")}}
+                   ("positions", "closed_trades", "open_trades", "order_events")},
+                "route_events": "route_events.json"}
 METRIC_UNITS = {
     "average_losing_trade": "currency", "average_winning_trade": "currency", "expectancy": "currency",
     "annualized_return": "ratio", "annualized_volatility": "ratio", "average_gross_exposure": "ratio",
@@ -124,6 +125,19 @@ class RunViews:
         tables = OWNED_TABLES if artifact.kind == "research_export_v2" else TABLES
         if table not in tables:
             raise ArtifactError("not_recorded", 404, "This table is not recorded in the selected format.")
+        if table == "route_events":
+            wrapper = self._json(artifact_id, "research_export.json")
+            if wrapper["capabilities"].get("route_events") != "recorded":
+                raise ArtifactError("not_recorded", 404, "Route transitions were not recorded in this export.")
+            rows = self._json(artifact_id, "route_events.json")["events"]
+            self._unchanged(artifact_id, artifact)
+            columns = ["timestamp_ns", "target_family", "active_family", "phase", "macro_regime",
+                       "volatility_regime", "dealer_regime", "reasons", "macro_score", "permitted_families",
+                       "macro_inputs", "dealer_input"]
+            return {"artifact_id": artifact_id, "table": table, "columns": columns,
+                    "rows": rows[offset:offset + limit], "total": len(rows), "offset": offset, "limit": limit,
+                    "warnings": ["Recorded routing-state transitions, not fills or per-bar signals; no engine sequence is recorded.",
+                                 "Inputs are as-of the transition timestamp; source/vintage claims are caller-supplied, not verified dealer flow."]}
         rows, columns = self._csv(artifact_id, tables[table], columns=True)
         self._unchanged(artifact_id, artifact)
         return {"artifact_id": artifact_id, "table": table, "columns": columns,

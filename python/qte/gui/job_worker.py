@@ -207,6 +207,9 @@ def supervise(spec_path: Path, parent_fd: int, cancel_fd: int, result_fd: int) -
         if isinstance(spec, dict) and spec.get("kind") == "test_run":
             from .test_worker import supervise_test
             return supervise_test(spec, parent_fd, cancel_fd, result_fd, pending_signal)
+        if isinstance(spec, dict) and spec.get("kind") == "benchmark":
+            from .benchmark_worker import supervise_benchmark
+            return supervise_benchmark(spec, parent_fd, cancel_fd, result_fd, pending_signal)
         required = {"repository", "executable", "config", "output", "job_id", "kind", "snapshot_hashes",
                     "source_identity", "timeout_seconds", "environment"}
         if not isinstance(spec, dict) or set(spec) != required: raise ValueError

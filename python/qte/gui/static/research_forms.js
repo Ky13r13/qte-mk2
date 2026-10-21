@@ -139,6 +139,11 @@ export function createResearchForms(ui) {
         for (const choice of descriptor.choices || []) {
           input.append(ui.element("option", { value: choice, text: settings.choiceLabel?.(choice) || labelFor(choice) }));
         }
+      } else if (descriptor?.type === "json_text") {
+        input = ui.element("textarea", { name: path, rows: "8", autocomplete: "off", maxlength: "12000" });
+        input.value = descriptor.default || "";
+        wrapper.append(ui.element("p", { class: "muted", text: "Explicit local router profile. Quote timestamps, durations and lookback integers as decimal strings. Missing macro inputs mean cash. Dealer observations are not inferred from prices." }),
+          ui.textLink("/library/macro-router#gui-and-cli-profile", "Router profile documentation"));
       } else {
         input = ui.element("input", {
           type: "text", name: path, autocomplete: "off",
@@ -384,7 +389,7 @@ export function createResearchForms(ui) {
         const values = {};
         for (const name of strategy.exposed_fields || []) {
           values[name] = scalar(`configuration.strategy.${name}`, strategy.fields?.[name] || {}, {
-            required: strategy.type === "moving_average_regime",
+            required: strategy.type === "moving_average_regime" || strategy.type === "macro_router",
           });
           panel.append(values[name].wrapper);
         }

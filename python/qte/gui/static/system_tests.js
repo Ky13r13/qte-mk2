@@ -422,6 +422,7 @@ export function createSystemTests(ui) {
     root.append(
       ui.element("p", { class: "muted" }, [ui.textLink("/library", "Library"), globalThis.document.createTextNode(" / System")]),
       ui.element("h1", { id: "system-tests-heading", text: "System tests" }),
+      ui.element("p", {}, [ui.textLink("/system/benchmarks", "Benchmarks")]),
       ui.element("p", { class: "lede", text: "Run the fixed local Python or C++ test command. Opening this page never starts a test." }),
       launchArea, notice,
       ui.element("h2", { id: "recent-tests-heading", text: "Recent test jobs" }), refresh, listArea, detailArea,

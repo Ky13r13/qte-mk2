@@ -56,6 +56,10 @@ The [usage guide](gui-usage.md) records the separate permission/credential gate.
 Registered caches expose request lineage; copy `bars.json` to a normal data
 directory and validate it before use in research.
 
+**System** runs the existing fixed Python/C++ tests and shows their explicitly
+revealed evidence. **System → Benchmarks** runs bounded synthetic no-op/SMA speed
+measurements. Neither builds or installs anything; timing is not trading merit.
+
 ## End-to-end data flow
 
 ```mermaid

@@ -1,24 +1,16 @@
 # Active GUI implementation checkpoint
 
-Last checkpoint: 2026-10-18, G8a.3 implementation in acceptance.
-Added test_routes.py/test_views.py and System browser module; routes integrated.
-Disclosure binds the accepted request and all four exact evidence files; raw
-downloads/catalog remain denied. Explicit current checks only, no GET discovery.
-Sol owns System UI/state-machine tests; Terra owns HTTP regressions; Astra reviews.
-Root projection/static tests pass 18; build no work, CTest 15/15. Full Python,
-JavaScript and real browser acceptance remain. No server or schedule started yet.
-Next: finish G8a.3 review/acceptance before G8b. Stay offline.
-
-Prior accepted checkpoint: 2026-10-17, G8a.2b.
-Private `test_run` jobs use the shared FIFO supervisor, pinned requests,
-bounded/drained logs, descendant cleanup and parent-side evidence verification.
-Final focused 69 / full 1417 Python / 25 JS / 15 CTest pass; build no work.
-Verified Python evidence: build/gui/jobs/cb758a0761664a9596cae5f016022d35/artifacts.
-Verified native evidence: build/gui/jobs/0fe9aecb251c48028401ab96a7475a8c/artifacts.
-Both actual supervised jobs passed with unchanged during-run identities.
-Generic catalog access remains blocked; no test-launch HTTP or System control.
-No server, test process or schedule remains active. Next: G8a.3 System controls,
-then G8b benchmarks. G7b/G9 remain queued. Stay offline.
+Last checkpoint: 2026-10-20, G8b implemented and independently reviewed.
+System → Benchmarks adds explicit bounded synthetic no-op/SMA jobs and timing
+evidence. Focused 81 / full 1485 Python / 45 JavaScript / 15 CTest pass; build no work.
+Backend/API gate accepted; browser visual gate remains explicitly pending.
+Actual 10,000-bar authenticated local API/supervisor jobs succeeded:
+no-op `1a4cd36d2c6042b3bc4d7366fe214287`, SMA `af77d90671c443379d69faaddc10e880`.
+Both have unchanged recorded runtime identities; timing is not trading merit.
+Browser acceptance is blocked: in-app browser denied loopback navigation with
+ERR_BLOCKED_BY_CLIENT, leaving a blank tab. Do not claim visual acceptance.
+That temporary tab and the 8767 server were closed; no schedule remains active.
+Next: G7b macro/router bridge; G9 remains queued. Stay offline.
 **Read this file before resuming.**
 
 ## Authority and scope
@@ -47,6 +39,116 @@ time. It fired, resumed this work, and was deleted after use; it is not a
 nightly schedule or usage-reset guarantee.
 
 ## Baseline / environment
+
+### October 19–20 G8b implementation and verification
+
+Added shared `qte.benchmark`, private benchmark request/evidence/worker/routes,
+small fixed-job scheduler hooks, and the System benchmark UI. The existing CLI
+retains its arguments/default/1,000,000 cap; GUI caps at 100,000. No engine changes.
+Sol built workload/tests and manager/evidence regressions; Terra built UI/tests
+and controlled subprocess tests. Root integrated, added API/race/spec regressions;
+independent Astra review found no remaining blockers in code/tests.
+
+Checks cover no-op accounting, exact synthetic workload, malformed/nonfinite
+measurements, pinned snapshots, queue/idempotency, forged success and runtime
+changes, changed/rehashed/extra/symlink/partial files, strict HTTP auth/inputs,
+passive views, raw registration denial, active cancellation, timeout/owner loss,
+bounded draining, fixed argv/environment and stale UI handlers. Fixed a detached
+launch-handler race, preserved edited form values across submission, and made
+malformed worker output an execution failure instead of a provenance failure.
+
+The ignored `build/g8b-acceptance-20261020.py` drives the actual authenticated
+loopback API and supervisor for both 10,000-bar workloads, retries identical
+requests, verifies evidence and checks raw catalog denial. Both succeeded with
+all four explicit identity groups and tool versions unchanged. Artifacts remain
+under `build/gui/jobs/<id>/artifacts`; no-op has zero fills/unchanged equity.
+These are single-sample smoke measurements, not calibrated performance claims.
+Browser creation was blocked by the browser client, not a QTE test failure.
+No security setting was bypassed; temporary tab/server were closed.
+
+Commands from the repository root (scoped offline subprocess/loopback permission):
+
+```sh
+.venv/bin/python -m pytest tests/python/test_benchmark.py tests/python/test_gui_test_jobs.py tests/python/test_gui_test_snapshots.py -q --maxfail=1 --tb=short --basetemp=build/test-g8b-initial-20261019
+.venv/bin/python -m pytest tests/python/test_gui_benchmark_api.py tests/python/test_gui_system_tests_api.py tests/python/test_gui_research_browser_routes.py -q --maxfail=1 --tb=short --basetemp=build/test-g8b-api-20261019
+.venv/bin/python -m pytest tests/python/test_benchmark.py tests/python/test_gui_benchmarks.py tests/python/test_gui_benchmark_worker.py tests/python/test_gui_benchmark_api.py tests/python/test_gui_test_jobs.py tests/python/test_gui_test_worker.py -q --maxfail=1 --tb=short --basetemp=build/test-g8b-workers-20261020
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --test tests/javascript/system_benchmarks_ui.test.mjs tests/javascript/system_tests_ui.test.mjs tests/javascript/comparison_form_ui.test.mjs tests/javascript/comparison_ui.test.mjs tests/javascript/research_ui.test.mjs
+.venv/bin/python -u -m qte gui --port 8767
+.venv/bin/python build/g8b-acceptance-20261020.py --code <ephemeral-terminal-code>
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-g8b-full-20261020
+.venv/bin/python -m pytest tests/python/test_gui_documents.py tests/python/test_gui_static.py -q --maxfail=1 --tb=short --basetemp=build/test-g8b-docs-20261020
+git diff --check
+```
+
+Initial 55, API16, final focused81, JS45 and CTest15 checks pass. Full Python:
+**1485 passed in 115.53 seconds**, no failures/skips. No internet, installs,
+Git history/remote operations, stale build/dev
+use or outside-repository edits. Existing documentation edits were preserved.
+Post-update documentation/static checks: **24 passed**; diff check clean.
+See [benchmark contract](gui-benchmarks.md) and [strategy/data-flow guide](test-build-guide.md).
+
+### October 18–19 G8a.3 acceptance
+
+New production files: `test_routes.py`, `test_views.py`, `static/system_tests.js`.
+New tests: `test_gui_system_tests_api.py`, `test_gui_test_views.py`, and
+`tests/javascript/system_tests_ui.test.mjs`. Updated `app.py`/`static/app.js`,
+static/browser-route regressions and evidence/usage/architecture/roadmap docs.
+Sol built the browser module/tests; Terra began API tests; root finished API,
+projection and integration work. Independent Astra reviews passed after fixes.
+
+Evidence is protected even when jobs succeed. Reveal is durably bound to the
+accepted request and all four exact evidence files; a valid replacement requires
+new disclosure. Tests cover changed requests, rehashed replacement, journal
+write/readback failure, mutation during reveal/read, failed/skipped history,
+bounded text/events/durations and unknown current scope on preflight failure.
+GET never prepares or launches a test. Current checks are explicit observations,
+not continuous freshness or source-to-binary proof. Browser retries retain frozen
+keys; stale handlers/results cannot launch or mutate another selected job.
+
+Review caught an unbounded numeric duration and selection/retry races; fixed with
+regressions. Initial API fixtures created output before exclusive snapshot setup;
+corrected setup order, preserving validation. The first full GUI Python job
+(`55c2d3569c644767b3f7608d5716fe44`) had 1429 passes/one failure: a static test
+expected the old cleanup statement literally. Its replacement checks BOTH module
+disposals before view advancement, plus System shell/asset protection. The failed
+record remains readable only after reveal. No test was removed or weakened.
+Final full GUI Python job passed **1430 in 106.65 seconds**, zero failures/skips.
+Final focused **39**, JavaScript **37**, CTest **15/15**; independent review clear.
+
+Actual in-app browser acceptance on loopback 8767 covered sign-in/idle expiration,
+passive System loading, real CTest/Python launches, protected defaults, explicit
+reveals of passed AND failed records, collapsed secondary fields and explicit
+current identity/tool-version observation (all same before final doc edits).
+The narrow ~664px view kept neutral square controls and table-only horizontal
+scrolling. Extended cross-browser/zoom checks remain separate. Raw logs never
+became browser downloads. Final documentation edits may change current Python
+test-scope hashes without invalidating the recorded run. The server was stopped.
+
+Commands run from the repository root (scoped offline permission for AnyIO,
+Node subprocesses and loopback bind after sandbox denials):
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+.venv/bin/python -m pytest tests/python/test_gui_test_views.py tests/python/test_gui_static.py -q --maxfail=1 --tb=short --basetemp=build/test-g8a3-views-20261018
+.venv/bin/python -m pytest tests/python/test_gui_system_tests_api.py tests/python/test_gui_test_views.py -q --maxfail=1 --tb=short --basetemp=build/test-g8a3-protection-20261018
+.venv/bin/python -m pytest tests/python/test_gui_research_browser_routes.py tests/python/test_gui_system_tests_api.py tests/python/test_gui_test_views.py tests/python/test_gui_static.py tests/python/test_gui_documents.py -q --maxfail=1 --tb=short --basetemp=build/test-g8a3-reviewed-20261018
+.venv/bin/python -m pytest tests/python/test_gui_documents.py tests/python/test_gui_static.py -q --maxfail=1 --tb=short --basetemp=build/test-g8a3-docs-20261019
+/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --test tests/javascript/system_tests_ui.test.mjs tests/javascript/comparison_form_ui.test.mjs tests/javascript/comparison_ui.test.mjs tests/javascript/research_ui.test.mjs
+.venv/bin/python -u -m qte gui --port 8767
+.venv/bin/ctest --preset dev --output-on-failure --output-junit /home/glsu6/Documents/qte/build/gui/jobs/13497d151c8741499c74d3a278b4f2c3/artifacts/junit.xml
+.venv/bin/python -m pytest tests/python --junitxml=/home/glsu6/Documents/qte/build/gui/jobs/b79592fcd350431fb31d54c446a3f56b/artifacts/junit.xml --basetemp=/home/glsu6/Documents/qte/build/gui/jobs/b79592fcd350431fb31d54c446a3f56b/test-tmp -o cache_dir=/home/glsu6/Documents/qte/build/gui/jobs/b79592fcd350431fb31d54c446a3f56b/pytest-cache -o xfail_strict=true
+git diff --check
+```
+
+Post-update documentation/static checks passed **24**. The final pytest/CTest
+commands above were generated by the actual GUI supervisor, not
+manually launched. No network, installs, Git history/remote changes, stale build
+directory or outside-repository edits. Next offline increment requires no new
+approval: G8b bounded benchmark jobs, with timing explicitly not trading merit
+and the existing `hold` workload labeled a no-op, not buy-and-hold.
 
 ### October 17 G8a.2b acceptance
 

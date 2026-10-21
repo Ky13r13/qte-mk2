@@ -5,6 +5,7 @@ import { createResearchForms } from "./research_forms.js";
 import { createResearchJobs } from "./research_jobs.js";
 import { createDatasetViews } from "./datasets.js";
 import { createSystemTests } from "./system_tests.js";
+import { createSystemBenchmarks } from "./system_benchmarks.js";
 
 const app = document.querySelector("#app");
 const pageStatus = document.querySelector("#page-status");
@@ -13,9 +14,10 @@ const state = { token: null, session: null, library: null };
 let activeView = 0;
 let jobViews = null;
 let systemTests = null;
-const runViews = new Set(["overview", "metrics", "orders", "fills", "equity", "sampled_equity", "equity_table", "sampled_equity_table", "positions", "closed_trades", "open_trades", "order_events", "provenance", "files", "catalog"]);
+let systemBenchmarks = null;
+const runViews = new Set(["overview", "metrics", "orders", "fills", "equity", "sampled_equity", "equity_table", "sampled_equity_table", "positions", "closed_trades", "open_trades", "order_events", "route_events", "provenance", "files", "catalog"]);
 
-function beginView() { jobViews?.dispose(); systemTests?.dispose(); activeView += 1; return activeView; }
+function beginView() { jobViews?.dispose(); systemTests?.dispose(); systemBenchmarks?.dispose(); activeView += 1; return activeView; }
 function isCurrentView(request) { return request === activeView; }
 
 function navigate(href) {
@@ -520,7 +522,7 @@ function runHeader(id, run, selected) {
   const status = element("p", { class: "lede", text: `Status: ${artifactStatus(run)}. Evidence: ${humanize(artifactValue(run, "evidence"))}.` });
   const nav = element("nav", { class: "run-nav", "aria-label": "Single-run views" });
   const views = [["overview", "Overview"], ["metrics", "Metrics"], ["orders", "Orders"], ["fills", "Fills"], ["equity", "Event equity"], ["sampled_equity", "Sampled equity"], ["equity_table", "Equity records"], ["sampled_equity_table", "Sampled records"]];
-  const ownedViews = [["positions", "positions", "Positions"], ["closed_trades", "closed_trades", "Closed trades"], ["open_trades", "open_trades", "Open trades"], ["order_events", "order_events", "Order events"]];
+  const ownedViews = [["positions", "positions", "Positions"], ["closed_trades", "closed_trades", "Closed trades"], ["open_trades", "open_trades", "Open trades"], ["order_events", "order_events", "Order events"], ["route_events", "route_events", "Macro routing"]];
   for (const [view, capability, label] of ownedViews) {
     if (run.capabilities?.[capability] === "recorded") views.push([view, label]);
     else nav.append(element("span", { class: "disabled-view", text: `${label} — not recorded` }));
@@ -669,6 +671,7 @@ function runProvenance(id, run) {
 }
 
 function runTable(id, run, payload, name, selected, offset) {
+  const request = activeView;
   const table = element("table");
   table.append(element("caption", { class: "visually-hidden", text: `${name} records` }));
   const columns = Array.isArray(payload.columns) ? payload.columns : [];
@@ -677,6 +680,7 @@ function runTable(id, run, payload, name, selected, offset) {
     closed_trades: ["symbol", "direction", "opened_ns", "net_realized_pnl"],
     open_trades: ["symbol", "direction", "opened_ns", "net_realized_pnl"],
     order_events: ["timestamp_ns", "sequence", "order_id", "kind"],
+    route_events: ["timestamp_ns", "target_family", "active_family", "phase"],
   }[name];
   const displayColumns = preferred ? preferred.filter((column) => columns.includes(column)) : columns.slice(0, 4);
   const head = element("thead", {}, [element("tr", {}, displayColumns.map((column) => element("th", { scope: "col", text: humanize(column) })))]);
@@ -687,10 +691,16 @@ function runTable(id, run, payload, name, selected, offset) {
       if (columnIndex === 0) {
         const open = element("button", { type: "button", class: "record-open", text: displayValue(row[column], "Open record"), "aria-label": `Open complete record ${offset + index + 1}` });
         open.addEventListener("click", () => {
+          if (!isCurrentView(request)) return;
           const detail = element("dl");
-          for (const field of columns) detail.append(element("dt", { text: humanize(field) }), element("dd", { class: "source-path", text: displayValue(row[field], "") }));
+          for (const field of columns) {
+            const value = row[field];
+            detail.append(element("dt", { text: humanize(field) }), value !== null && typeof value === "object"
+              ? element("dd", {}, [element("pre", { text: JSON.stringify(value, null, 2) })])
+              : element("dd", { class: "source-path", text: displayValue(value, "") }));
+          }
           const back = element("button", { type: "button", text: "Back to records" });
-          back.addEventListener("click", () => runTable(id, run, payload, name, selected, offset));
+          back.addEventListener("click", () => { if (isCurrentView(request)) runTable(id, run, payload, name, selected, offset); });
           replaceView(...runHeader(id, run, selected), element("h2", { text: `${humanize(name)} record ${offset + index + 1}` }), back, detail);
         });
         cell.append(open);
@@ -709,10 +719,10 @@ function runTable(id, run, payload, name, selected, offset) {
   nav.append(element("p", { class: "muted", text: `${shown} of ${payload.total} records` }));
   const previous = element("button", { type: "button", text: "Previous" });
   previous.disabled = offset <= 0;
-  previous.addEventListener("click", () => loadRun(id, selected, "event", Math.max(0, offset - payload.limit)));
+  previous.addEventListener("click", () => { if (isCurrentView(request) && !previous.disabled) loadRun(id, selected, "event", Math.max(0, offset - payload.limit)); });
   const next = element("button", { type: "button", text: "Next" });
   next.disabled = offset + payload.limit >= payload.total;
-  next.addEventListener("click", () => loadRun(id, selected, "event", offset + payload.limit));
+  next.addEventListener("click", () => { if (isCurrentView(request) && !next.disabled) loadRun(id, selected, "event", offset + payload.limit); });
   nav.append(previous, next);
   section.append(nav);
   if (Array.isArray(payload.warnings)) for (const warning of payload.warnings) section.append(element("p", { class: "error", text: String(warning) }));
@@ -753,7 +763,7 @@ async function loadRun(id, view = "overview", sampling = "event", offset = 0, ra
       const series = seriesPayload.series || seriesPayload;
       if (view === "overview") runOverview(id, run, series, range);
       else runSeries(id, run, series, view, range);
-    } else if (["orders", "fills", "equity_table", "sampled_equity_table", "positions", "closed_trades", "open_trades", "order_events"].includes(view)) {
+    } else if (["orders", "fills", "equity_table", "sampled_equity_table", "positions", "closed_trades", "open_trades", "order_events", "route_events"].includes(view)) {
       const table = view === "equity_table" ? "equity" : view === "sampled_equity_table" ? "sampled_equity" : view;
       const params = new URLSearchParams({ offset: String(offset), limit: "25" });
       const tablePayload = await api(`/api/v1/runs/${encodeURIComponent(id)}/tables/${encodeURIComponent(table)}?${params}`);
@@ -858,6 +868,10 @@ systemTests = createSystemTests({
   api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation,
   textLink, displayValue, humanize,
 });
+systemBenchmarks = createSystemBenchmarks({
+  api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation,
+  textLink, displayValue, humanize,
+});
 
 function renderLogin(errorMessage = "") {
   logoutButton.hidden = true;
@@ -904,6 +918,7 @@ async function bootstrap() {
 function route() {
   jobViews.dispose();
   systemTests.dispose();
+  systemBenchmarks.dispose();
   const path = window.location.pathname;
   if (path === "/library" || path === "/") loadLibrary();
   else if (path.startsWith("/library/")) {
@@ -947,6 +962,7 @@ function route() {
     if (id !== null) datasetViews.detail(id);
   }
   else if (path === "/system") systemTests.load();
+  else if (path === "/system/benchmarks") systemBenchmarks.load();
   else { beginView(); renderError("This page is unavailable."); }
 }
 

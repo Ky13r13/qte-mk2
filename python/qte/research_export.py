@@ -83,7 +83,7 @@ def _trade_rows(trades):
                value.allocated_commissions, value.net_realized_pnl, value.is_closed, value.outcome)
 
 
-def write_owned_export(output: Path, result, manifest: dict, sampled_points=None) -> None:
+def write_owned_export(output: Path, result, manifest: dict, sampled_points=None, *, router_strategy=None) -> None:
     """Write only schema-v2 additive files into an existing fresh export directory."""
     output = Path(output)
     sampled_points = None if sampled_points is None else list(sampled_points)
@@ -107,9 +107,15 @@ def write_owned_export(output: Path, result, manifest: dict, sampled_points=None
         _write_csv(output / TABLE_FILES[semantic], semantic, values)
 
     capabilities = dict(CAPABILITIES)
+    files = {semantic: TABLE_FILES[semantic] for semantic in rows}
     if sampled_points is not None:
         capabilities["sampled_event_sequence"] = "recorded"
-    files = {semantic: TABLE_FILES[semantic] for semantic in rows}
+    if router_strategy is not None:
+        # Kept opt-in so pre-router v2 exports retain their exact wrapper bytes.
+        from qte.router_export import write_route_events
+        write_route_events(output / "route_events.json", router_strategy)
+        capabilities["route_events"] = "recorded"
+        files["route_events"] = "route_events.json"
     wrapper = {
         "schema_version": 2,
         "artifact_kind": "research_export",
