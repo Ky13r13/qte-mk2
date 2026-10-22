@@ -66,6 +66,31 @@ these incomplete subsets.
 
 ## Verification and presentation
 
+### Optional macro-router diagnostics (G7b)
+
+For a `macro_router` run only, v2 additionally declares
+`capabilities.route_events: recorded` and `files.route_events: route_events.json`.
+Both must be present together; an undeclared file is rejected. Non-router v2
+exports keep their original maps unchanged and display “not recorded.”
+
+The JSON envelope is `{schema_version: 1, artifact_kind: router_events_v1,
+events: [...]}`. Each transition has `timestamp_ns`, nullable `target_family` and
+`active_family`, `phase`, macro/volatility/dealer regime labels, reasons,
+`macro_score`, permitted families and exact `macro_inputs` / nullable
+`dealer_input` selected as of that time. Times are signed int64 JSON integers
+on disk and decimal strings in HTTP responses. At most 100,000 ordered
+transitions are accepted; existing artifact file-size bounds also apply.
+
+These are route-state changes, not per-bar observations or engine sequences.
+The reader checks causal input availability and recomputes policy decisions and
+target priority against the manifest profile. It does not replay the portfolio
+or authenticate the caller's macro/dealer source. See the
+[profile and transition contract](strategies/macro-router.md#gui-and-cli-profile).
+If any financial output is protected, its route diagnostics inherit protection;
+protecting only route diagnostics does not reclassify unrelated financial files.
+
+### Shared validation
+
 The GUI recognizes the tagged wrapper before the legacy single-run reader.
 Verification requires the wrapper/version, fixed file map and capabilities,
 complete checksum inventory, mandatory tables, exact columns, numeric/enum/

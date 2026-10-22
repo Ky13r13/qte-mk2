@@ -107,6 +107,63 @@ The point-in-time filter and canonical dataset in this example must be supplied
 by the caller. No download, broker connection, account order, exchange calendar,
 corporate-action adjustment, or daily-provider adapter is implied.
 
+## GUI and CLI profile
+
+Research → New run → **Macro router** uses the ordinary preview, pinned-input
+job, explicit registration and result workflow. Enter a symbol, local bars and
+an explicit JSON profile. The default empty observation list stays in cash.
+The form never downloads macro/dealer data or derives positioning from prices.
+
+The profile requires `evidence` (`synthetic` or `user_declared`), `candidates`
+(one to six distinct `CandidateConfig` kinds) and `macro_observations`.
+Optional `dealer_observations`, `regime` and `priorities` use the existing
+`DealerObservation`, `RegimeConfig` and `RouterConfig` fields/defaults.
+At most 128 total observations are accepted; identity strings are bounded to
+256 control-free characters. `source_id` must identify the source/transformation;
+`vintage_id` identifies each release/revision, not just the current value.
+These are caller declarations, not source authentication.
+
+For the **GUI textarea**, timestamps, age durations and candidate lookback/holding
+integers must be **quoted canonical decimal strings**. Values and fractions
+remain JSON numbers. The browser sends the raw text unchanged; the server checks
+duplicate keys, nonfinite values, integer bounds and ambiguity. Limit: 12,000
+UTF-8 bytes, within the form's 16,384-byte request limit. Edits require a new
+preview. Minimal synthetic profile for the example hourly bars:
+
+```json
+{
+  "evidence": "synthetic",
+  "candidates": [{"kind": "trend", "fast_period": "2", "slow_period": "3", "atr_period": "1"}],
+  "macro_observations": [
+    {"feature": "growth_z", "value": 3, "reference_ns": "1704204000000000000", "available_ns": "1704204000000000000", "source_id": "synthetic:growth", "vintage_id": "v1"},
+    {"feature": "inflation_z", "value": 0, "reference_ns": "1704204000000000000", "available_ns": "1704204000000000000", "source_id": "synthetic:inflation", "vintage_id": "v1"},
+    {"feature": "liquidity_z", "value": 0, "reference_ns": "1704204000000000000", "available_ns": "1704204000000000000", "source_id": "synthetic:liquidity", "vintage_id": "v1"},
+    {"feature": "volatility_pct", "value": 12, "reference_ns": "1704204000000000000", "available_ns": "1704204000000000000", "source_id": "synthetic:volatility", "vintage_id": "v1"}
+  ]
+}
+```
+
+CLI config files use **native JSON integers**, not the GUI string encoding.
+The complete [CLI example](../../examples/macro-router-run.json) adds a later
+risk-off release to exercise liquidation. From the repository root, choose a
+new output directory (exports never overwrite existing artifacts):
+
+```sh
+.venv/bin/python -m qte run --config examples/macro-router-run.json --output build/macro-router-demo --export-version 2
+```
+
+Register that folder in Research. Open **Macro routing** to see transition time,
+target, active family and phase; open a row for reasons, score, permitted families
+and exact as-of inputs. The optional `route_events.json` export records actual
+route-state changes, not every bar, fill, or engine event sequence. A change in
+an input value that does not change routing state need not create a row.
+The full supplied profile remains in the manifest. Availability must not exceed
+the decision timestamp; freshness uses economic reference time, not revision
+release time. Missing/stale inputs block new entries. Dealer mode defaults to
+`ignore`; `required` rejects unqualified proxies as positioning even when their
+numeric gamma looks plausible. Neither `observed` nor `user_declared` labels
+prove that data is genuine. No synthetic result establishes trading merit.
+
 ## Verification and limitations
 
 Deterministic actual-engine tests verify exact trend-to-mean-reversion handoff

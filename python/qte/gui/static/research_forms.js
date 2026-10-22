@@ -143,7 +143,7 @@ export function createResearchForms(ui) {
         input = ui.element("textarea", { name: path, rows: "8", autocomplete: "off", maxlength: "12000" });
         input.value = descriptor.default || "";
         wrapper.append(ui.element("p", { class: "muted", text: "Explicit local router profile. Quote timestamps, durations and lookback integers as decimal strings. Missing macro inputs mean cash. Dealer observations are not inferred from prices." }),
-          ui.textLink("/library/macro-router#gui-and-cli-profile", "Router profile documentation"));
+          ui.textLink("/library/macro-router", "Router profile documentation"));
       } else {
         input = ui.element("input", {
           type: "text", name: path, autocomplete: "off",

@@ -1,0 +1,20 @@
+{
+  "data": {"adapter": "csv", "path": "research-bars.csv", "interval_ns": 3600000000000, "action_free": true},
+  "strategy": {
+    "type": "macro_router",
+    "symbol": "SPY",
+    "profile": {
+      "evidence": "synthetic",
+      "candidates": [{"kind": "trend", "fast_period": 2, "slow_period": 3, "atr_period": 1}],
+      "macro_observations": [
+        {"feature": "growth_z", "value": 3, "reference_ns": 1704204000000000000, "available_ns": 1704204000000000000, "source_id": "synthetic:growth", "vintage_id": "v1"},
+        {"feature": "inflation_z", "value": 0, "reference_ns": 1704204000000000000, "available_ns": 1704204000000000000, "source_id": "synthetic:inflation", "vintage_id": "v1"},
+        {"feature": "liquidity_z", "value": 0, "reference_ns": 1704204000000000000, "available_ns": 1704204000000000000, "source_id": "synthetic:liquidity", "vintage_id": "v1"},
+        {"feature": "volatility_pct", "value": 12, "reference_ns": 1704204000000000000, "available_ns": 1704204000000000000, "source_id": "synthetic:volatility", "vintage_id": "v1"},
+        {"feature": "growth_z", "value": -3, "reference_ns": 1704218400000000000, "available_ns": 1704218400000000000, "source_id": "synthetic:growth", "vintage_id": "v2"}
+      ]
+    }
+  },
+  "engine": {"initial_cash": 100000, "history_capacity": 256, "random_seed": 0},
+  "execution": {"commission_bps": 1, "spread_bps": 2, "slippage_bps": 2}
+}

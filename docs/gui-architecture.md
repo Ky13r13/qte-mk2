@@ -15,8 +15,8 @@ multi-input capture/snapshots are accepted. G7a.3b adds reviewed backend preview
 job execution and publication. G7a.3c browser forms are accepted with both
 workflows exercised on local synthetic data, explicit registration, guarded
 results and narrow-layout/error-focus checks. G7a gate: 1197 Python /
-15 CTest / 25 JavaScript tests. Next is G8 per the requested sequence; G7b and
-G9 remain queued. Extended cross-browser/zoom acceptance remains separate.
+15 CTest / 25 JavaScript tests. G8 followed in the requested sequence; see current
+G7b status below. Extended cross-browser/zoom acceptance remains separate.
 G8a.1 and G8a.2a's internal [test-evidence foundation](gui-test-evidence.md) are
 reviewed: parsing, trusted preflight, pinned requests and completion-last writing.
 G8a.3's System launch/status/cancel and disclosure-bound test evidence view are
@@ -24,9 +24,18 @@ accepted: 1430 Python / 15 CTest / 37 JavaScript tests, with actual GUI-launched
 Python/CTest runs. Identity observations are explicit, not continuous freshness;
 raw output downloads remain disabled. G8b [benchmark jobs/evidence](gui-benchmarks.md)
 are implemented and independently reviewed: 1485 Python / 15 CTest / 45 JavaScript
-checks pass, and real authenticated API/supervisor no-op/SMA runs pass. G8b visual
-browser acceptance remains pending because the browser client blocked localhost.
-Next implementation: G7b macro/router bridge, then G9 connection inspection.
+checks pass, and real authenticated API/supervisor no-op/SMA runs pass. The earlier
+localhost browser block did not recur: an October 21 no-op launch/status/evidence
+browser smoke check passed; extended browser/accessibility acceptance is separate.
+G7b adds the [explicit macro/router profile](strategies/macro-router.md#gui-and-cli-profile)
+to CLI/GUI runs and optional guarded route diagnostics. It reuses existing causal
+filters and exit-before-switch strategy behavior, with no engine changes or
+automatic acquisition. Its 1528 Python / 48 JavaScript / 15 CTest gate and actual
+synthetic browser preview/launch/register/routing-view smoke checks pass.
+G9a adds accepted offline System connection prerequisites (1535 Python / 51
+JavaScript / 15 CTest and local browser smoke); GUI broker transport is still
+absent. G9b approved private reads remain deferred until setup, operation
+and response contracts are agreed. Extended browser acceptance remains separate.
 The user requested a locally hosted, minimally colored, square-cornered interface
 covering existing functionality, documentation and test artifacts. This is a
 presentation/orchestration layer, not a new trading engine. Read with
@@ -97,7 +106,7 @@ exists. New built-ins add registry metadata, not strategy branches in C++.
 | Existing capability / source | GUI destination and operation | Coverage limit / increment |
 |---|---|---|
 | README, AGENTS, architecture, ADRs, roadmap, strategy specifications, validation notes | Library: browse/search/deep-link original documents and related tests | G1; documentation is read-only |
-| `qte run`, SMA and six candidate families | Research: configure one run, review assumptions, launch, inspect/export | G3/G5; current command has no macro-router type |
+| `qte run`, SMA, six candidate families and macro router | Research: configure one run, review assumptions, launch, inspect/export | G3/G5/G7b; explicit local router observations, no arbitrary strategy factories |
 | `qte lab`, gated/ungated candidates, router, cash/hold benchmarks | Research: complete slate, scenarios, base/stress, exclusions, selection and holdout | G4/G5; synthetic mechanics, not validated alpha |
 | `compare_moving_average`, `run_experiment` Python APIs | Research: registered split/comparison workflows | G7; declarative bridge needed, not arbitrary Python factories |
 | `MacroRegimeFilter`, router and dealer observation types | Library: exact rules; Research: as-of input/decision and route inspection | G4/G7; no observed dealer data or macro acquisition exists |
@@ -317,7 +326,7 @@ cannot start simulations, downloads, tests or broker requests.
 | `POST /catalog/register`, `/configs`, `/configs/validate` | Explicit repo-contained registration and immutable config snapshots; pure validation |
 | `POST /jobs`, `GET /jobs/{id}`, `GET /jobs/{id}/log`, `POST /jobs/{id}/cancel` | Typed, idempotent local jobs and bounded log cursor |
 | `POST /artifacts/{id}/reveal-holdout` | Confirm and journal disclosure before serving protected contents |
-| `GET /connections`, `POST /connections/{id}/read` | Local prerequisite status; deliberate approved GET-only broker action in G9 |
+| `GET /connections`, `POST /connections/{id}/read` | G9a local prerequisite status and fail-closed denial; executable approved GET deferred to G9b |
 
 Nested endpoints for series/tables/downloads use catalog item IDs, not arbitrary
 paths. Default page 25, max 200; chart max 2,000 points; metadata bodies max 1 MiB;
@@ -425,7 +434,8 @@ trustworthy.
 | G7b — macro/router bridge | Explicit local observations, as-of inspection, router params/route-event export; G7a/G3c | Availability/vintage/staleness/dealer provenance and proxy rejection; exit-before-switch parity; no false dealer inference |
 | G8a — test evidence | Fixed CTest and pytest jobs plus machine records; G5a | JUnit/log/command/test-source+binary hashes, exit status and complete marker; failed jobs remain visible; skip != pass; stale records labeled |
 | G8b — benchmark evidence | Bounded existing benchmark job and machine/build/workload record; G8a | Timing not research performance; no-op `hold` correctly labeled; no automatic million-bar runs or unrelated build/install commands |
-| G9 — connection inspection | Readiness then separately approved explicit broker GET; G1a | Mock auth/redaction/operation validation; no trade endpoints; Schwab contract/signer prerequisites fail closed; private response retention off |
+| G9a — offline connection inspection | Fixed provider prerequisites and disabled read boundary; G1a | Presence-only environment checks; authenticated/no-store; no client construction, signing, transport or persistence; stale UI handlers inert |
+| G9b — approved private reads (deferred) | Chosen operation, approved contract/signer setup and bounded redacted response; G9a | Mock auth/redaction/operation validation first; separate online approval; no trade endpoints or raw account artifacts; retention off |
 
 G8 uses `.venv/bin/ctest --preset dev --output-on-failure --output-junit <job path>`
 and `.venv/bin/python -m pytest tests/python --junitxml=<job path>` with repo-local

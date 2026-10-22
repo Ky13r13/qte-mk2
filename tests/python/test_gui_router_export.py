@@ -21,10 +21,12 @@ def _rehash(root: Path) -> None:
     (root / "complete.json").write_text(json.dumps({"schema_version": 1, "sha256": checks}), encoding="utf-8")
 
 
-def _router_export(tmp_path: Path) -> Path:
+def _router_export(tmp_path: Path, *, two_candidates: bool = False) -> Path:
     config = json.loads((ROOT / "examples/research-run.json").read_text(encoding="utf-8"))
     config["data"]["path"] = str((ROOT / "examples/research-bars.csv").resolve())
     profile = router_profile()
+    if two_candidates:
+        profile["candidates"].append({**profile["candidates"][0], "kind": "breakout"})
     # The example bars are in 2024, rather than the unit fixture's epoch.
     start = 1_704_067_200_000_000_000
     for observation in profile["macro_observations"]:
@@ -50,6 +52,43 @@ def test_router_export_is_optional_and_verified_against_its_manifest_profile(tmp
     assert "route_events" not in ordinary_wrapper["files"]
     assert "route_events" not in ordinary_wrapper["capabilities"]
     assert not (ordinary / "route_events.json").exists()
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("capabilities", []), ("capabilities", None), ("files", []), ("files", None),
+])
+def test_router_export_rejects_nonobject_wrapper_optional_containers_before_lookup(tmp_path, field, value):
+    root = _router_export(tmp_path)
+    wrapper_path = root / "research_export.json"
+    wrapper = json.loads(wrapper_path.read_text(encoding="utf-8"))
+    wrapper[field] = value
+    wrapper_path.write_text(json.dumps(wrapper), encoding="utf-8")
+    _rehash(root)
+    with pytest.raises(ArtifactError) as failure:
+        inspect_artifact(root)
+    assert failure.value.code == "artifact_invalid"
+
+
+@pytest.mark.parametrize("mutation", ["priority", "unconfigured_active"])
+def test_router_export_rejects_targets_or_active_families_outside_the_profile_contract(tmp_path, mutation):
+    root = _router_export(tmp_path, two_candidates=True)
+    path = root / "route_events.json"
+    value = json.loads(path.read_text(encoding="utf-8"))
+    event = value["events"][0]
+    # With a low-volatility risk-on decision, priorities select breakout before
+    # trend when both are configured and permitted.
+    if mutation == "priority":
+        event["target_family"] = event["active_family"] = "trend"
+    else:
+        # Preserve the as-of target; retirement may retain a different active
+        # family, which must still be one of the configured candidates.
+        event["phase"] = "retiring"
+        event["active_family"] = "mean_reversion"
+    path.write_text(json.dumps(value), encoding="utf-8")
+    _rehash(root)
+    with pytest.raises(ArtifactError) as failure:
+        inspect_artifact(root)
+    assert failure.value.code == "artifact_invalid"
 
 
 @pytest.mark.parametrize("mutation", ["future", "profile_mismatch", "proxy_gamma"])

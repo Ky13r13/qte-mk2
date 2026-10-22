@@ -48,6 +48,13 @@ are editable. Register successful output explicitly. The
 [comparison contract](gui-comparisons.md) documents the guarded lifecycle and
 same-request retry behavior. Both workflows passed local synthetic browser runs;
 this is not evidence of historical performance.
+G7b adds **Macro router** to **Research → New run**. Supply a bounded explicit
+profile, preview then launch; the registered run's **Macro routing** table shows
+transitions and complete as-of input records. See the [profile example and
+rules](strategies/macro-router.md#gui-and-cli-profile). GUI integer fields inside
+the profile are quoted decimal strings; CLI config uses native integers.
+Missing/stale inputs block entries, dealer mode defaults to ignore, and proxies
+never qualify as positioning. The comparison registry remains SMA/six families.
 Consult the
 [checkpoint](gui-task-log.md) for the current tested milestone. Downloads,
 test-execution and broker requests never start merely by opening a page.
@@ -56,6 +63,12 @@ The interface uses neutral colors, square corners, local assets and native
 keyboard controls. It starts in Library rather than a performance dashboard.
 Documents are read-only; an architecture target or narrative test note is not a
 machine-verified pass result.
+
+**System → Connections** shows offline prerequisites for Schwab and Robinhood
+Crypto. Environment-key presence is not credential validity or connectivity;
+values are not inspected. Both remain blocked, with no account-read controls or
+response storage. Details and the separate approval/setup boundary are in
+[broker connections](broker-connections.md#local-gui-offline-prerequisite-inspection-g9a).
 
 ## Offline job API
 
@@ -172,8 +185,8 @@ This server binds only to IPv4 loopback. Local HTTP is an explicit deployment
 assumption; do not expose it through a proxy, tunnel or LAN binding. The browser
 gets an HttpOnly, SameSite=Strict session cookie and a separate in-memory request
 token. Logout, restart or 30 minutes of inactivity invalidates the session.
-After logout/expiry the new code is printed only in the terminal. No account
-credentials, remote resources or telemetry are involved. This cannot protect
+After logout/expiry the new code is printed only in the terminal. Local GUI login
+does not use account credentials, remote resources or telemetry. This cannot protect
 against a compromised process running as the same local user.
 
 Artifact registration is explicit and repository-relative. It does not scan

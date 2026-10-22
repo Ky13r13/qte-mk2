@@ -25,6 +25,7 @@ from .comparison_routes import comparison_routes
 from .job_routes import job_routes
 from .test_routes import test_routes
 from .benchmark_routes import benchmark_routes
+from .connection_routes import connection_routes
 from .jobs import JobManager
 from .requests import json_request, pagination
 from .safeio import SafeReadError
@@ -32,7 +33,7 @@ from .security import IDLE_TIMEOUT_SECONDS, SecurityError, SessionController, un
 
 TOKEN_HEADER = "X-QTE-Token"
 COOKIE_NAME = "qte_session"
-STATIC_NAMES = {"index.html", "app.css", "app.js", "experiments.js", "comparisons.js", "comparison_forms.js", "research_forms.js", "research_jobs.js", "datasets.js", "system_tests.js", "system_benchmarks.js"}
+STATIC_NAMES = {"index.html", "app.css", "app.js", "experiments.js", "comparisons.js", "comparison_forms.js", "research_forms.js", "research_jobs.js", "datasets.js", "system_tests.js", "system_benchmarks.js", "system_connections.js"}
 
 
 def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str], object] = print,
@@ -122,7 +123,8 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
             {"id": "data", "state": "available", "reason": "Local validation and download request previews. Downloads require explicit server permission and credentials."},
             {"id": "test_execution", "state": "available", "reason": "Explicit fixed local test jobs; prerequisites checked on launch. Test evidence requires recorded disclosure."},
             {"id": "benchmarks", "state": "available", "reason": "Explicit bounded synthetic no-op/SMA timing jobs; not evidence of trading merit."},
-            {"id": "broker_reads", "state": "blocked", "reason": "GUI read controls and authorized prerequisites are unresolved."},
+            {"id": "connection_inspection", "state": "available", "reason": "Offline prerequisite status only; credential values are not inspected and no account authentication is checked."},
+            {"id": "broker_reads", "state": "blocked", "reason": "GUI broker transport is disabled; approved setup and private-response contracts remain unresolved."},
             {"id": "paper_execution", "state": "blocked", "reason": "Operational paper execution is not integrated."},
         ]
         return JSONResponse({"schema_version": 1, "capabilities": values}, headers={"Cache-Control": "no-store"})
@@ -171,7 +173,8 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
         Route("/data/downloads/{artifact_id:str}", shell, methods=["GET"]),
         Route("/data/{artifact_id:str}", shell, methods=["GET"]), Route("/system", shell, methods=["GET"]),
         Route("/system/benchmarks", shell, methods=["GET"]),
-    ] + benchmark_routes(jobs, session_for) + test_routes(jobs, session_for) + comparison_routes(Catalog(Path(repository)), session_for) + artifact_routes(catalog, session_for) + job_routes(jobs, session_for) + form_routes(Catalog(Path(repository)), session_for) + dataset_routes(Catalog(Path(repository)), session_for)
+        Route("/system/connections", shell, methods=["GET"]),
+    ] + connection_routes(session_for) + benchmark_routes(jobs, session_for) + test_routes(jobs, session_for) + comparison_routes(Catalog(Path(repository)), session_for) + artifact_routes(catalog, session_for) + job_routes(jobs, session_for) + form_routes(Catalog(Path(repository)), session_for) + dataset_routes(Catalog(Path(repository)), session_for)
     class BoundaryMiddleware:
         def __init__(self, app) -> None:
             self.app = app
@@ -203,7 +206,8 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
                 if origin is not None and origin != expected_origin:
                     raise SecurityError("same_origin_required", 403, "Same-origin request required.")
                 if fetch_site == "cross-site" or (fetch_site == "none" and request.url.path not in {
-                        "/", "/login", "/library", "/research", "/data", "/system"} and
+                        "/", "/login", "/library", "/research", "/data", "/system",
+                        "/system/benchmarks", "/system/connections"} and
                         not request.url.path.startswith(("/library/", "/research/", "/data/"))):
                     raise SecurityError("same_origin_required", 403, "Same-origin request required.")
                 if request.method in {"POST", "PUT", "PATCH", "DELETE"} and origin != expected_origin:

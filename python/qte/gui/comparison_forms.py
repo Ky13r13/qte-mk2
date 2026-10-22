@@ -6,6 +6,7 @@ from dataclasses import asdict
 
 from qte.comparison_config import _historical_experiment, _legacy_experiment
 from qte.strategies import CandidateConfig
+from qte.strategies.candidates import FAMILIES
 
 from .research_forms import form_options
 
@@ -30,7 +31,12 @@ def _experiment_fields(defaults):
 
 def comparison_form_options():
     """Preserve canonical defaults and every accepted candidate/config field."""
-    strategies = copy.deepcopy(form_options()["research_run"]["strategies"])
+    # Comparisons accept only their fixed SMA/candidate registry, not every
+    # strategy that can be launched as an independent research run.
+    strategies = copy.deepcopy([
+        item for item in form_options()["research_run"]["strategies"]
+        if item["type"] in ("moving_average_regime", *FAMILIES)
+    ])
     parameters = asdict(CandidateConfig())
     parameters.pop("kind")
     for strategy in strategies:

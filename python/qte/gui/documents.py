@@ -35,6 +35,7 @@ DOCUMENTS = (
     _spec("gui-research-forms", "Research forms and fixed lab jobs", "architecture", "docs/gui-research-forms.md", "proposed"),
     _spec("gui-comparisons", "Declarative strategy comparisons", "research", "docs/gui-comparisons.md", "mixed"),
     _spec("test-build-guide", "Data flow and strategy development", "reference", "docs/test-build-guide.md", "mixed"),
+    _spec("broker-connections", "Read-only broker foundations and GUI readiness", "reference", "docs/broker-connections.md", "mixed"),
     _spec("readme", "QTE", "overview", "README.md", "mixed"),
     _spec("development-rules", "Development rules", "reference", "AGENTS.md", "implemented"),
     _spec("architecture", "Core architecture", "architecture", "docs/architecture.md", "mixed"),

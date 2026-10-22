@@ -8,6 +8,15 @@ STATIC = Path(__file__).parents[2] / "python" / "qte" / "gui" / "static"
 
 
 class GuiStaticContentTests(unittest.TestCase):
+    def test_connection_view_uses_offline_module_and_disposes_on_navigation(self) -> None:
+        script = (STATIC / "app.js").read_text(encoding="utf-8")
+        self.assertIn('import { createSystemConnections } from "./system_connections.js"', script)
+        self.assertIn('systemConnections = createSystemConnections({', script)
+        self.assertIn('systemConnections?.dispose()', script)
+        self.assertIn('path === "/system/connections") systemConnections.load()', script)
+        self.assertIn('ui.textLink("/system/connections", "Connections")',
+                      (STATIC / "system_tests.js").read_text(encoding="utf-8"))
+
     def test_system_view_is_wired_to_the_fixed_test_module_and_disposed_on_navigation(self) -> None:
         script = (STATIC / "app.js").read_text(encoding="utf-8")
         self.assertIn('import { createSystemTests } from "./system_tests.js"', script)

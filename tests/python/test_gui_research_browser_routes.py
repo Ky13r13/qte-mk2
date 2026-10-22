@@ -17,7 +17,8 @@ def test_research_deep_links_require_session_and_never_launch(tmp_path, monkeypa
         raise AssertionError("Reading a browser route must not submit a job")
 
     monkeypatch.setattr(JobManager, "submit", no_launch)
-    paths = ("/research/new/run", "/research/new/lab", "/research/jobs/" + "a" * 32, "/system", "/system/benchmarks")
+    paths = ("/research/new/run", "/research/new/lab", "/research/jobs/" + "a" * 32,
+             "/system", "/system/benchmarks", "/system/connections")
 
     async def scenario():
         app = create_app(tmp_path, code_sink=lambda _: None)
@@ -36,6 +37,9 @@ def test_research_deep_links_require_session_and_never_launch(tmp_path, monkeypa
                     assert "default-src 'self'" in policy
                     assert "script-src 'self'" in policy
                     assert "frame-ancestors 'none'" in policy
+                for path in ("/system/benchmarks", "/system/connections"):
+                    assert (await client.get(path, headers={"Sec-Fetch-Site": "none"})).status_code == 200
+                assert (await client.get("/api/v1/connections", headers={"Sec-Fetch-Site": "none"})).status_code == 403
                 assert (await client.get("/research/jobs/a/extra")).status_code == 404
         assert not (tmp_path / "build/gui/jobs").exists()
 
@@ -49,7 +53,7 @@ def test_form_assets_are_exact_allowlisted_local_files(tmp_path):
         app = create_app(tmp_path, code_sink=lambda _: None)
         async with app.router.lifespan_context(app):
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=BASE_URL) as client:
-                for name in ("research_forms.js", "research_jobs.js", "system_tests.js", "system_benchmarks.js"):
+                for name in ("research_forms.js", "research_jobs.js", "system_tests.js", "system_benchmarks.js", "system_connections.js"):
                     response = await client.get("/assets/" + name)
                     assert response.status_code == 200
                     assert response.content == (static / name).read_bytes()
@@ -67,7 +71,7 @@ def test_specific_research_routes_precede_generic_artifact_handler():
                   'path.startsWith("/research/jobs/")'):
         assert script.index(route) < generic
     begin_view = script.split('function beginView() {', 1)[1].split('}', 1)[0]
-    for disposal in ('jobViews?.dispose()', 'systemTests?.dispose()', 'systemBenchmarks?.dispose()'):
+    for disposal in ('jobViews?.dispose()', 'systemTests?.dispose()', 'systemBenchmarks?.dispose()', 'systemConnections?.dispose()'):
         assert begin_view.index(disposal) < begin_view.index('activeView += 1')
     assert 'jobViews.recent(jobs, jobsError, (next) => loadResearch(offset, next))' in script
     assert 'error.field = payload.error.field.slice(0, 160)' in script

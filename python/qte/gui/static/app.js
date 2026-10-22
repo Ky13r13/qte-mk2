@@ -6,6 +6,7 @@ import { createResearchJobs } from "./research_jobs.js";
 import { createDatasetViews } from "./datasets.js";
 import { createSystemTests } from "./system_tests.js";
 import { createSystemBenchmarks } from "./system_benchmarks.js";
+import { createSystemConnections } from "./system_connections.js";
 
 const app = document.querySelector("#app");
 const pageStatus = document.querySelector("#page-status");
@@ -15,9 +16,10 @@ let activeView = 0;
 let jobViews = null;
 let systemTests = null;
 let systemBenchmarks = null;
+let systemConnections = null;
 const runViews = new Set(["overview", "metrics", "orders", "fills", "equity", "sampled_equity", "equity_table", "sampled_equity_table", "positions", "closed_trades", "open_trades", "order_events", "route_events", "provenance", "files", "catalog"]);
 
-function beginView() { jobViews?.dispose(); systemTests?.dispose(); systemBenchmarks?.dispose(); activeView += 1; return activeView; }
+function beginView() { jobViews?.dispose(); systemTests?.dispose(); systemBenchmarks?.dispose(); systemConnections?.dispose(); activeView += 1; return activeView; }
 function isCurrentView(request) { return request === activeView; }
 
 function navigate(href) {
@@ -872,6 +874,10 @@ systemBenchmarks = createSystemBenchmarks({
   api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation,
   textLink, displayValue, humanize,
 });
+systemConnections = createSystemConnections({
+  api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation,
+  textLink, displayValue, humanize,
+});
 
 function renderLogin(errorMessage = "") {
   logoutButton.hidden = true;
@@ -919,6 +925,7 @@ function route() {
   jobViews.dispose();
   systemTests.dispose();
   systemBenchmarks.dispose();
+  systemConnections.dispose();
   const path = window.location.pathname;
   if (path === "/library" || path === "/") loadLibrary();
   else if (path.startsWith("/library/")) {
@@ -963,6 +970,7 @@ function route() {
   }
   else if (path === "/system") systemTests.load();
   else if (path === "/system/benchmarks") systemBenchmarks.load();
+  else if (path === "/system/connections") systemConnections.load();
   else { beginView(); renderError("This page is unavailable."); }
 }
 

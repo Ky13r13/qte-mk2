@@ -100,6 +100,45 @@ it or persist credentials.
 
 ## Safety and readiness
 
+### Local GUI: offline prerequisite inspection (G9a)
+
+Open **System → Connections**. The page shows fixed Schwab and Robinhood Crypto
+entries; expand one for prerequisites and the existing adapter's scope. Opening
+or refreshing this view performs only a local status request. There are no
+credential inputs, connect/read/trade buttons, provider calls, automatic polls,
+contract-file scans, signer imports or account-response storage.
+
+The server enumerates environment **names only** and checks for
+`SCHWAB_ACCESS_TOKEN` and `ROBINHOOD_CRYPTO_API_KEY`; it does not fetch values or
+return any other environment names. **Key present** does not
+mean nonempty, valid, unexpired, authenticated or authorized: values are not
+inspected. Both providers stay blocked even if their keys exist. The GUI has no
+mechanism to register a Schwab contract or Robinhood signer yet. No arbitrary
+contract path, URL, method, credential or enable flag can be supplied by a page.
+
+`GET /api/v1/connections` is session/token-protected and `Cache-Control: no-store`.
+It returns `mode: offline_prerequisites_only`, `read_enabled: false`,
+`private_response_retention: false` and two fixed prerequisite records. It is
+not a connectivity probe. The defensive `POST /api/v1/connections/{id}/read`
+accepts only schema version 1 plus a bounded operation name, then **always
+rejects valid requests** with `409 broker_reads_disabled`. Unsupported inputs
+are rejected before this denial. This endpoint cannot invoke a broker client.
+The Python adapters described above remain separate trusted-code interfaces;
+GUI status does not enable or disable their direct use by a caller.
+
+### Deferred: approved private reads (G9b)
+
+Before adding executable GUI reads, decide the first permitted operation and
+its bounded redacted response schema, verified contract registration, approved
+signer/credential provisioning, approval lifetime, and retry/idempotency policy.
+Default response retention should remain off; never register account payloads
+as research artifacts. Then implement and mock-test the integration separately.
+Real provider verification requires explicit online authorization. G9a does not
+complete that gate, validate current provider contracts, implement OAuth, or
+establish paper/live trading readiness.
+
+### Existing Python transport boundary
+
 The shared transport is GET-only, bounded, HTTPS-only, and rejects redirects.
 Failures omit response bodies and credentials. It neither retries financial
 mutations nor exposes a generic POST interface. An injected transport is trusted

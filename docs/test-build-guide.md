@@ -36,6 +36,13 @@ For **New synthetic lab**, try seed `7`, bars per window `128`, and Hourly.
 The server builds its fixed 15-entry slate; it does not pick a synthetic winner.
 Both successful and failed jobs remain in Research. Registration is explicit.
 
+For a macro-routed **New run**, choose **Macro router** and paste the
+[explicit profile example](strategies/macro-router.md#gui-and-cli-profile).
+Preview and launch as above, then inspect **Macro routing** after registration.
+No macro observations means cash; no dealer positioning is inferred from bars.
+The CLI example is `examples/macro-router-run.json`. It demonstrates synthetic
+trend entry, retirement and cash, not validated economic performance.
+
 For **New comparison**, first validate and register separate chronological data
 windows. Select SMA train/test or a frozen candidate experiment; choose validation
 IDs, declare evidence, configure candidates/costs, preview, then launch. No
@@ -59,6 +66,11 @@ directory and validate it before use in research.
 **System** runs the existing fixed Python/C++ tests and shows their explicitly
 revealed evidence. **System → Benchmarks** runs bounded synthetic no-op/SMA speed
 measurements. Neither builds or installs anything; timing is not trading merit.
+
+**System → Connections** reports offline Schwab/Robinhood Crypto prerequisites.
+It does not authenticate, read accounts, or connect strategies to brokers.
+Credential-key presence is not validity; values stay uninspected. See the
+[broker boundary](broker-connections.md#local-gui-offline-prerequisite-inspection-g9a).
 
 ## End-to-end data flow
 
@@ -89,6 +101,12 @@ flowchart TD
     Binding --> Replay[C++ deterministic event replay]
     Replay --> Context[Completed history and owned state snapshots]
     Context --> Strategy[Python or C++ strategy callbacks]
+    Profile[Explicit macro releases and optional dealer observations] --> AsOf[Availability, vintage and freshness checks]
+    AsOf --> Router[Macro router: one active child, exit before switch]
+    Context --> Router
+    Router --> Strategy
+    Router --> Routes[Recorded route transitions and as-of inputs]
+    Routes --> Export
     Strategy --> Intent[Buffered order or cancel intent]
     Intent --> Risk[Risk approval or rejection]
     Risk --> Execution[Eligible symbol open: spread and slippage]
@@ -190,15 +208,15 @@ It supports the existing SMA train/test baseline and frozen candidate experiment
 Its exports can now be explicitly registered in Research for verified file
 access and safe candidate/window/comparison views. Test/mixed content remains
 guarded by disclosure confirmation. Select a train/validation window to compare
-base/stressed scenarios. The comparison backend can preview and execute fixed
-jobs; browser launch forms remain a separate G7a gate.
+base/stressed scenarios. **New comparison** previews and executes these fixed
+jobs through the browser; see the workflow above.
 
 ## Test-build limits
 
 Offline run/lab launch, cancellation, status/logs and result registration are
 implemented. Gated historical downloads and verified cache inspection are
 implemented with offline/mock checks. No GUI broker login, live/paper execution,
-dynamic code editor or test-runner controls. Existing API/process tests cover restart,
+or dynamic code editor. Existing API/process tests cover restart,
 timeouts, rejection and holdout protection. Full manual accessibility/200% zoom
 and every lifecycle combination in the browser remain acceptance work, not a
 claim of production readiness. Exact verification results and commands are in

@@ -40,7 +40,13 @@ def _int64(value, name: str) -> int:
 
 
 def _finite(value, name: str):
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        _fail(f"{name} must be finite")
+    try:
+        finite = math.isfinite(value)
+    except OverflowError:
+        finite = False
+    if not finite:
         _fail(f"{name} must be finite")
     return value
 
@@ -138,7 +144,8 @@ def _event(value, start_ns: int, end_ns: int, previous_ns: int | None, index: in
         _fail(f"events[{index}].macro_inputs must have distinct canonical features")
     dealer_input = _dealer(value["dealer_input"], timestamp_ns)
     if dealer_input is not None and dealer_input["classification"] == "proxy":
-        if value["dealer_regime"] != "unknown" or "dealer:proxy_not_positioning" not in reasons:
+        valid_proxy_reason = ("dealer:proxy_not_positioning" in reasons or "dealer:stale" in reasons)
+        if value["dealer_regime"] != "unknown" or not valid_proxy_reason:
             _fail("proxy dealer input must not qualify as gamma positioning")
     return {"timestamp_ns": timestamp_ns, "target_family": target, "active_family": active,
             "phase": phase, "macro_regime": value["macro_regime"],

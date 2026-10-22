@@ -76,6 +76,27 @@ def test_parser_rejects_proxy_claiming_qualified_gamma(tmp_path):
         validate_route_events(value, start_ns=S, end_ns=5 * S)
 
 
+def test_parser_accepts_a_stale_proxy_snapshot_without_treating_it_as_gamma_positioning(tmp_path):
+    dealer = DealerObservation(-1, 0, 0, "dealer", "v1", "method", "SPX", "proxy")
+    router = MacroRouterStrategy("SPY", [candidate()], MacroRegimeFilter(
+        _release(), RegimeConfig(dealer_mode="optional", max_dealer_age_ns=0), dealer_observations=[dealer]))
+    run([100, 101, 102, 103, 104], router)
+    value = _document(tmp_path, router)
+    event = value["events"][0]
+    assert event["dealer_regime"] == "unknown"
+    assert "dealer:stale" in event["reasons"]
+    assert validate_route_events(value, start_ns=S, end_ns=5 * S) == value["events"]
+
+
+def test_parser_turns_an_overflowing_integer_score_into_value_error(tmp_path):
+    router = MacroRouterStrategy("SPY", [candidate()], MacroRegimeFilter(_release()))
+    run([100, 101, 102, 103, 104], router)
+    value = _document(tmp_path, router)
+    value["events"][0]["macro_score"] = 10 ** 1000
+    with pytest.raises(ValueError, match="finite"):
+        validate_route_events(value, start_ns=S, end_ns=5 * S)
+
+
 def test_writer_rejects_a_route_event_that_no_longer_matches_its_asof_decision(tmp_path):
     router = MacroRouterStrategy("SPY", [candidate()], MacroRegimeFilter(_release()))
     run([100, 101, 102, 103, 104], router)

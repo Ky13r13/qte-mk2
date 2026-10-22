@@ -164,8 +164,13 @@ def validate_router_events(root, snapshots, manifest):
     except (KeyError, TypeError, ValueError, UnicodeDecodeError) as exc:
         raise ArtifactError("artifact_invalid", 422, "Router diagnostics are invalid.") from exc
     regime_filter = profile.make_filter()
+    configured_families = {candidate.kind for candidate in profile.candidates}
     for event in events:
         decision = regime_filter.explain(event["timestamp_ns"])
+        priorities = getattr(profile.priorities,
+                             f"{decision.macro_regime}_{decision.volatility_regime}", ())
+        target = next((family for family in priorities
+                       if family in configured_families and family in decision.permitted_families), None)
         expected = {
             "macro_regime": decision.macro_regime,
             "volatility_regime": decision.volatility_regime,
@@ -178,6 +183,10 @@ def validate_router_events(root, snapshots, manifest):
         }
         if any(event[key] != value for key, value in expected.items()):
             invalid("Router diagnostics disagree with their as-of manifest policy.")
+        if event["target_family"] != target:
+            invalid("Router diagnostics target disagrees with its configured priority.")
+        if event["active_family"] is not None and event["active_family"] not in configured_families:
+            invalid("Router diagnostics active family is not configured.")
 
 
 def validate_v2(root, snapshots, manifest, report):
@@ -191,6 +200,8 @@ def validate_v2(root, snapshots, manifest, report):
         raise ArtifactError("artifact_unsupported", 422, "Owned-result export version is unsupported.")
     if set(wrapper) != {"schema_version", "artifact_kind", "lineage", "capabilities", "files"}:
         invalid("Owned-result wrapper fields are invalid.")
+    if type(wrapper["capabilities"]) is not dict or type(wrapper["files"]) is not dict:
+        invalid("Owned-result capabilities or file map is invalid.")
     expected_lineage = {"legacy_format": "single_run_v1", "manifest": "manifest.json", "report": "report.json",
                         "source_identity": manifest["source_identity"], "dataset_hash": manifest["dataset_hash"]}
     if wrapper["lineage"] != expected_lineage: invalid("Owned-result lineage disagrees with the manifest.")

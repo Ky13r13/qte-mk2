@@ -153,8 +153,8 @@ configuration/CLI exports, G7a.2a guarded catalog access and G7a.2b safe compari
 views are reviewed. G7a.3a snapshots, G7a.3b backend preview/job/worker and
 G7a.3c browser forms are accepted offline (1197 Python tests, 15/15 CTest,
 25 JS; both workflows passed local synthetic browser runs). Downloads are
-disabled by default. G8 is next in the requested sequence; G7b and G9 remain
-queued with their own acceptance gates. The
+disabled by default. G8 followed in the requested sequence; each later increment
+retains its own acceptance gate. The
 G8a [evidence contract](gui-test-evidence.md) now has reviewed parsing, explicit
 identity capture, trusted discovery, pinned requests and completion-last writing
 (G8a.1/G8a.2a). Private supervised jobs (G8a.2b) are reviewed and accepted
@@ -163,8 +163,16 @@ are now accepted (1430 Python / 15 CTest / 37 JS), including actual browser
 launch/reveal/current-observation checks. Raw test downloads remain disabled.
 G8b [bounded benchmark jobs/evidence](gui-benchmarks.md) are implemented and
 reviewed (1485 Python / 15 CTest / 45 JS; real authenticated local API jobs pass).
-Visual browser acceptance is pending: the browser client blocked localhost.
-Next implementation: G7b macro/router bridge, followed by G9 connection inspection.
+The earlier localhost browser block did not recur; an October 21 no-op
+launch/status/evidence browser smoke check passed. Extended browser acceptance
+remains separate.
+G7b now exposes an explicit macro/router profile in single-run CLI/GUI research
+and optional guarded as-of route diagnostics, reusing the existing strategy and
+filter. [Profile usage](strategies/macro-router.md#gui-and-cli-profile) includes a
+synthetic runnable example. G9a adds accepted offline connection prerequisite inspection;
+G9b executable private reads remain deferred until approved setup and response
+contracts are defined. Latest verification results are in the task log (G9a:
+1535 Python / 51 JS / 15 CTest, plus actual Connections/benchmark browser smoke).
 The
 [forms contract](gui-research-forms.md) separates backend and browser gates.
 See the [task log](gui-task-log.md)

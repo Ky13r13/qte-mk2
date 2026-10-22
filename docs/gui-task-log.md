@@ -1,16 +1,15 @@
 # Active GUI implementation checkpoint
 
-Last checkpoint: 2026-10-20, G8b implemented and independently reviewed.
-System → Benchmarks adds explicit bounded synthetic no-op/SMA jobs and timing
-evidence. Focused 81 / full 1485 Python / 45 JavaScript / 15 CTest pass; build no work.
-Backend/API gate accepted; browser visual gate remains explicitly pending.
-Actual 10,000-bar authenticated local API/supervisor jobs succeeded:
-no-op `1a4cd36d2c6042b3bc4d7366fe214287`, SMA `af77d90671c443379d69faaddc10e880`.
-Both have unchanged recorded runtime identities; timing is not trading merit.
-Browser acceptance is blocked: in-app browser denied loopback navigation with
-ERR_BLOCKED_BY_CLIENT, leaving a blank tab. Do not claim visual acceptance.
-That temporary tab and the 8767 server were closed; no schedule remains active.
-Next: G7b macro/router bridge; G9 remains queued. Stay offline.
+Last checkpoint: 2026-10-21, G9a offline connection readiness accepted.
+Verification: **1535 Python / 51 JavaScript / 15 CTest**, independent Astra
+review, and real local Connections/benchmark browser smoke checks passed.
+The local research test build is usable; see [start/data-flow/strategy guide](test-build-guide.md).
+Status checks environment names only, never credential values. No broker
+transport, signer, contract scan, response persistence or enable flag was added.
+G9b actual reads remain deferred: approved setup, selected operations and bounded
+private-response contract must precede any separately approved online read.
+No broker GET or account action is authorized. No schedule is active. Stay
+offline; do not install packages or perform Git history/remote operations.
 **Read this file before resuming.**
 
 ## Authority and scope
@@ -39,6 +38,132 @@ time. It fired, resumed this work, and was deleted after use; it is not a
 nightly schedule or usage-reset guarantee.
 
 ## Baseline / environment
+
+### October 21 local GUI launch
+
+On the user's “Start” request, launched `.venv/bin/python -u -m qte gui`
+at `http://127.0.0.1:8765`, completed local one-time sign-in, and left the
+Library tab/server open for use. Broker reads/downloads remain disabled;
+no G9b implementation, dependency or Git changes. This is a foreground local
+process, not an installed persistent service. No access code is retained here.
+
+### October 21 G9a implementation and verification
+
+Added passive **System → Connections** for Schwab and Robinhood Crypto, with
+collapsed prerequisites and explicit refresh. The authenticated/no-store status
+endpoint exposes only two environment-key presence bits plus fixed metadata;
+the bounded POST read boundary always denies execution. No credential values,
+broker clients, transport, signer, private-response storage or jobs are involved.
+Existing trusted-code broker adapters are unchanged. Deep-link navigation now
+also accepts the existing benchmark page without relaxing API authentication.
+
+Sol built the backend/tests; Terra built the view/JS tests; root integrated and
+verified; Astra reviewed. Review caught Python 3.14 environment membership
+reading values: fixed with names-only iteration and a real `os._Environ`
+regression that forbids value decoding. Malformed UI responses now consistently
+report unavailable. Re-review found no remaining G9a issues. Documentation audit
+also removed stale claims that test/comparison launch controls were unavailable.
+
+Browser acceptance covered login, System navigation, both collapsed/expanded
+provider entries, explicit refresh, blocked status and the registered docs link.
+Also closed the earlier G8b basic browser-smoke gap: launched a 10-bar no-op job
+`f9dd9ded65f74b329962c9a17d804b9f`, refreshed to verified success and inspected
+metadata (zero fills, equity 100000, four identity groups unchanged, source-to-
+binary correspondence unknown). This is synthetic mechanics/timing evidence,
+not a performance claim or exhaustive accessibility/cross-browser acceptance.
+The agent-created tab is closed; no temporary server on 8767 remained on resume.
+
+The earlier full-suite terminal result was not retained across interruption;
+the complete suite was rerun: **1535 passed in 109.92 seconds**, no skips/failures.
+Native build succeeded (no work needed), **15/15 CTest**, **51/51 JavaScript**.
+Commands from the repository root (offline; scoped local test permissions):
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_connections.py tests/python/test_gui_research_browser_routes.py tests/python/test_gui_static.py tests/python/test_gui_documents.py tests/python/test_brokers.py -q --maxfail=1 --tb=short --basetemp=build/test-g9a-focused-20261021
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-g9a-full-20261021
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-g9a-full-resume-20261021
+.venv/bin/python -m pytest tests/python/test_gui_connections.py tests/python/test_gui_research_browser_routes.py tests/python/test_gui_static.py tests/python/test_gui_documents.py tests/python/test_brokers.py -q --maxfail=1 --tb=short --basetemp=build/test-g9a-final-20261021
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --test tests/javascript/*.test.mjs
+.venv/bin/python -u -m qte gui --port 8767
+git diff --check
+```
+
+New files: GUI `connections.py`, `connection_routes.py`,
+`static/system_connections.js`, Python connection tests and JavaScript view tests.
+Updated app/static routing, System links, document registry, browser/static
+regressions, broker/usage/architecture/roadmap/test-build docs and this log.
+Existing G7b work was preserved. No installs, broker requests, outside-repository
+edits or Git history/remote operations. G9b remains deferred as described above;
+it is not needed to develop and backtest local strategies.
+Final post-documentation integration checks: **143 passed**; `git diff --check`
+clean. The full data-flow visualization and strategy authoring instructions are
+maintained in [the test-build guide](test-build-guide.md).
+
+### October 20–21 G7b implementation and verification
+
+Added typed macro-router profiles to shared research configuration and CLI runs;
+the GUI accepts bounded exact JSON text, compiles quoted integers server-side,
+and uses existing authorized capture, preview fingerprints and immutable jobs.
+Optional v2 `route_events.json` preserves old export maps when absent. Its strict
+reader checks shape, causal inputs, policy/priority consistency and provenance;
+catalog-protected tables expose four columns plus complete text-only records.
+Financial-output protection flows to diagnostics, not in the reverse direction.
+Comparison metadata remains restricted to its existing SMA/six-family contract.
+No core execution, portfolio or strategy behavior changed.
+
+Sol built config/form/protection and real-worker API regressions; Terra built
+exports and validation. Independent Astra review found four defects (stale
+proxy, huge-integer overflow, invalid wrapper containers, forged routing target),
+all fixed with regressions and reviewed again. Root fixed a missed navigation
+allowlist entry, stale table handlers, and comparison metadata contamination.
+The first full run stopped at the unchanged comparison registry assertion:
+480 passed / 1 failed. Fixed implementation, not the assertion. Final full run:
+**1528 passed in 118.37 seconds**, no skips/failures.
+
+Authenticated ASGI acceptance launches the actual worker, rejects a changed
+profile's stale preview, explicitly registers output and checks exact timestamps,
+as-of inputs, paging and older exports' `not_recorded` response. Browser smoke
+acceptance additionally verified duplicate-key error focus, real preview/launch,
+successful registration, four-column route rendering, retirement provenance and
+back navigation. Basic narrow-window layout was inspected; this is not an
+exhaustive accessibility/cross-browser gate. The prior browser-client localhost
+block did not recur; no security setting was changed. The temporary server on
+8767 and agent-created tab were closed after acceptance.
+
+The [CLI example](../examples/macro-router-run.json) produces two fills and three
+transitions with verified checksums in `build/macro-router-demo-20261021`.
+[Profile usage](strategies/macro-router.md#gui-and-cli-profile) and the
+[data-flow/strategy guide](test-build-guide.md) explain both GUI string and CLI
+native-integer encodings. Synthetic inputs establish mechanics only. Their
+declared evidence is in the profile; single-run catalog evidence remains unknown,
+not independently authenticated historical/synthetic source classification.
+
+Commands from repository root (offline; scoped ASGI/subprocess/loopback access):
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_router_forms.py tests/python/test_router_config.py tests/python/test_gui_research_forms.py tests/python/test_gui_form_api.py -q --maxfail=1 --tb=short --basetemp=build/test-g7b-forms-20261020
+.venv/bin/python -m qte run --config examples/macro-router-run.json --output build/macro-router-demo-20261021 --export-version 2
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-g7b-full-20261021
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-g7b-full-final-20261021
+.venv/bin/python -m pytest tests/python/test_gui_router_api.py tests/python/test_gui_router_export.py tests/python/test_router_export.py tests/python/test_gui_comparison_forms.py tests/python/test_gui_documents.py tests/python/test_gui_static.py -q --maxfail=1 --tb=short --basetemp=build/test-g7b-final-check-20261021
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --test tests/javascript/*.test.mjs
+.venv/bin/python -u -m qte gui --port 8767
+git diff --check
+```
+
+Changed components: `router_config.py`, `router_export.py`, shared research
+configuration/export/CLI; GUI profile compiler/forms/comparison registry,
+v2 validation/catalog protection/routes/views and JavaScript; router/config/form/
+API/protection/export and UI regressions; example and usage/architecture/roadmap/
+export/strategy/task-log documentation. Some October 20 changes were already in
+the user's clean Git baseline on resumption. No Git history or remote operations
+were performed, and no dependencies installed.
+Final post-documentation/export/API/comparison checks: **54 passed**; repeated
+complete JavaScript suite **48 passed**; diff check clean.
 
 ### October 19–20 G8b implementation and verification
 
