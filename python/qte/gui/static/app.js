@@ -7,11 +7,12 @@ import { createDatasetViews } from "./datasets.js";
 import { createSystemTests } from "./system_tests.js";
 import { createSystemBenchmarks } from "./system_benchmarks.js";
 import { createSystemConnections } from "./system_connections.js";
+import { capabilityAvailable, routeCapability } from "./platform_capabilities.js";
 
 const app = document.querySelector("#app");
 const pageStatus = document.querySelector("#page-status");
 const logoutButton = document.querySelector("#logout-button");
-const state = { token: null, session: null, library: null };
+const state = { token: null, session: null, library: null, capabilities: null };
 let activeView = 0;
 let jobViews = null;
 let systemTests = null;
@@ -914,6 +915,15 @@ async function bootstrap() {
   try {
     state.session = await api("/api/v1/session", { includeToken: false });
     state.token = state.session.request_token;
+    state.capabilities = await api("/api/v1/capabilities");
+    for (const link of document.querySelectorAll("[data-nav]")) {
+      if (["research", "data"].includes(link.dataset.nav)) {
+        link.hidden = !capabilityAvailable(state.capabilities, link.dataset.nav);
+      }
+      if (link.dataset.nav === "system" && !capabilityAvailable(state.capabilities, "test_execution")) {
+        link.setAttribute("href", "/system/connections");
+      }
+    }
     logoutButton.hidden = false;
     route();
   } catch (error) {
@@ -927,6 +937,11 @@ function route() {
   systemBenchmarks.dispose();
   systemConnections.dispose();
   const path = window.location.pathname;
+  const required = routeCapability(path);
+  if (required && !capabilityAvailable(state.capabilities, required)) {
+    loadUnavailable(required, "Platform capability");
+    return;
+  }
   if (path === "/library" || path === "/") loadLibrary();
   else if (path.startsWith("/library/")) {
     const id = decodeRouteSegment(path, "/library/");

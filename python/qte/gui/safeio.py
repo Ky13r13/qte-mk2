@@ -19,6 +19,9 @@ class SafeReadError(Exception):
 
 def read_registered_file(root: Path, relative_path: str) -> bytes:
     """Read a regular file without following a symlink in any path component."""
+    if os.name == "nt":
+        from .windows_files import read_windows_file
+        return read_windows_file(Path(root), relative_path)
     rel = PurePosixPath(relative_path)
     if rel.is_absolute() or not rel.parts or any(part in ("", ".", "..") for part in rel.parts):
         raise SafeReadError("document_forbidden", 403, "Document unavailable.")

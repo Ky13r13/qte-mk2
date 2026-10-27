@@ -14,7 +14,8 @@ public:
     [[nodiscard]] std::uint64_t activate(
         portfolio::PortfolioSnapshot snapshot,
         market_data::BarHistorySnapshot history,
-        const bool allow_mutation) {
+        const bool allow_mutation,
+        const market_data::Timestamp now) {
         const std::lock_guard lock{mutex_};
         if (active_) {
             throw StrategyLifecycleError("strategy callback reentrancy is not allowed");
@@ -28,6 +29,7 @@ public:
         callback_thread_ = std::this_thread::get_id();
         snapshot_ = std::move(snapshot);
         history_ = std::move(history);
+        now_ = now;
         return generation_;
     }
 
@@ -37,6 +39,7 @@ public:
         allow_mutation_ = false;
         snapshot_.reset();
         history_.reset();
+        now_.reset();
     }
 
     [[nodiscard]] bool active() const {
@@ -62,6 +65,15 @@ public:
             throw StrategyContextError("strategy context has no bar history snapshot");
         }
         return *history_;
+    }
+
+    [[nodiscard]] market_data::Timestamp now(const std::uint64_t generation) const {
+        const std::lock_guard lock{mutex_};
+        require_access(generation);
+        if (!now_.has_value()) {
+            throw StrategyContextError("strategy context has no callback clock");
+        }
+        return *now_;
     }
 
     [[nodiscard]] SubmissionReceipt submit(
@@ -134,6 +146,7 @@ private:
     std::thread::id callback_thread_;
     std::optional<portfolio::PortfolioSnapshot> snapshot_;
     std::optional<market_data::BarHistorySnapshot> history_;
+    std::optional<market_data::Timestamp> now_;
     core::OrderIdGenerator order_ids_;
     std::uint64_t next_issue_sequence_{1};
     std::vector<StrategyCommand> commands_;
@@ -175,6 +188,10 @@ std::vector<market_data::Bar> StrategyContext::history(
     return lock_state(state_)->read_history(generation_).bars(symbol);
 }
 
+market_data::Timestamp StrategyContext::now() const {
+    return lock_state(state_)->now(generation_);
+}
+
 SubmissionReceipt StrategyContext::submit_order(orders::OrderRequest request) {
     return lock_state(state_)->submit(generation_, std::move(request));
 }
@@ -195,12 +212,15 @@ StrategyTestDriver::~StrategyTestDriver() = default;
 
 void StrategyTestDriver::order_update(
     const OrderUpdate& update, portfolio::PortfolioSnapshot snapshot,
-    market_data::BarHistorySnapshot history) {
+    market_data::BarHistorySnapshot history,
+    const std::optional<market_data::Timestamp> now) {
     require_not_in_callback();
     if (lifecycle_ != Lifecycle::running) {
         throw StrategyLifecycleError("on_order_update requires a running strategy");
     }
-    auto context = begin_callback(std::move(snapshot), std::move(history), false);
+    const auto callback_now = now.value_or(update.timestamp);
+    last_clock_ = callback_now;
+    auto context = begin_callback(std::move(snapshot), std::move(history), false, callback_now);
     try {
         strategy_->on_order_update(context, update);
         finish_callback();
@@ -219,9 +239,10 @@ void StrategyTestDriver::require_not_in_callback() const {
 StrategyContext StrategyTestDriver::begin_callback(
     portfolio::PortfolioSnapshot snapshot,
     market_data::BarHistorySnapshot history,
-    const bool allow_mutation) {
+    const bool allow_mutation,
+    const market_data::Timestamp now) {
     const std::uint64_t generation =
-        state_->activate(std::move(snapshot), std::move(history), allow_mutation);
+        state_->activate(std::move(snapshot), std::move(history), allow_mutation, now);
     return StrategyContext{state_, generation};
 }
 
@@ -236,13 +257,15 @@ void StrategyTestDriver::fail_callback() noexcept {
 
 void StrategyTestDriver::start(
     portfolio::PortfolioSnapshot snapshot,
-    market_data::BarHistorySnapshot history) {
+    market_data::BarHistorySnapshot history,
+    const market_data::Timestamp now) {
     require_not_in_callback();
     if (lifecycle_ != Lifecycle::ready) {
         throw StrategyLifecycleError("on_start must be the first and only start callback");
     }
     lifecycle_ = Lifecycle::running;
-    auto context = begin_callback(std::move(snapshot), std::move(history), true);
+    last_clock_ = now;
+    auto context = begin_callback(std::move(snapshot), std::move(history), true, now);
     try {
         strategy_->on_start(context);
         finish_callback();
@@ -255,13 +278,16 @@ void StrategyTestDriver::start(
 void StrategyTestDriver::bar(
     const market_data::Bar& bar,
     portfolio::PortfolioSnapshot snapshot,
-    market_data::BarHistorySnapshot history) {
+    market_data::BarHistorySnapshot history,
+    const std::optional<market_data::Timestamp> now) {
     require_not_in_callback();
     if (lifecycle_ != Lifecycle::running) {
         throw StrategyLifecycleError("on_bar requires a running strategy");
     }
     market_data::require_valid(bar);
-    auto context = begin_callback(std::move(snapshot), std::move(history), true);
+    const auto callback_now = now.value_or(bar.end_time);
+    last_clock_ = callback_now;
+    auto context = begin_callback(std::move(snapshot), std::move(history), true, callback_now);
     try {
         strategy_->on_bar(context, bar);
         finish_callback();
@@ -274,12 +300,15 @@ void StrategyTestDriver::bar(
 void StrategyTestDriver::fill(
     const orders::Fill& fill,
     portfolio::PortfolioSnapshot snapshot,
-    market_data::BarHistorySnapshot history) {
+    market_data::BarHistorySnapshot history,
+    const std::optional<market_data::Timestamp> now) {
     require_not_in_callback();
     if (lifecycle_ != Lifecycle::running) {
         throw StrategyLifecycleError("on_fill requires a running strategy");
     }
-    auto context = begin_callback(std::move(snapshot), std::move(history), true);
+    const auto callback_now = now.value_or(fill.effective_at());
+    last_clock_ = callback_now;
+    auto context = begin_callback(std::move(snapshot), std::move(history), true, callback_now);
     try {
         strategy_->on_fill(context, fill);
         finish_callback();
@@ -291,12 +320,15 @@ void StrategyTestDriver::fill(
 
 void StrategyTestDriver::end(
     portfolio::PortfolioSnapshot snapshot,
-    market_data::BarHistorySnapshot history) {
+    market_data::BarHistorySnapshot history,
+    const std::optional<market_data::Timestamp> now) {
     require_not_in_callback();
     if (lifecycle_ != Lifecycle::running) {
         throw StrategyLifecycleError("on_end requires a running strategy");
     }
-    auto context = begin_callback(std::move(snapshot), std::move(history), false);
+    const auto callback_now = now.value_or(last_clock_);
+    last_clock_ = callback_now;
+    auto context = begin_callback(std::move(snapshot), std::move(history), false, callback_now);
     try {
         strategy_->on_end(context);
         finish_callback();

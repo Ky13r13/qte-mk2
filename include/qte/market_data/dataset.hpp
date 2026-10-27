@@ -23,6 +23,11 @@ enum class CorporateActionCoverage {
     contains_actions,
 };
 
+enum class DatasetTiming {
+    fixed_interval_v1,
+    explicit_availability_v1,
+};
+
 class DatasetMetadata final {
 public:
     [[nodiscard]] static DatasetMetadata create(
@@ -32,9 +37,18 @@ public:
         CorporateActionCoverage corporate_actions,
         std::string volume_unit,
         std::string source_id);
+    [[nodiscard]] static DatasetMetadata create_explicit(
+        core::Currency valuation_currency,
+        PriceAdjustmentMode adjustment_mode,
+        CorporateActionCoverage corporate_actions,
+        std::string volume_unit,
+        std::string source_id,
+        std::string timing_source_id);
 
-    [[nodiscard]] std::chrono::nanoseconds bar_interval() const noexcept {
-        return bar_interval_;
+    [[nodiscard]] std::chrono::nanoseconds bar_interval() const;
+    [[nodiscard]] DatasetTiming timing_policy() const noexcept { return timing_policy_; }
+    [[nodiscard]] const std::string& timing_source_id() const noexcept {
+        return timing_source_id_;
     }
     [[nodiscard]] const core::Currency& valuation_currency() const noexcept {
         return valuation_currency_;
@@ -57,7 +71,9 @@ private:
         PriceAdjustmentMode adjustment_mode,
         CorporateActionCoverage corporate_actions,
         std::string volume_unit,
-        std::string source_id);
+        std::string source_id,
+        DatasetTiming timing_policy,
+        std::string timing_source_id);
 
     std::chrono::nanoseconds bar_interval_;
     core::Currency valuation_currency_;
@@ -65,11 +81,24 @@ private:
     CorporateActionCoverage corporate_actions_;
     std::string volume_unit_;
     std::string source_id_;
+    DatasetTiming timing_policy_;
+    std::string timing_source_id_;
+};
+
+struct BarObservation final {
+    Bar bar;
+    Timestamp available_at;
 };
 
 struct BarStream final {
     Symbol symbol;
     std::vector<Bar> bars;
+    std::vector<Timestamp> availability_times{};
+
+    [[nodiscard]] static BarStream from_observations(
+        Symbol symbol,
+        std::vector<BarObservation> observations);
+    [[nodiscard]] Timestamp publication_time(std::size_t index) const;
 };
 
 struct DatasetInput final {
@@ -101,6 +130,9 @@ enum class DatasetValidationCode {
     duplicate_bar,
     out_of_order_bar,
     overlapping_bars,
+    availability_count_mismatch,
+    publication_before_bar_end,
+    publication_out_of_order,
 };
 
 struct DatasetValidationError final {
@@ -150,6 +182,9 @@ private:
 
 [[nodiscard]] ValidatedDataset preflight(DatasetInput input);
 [[nodiscard]] std::string canonical_hash(const ValidatedDataset& dataset);
+[[nodiscard]] std::string_view canonical_hash_algorithm(
+    const ValidatedDataset& dataset) noexcept;
+[[nodiscard]] std::string_view to_string(DatasetTiming timing) noexcept;
 [[nodiscard]] std::string_view to_string(DatasetValidationCode code) noexcept;
 
 }  // namespace qte::market_data

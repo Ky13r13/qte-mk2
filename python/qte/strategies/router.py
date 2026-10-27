@@ -56,6 +56,10 @@ class _ChildContext:
     def portfolio(self):
         return self._context.portfolio
 
+    @property
+    def now_ns(self):
+        return self._context.now_ns
+
     def position(self, symbol):
         return self._context.position(symbol)
 
@@ -152,12 +156,12 @@ class MacroRouterStrategy(Strategy):
             self._child = CandidateStrategy(self.symbol, self._by_family[family], self._gate)
             self._child.on_start(_ChildContext(context, self))
 
-    def _record(self, bar, target: str | None, decision: RegimeDecision) -> None:
+    def _record(self, timestamp_ns: int, target: str | None, decision: RegimeDecision) -> None:
         phase = "retiring" if self._retiring else "active" if self._child is not None else "cash"
         state = (target, self._active_family, phase, decision.macro_regime,
                  decision.volatility_regime, decision.dealer_regime, decision.reasons)
         if state != self._last_route_state:
-            self._route_events.append(RouteEvent(bar.end_ns, *state))
+            self._route_events.append(RouteEvent(timestamp_ns, *state))
             self._last_route_state = state
 
     def on_bar(self, context, bar) -> None:
@@ -171,7 +175,7 @@ class MacroRouterStrategy(Strategy):
         quantity = 0 if position is None else position.quantity
         if quantity < 0:
             raise ValueError("MacroRouterStrategy is long-only")
-        decision = self.regime_filter.explain(bar.end_ns)
+        decision = self.regime_filter.explain(context.now_ns)
         target = self._target(decision)
         if self._child is None:
             if quantity != 0 or self._pending_order_id is not None:
@@ -183,7 +187,7 @@ class MacroRouterStrategy(Strategy):
             else:
                 self._retiring = True
         self._entry_allowed = not self._retiring and target == self._active_family
-        self._record(bar, target, decision)
+        self._record(context.now_ns, target, decision)
         if self._child is not None:
             self._child.on_bar(_ChildContext(context, self), bar)
 

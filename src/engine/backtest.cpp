@@ -76,7 +76,7 @@ public:
         }
         current_time_ = schedule_.slices().front().timestamp();
         sample_equity();
-        strategy_.start(portfolio_.snapshot(), history_.snapshot());
+        strategy_.start(portfolio_.snapshot(), history_.snapshot(), current_time_);
         process_commands(strategy_.take_commands());
 
         for (const auto& slice : schedule_.slices()) {
@@ -91,7 +91,7 @@ public:
         }
 
         cancel_end_of_data();
-        strategy_.end(portfolio_.snapshot(), history_.snapshot());
+        strategy_.end(portfolio_.snapshot(), history_.snapshot(), current_time_);
         const auto unexpected = strategy_.take_commands();
         if (!unexpected.empty()) {
             throw std::logic_error("on_end produced commands despite read-only context");
@@ -104,7 +104,7 @@ private:
         strategy_.order_update(strategy::OrderUpdate{
             order.id(), order.request().symbol, order.status(),
             order.filled_quantity(), order.remaining_quantity(), current_time_, reason},
-            portfolio_.snapshot(), history_.snapshot());
+            portfolio_.snapshot(), history_.snapshot(), current_time_);
     }
 
     [[nodiscard]] core::EventSequence next_sequence() {
@@ -123,10 +123,15 @@ private:
 
     void publish_closes(const market_data::TimeSlice& slice) {
         for (const auto& bar : slice.completed_bars()) {
+            const auto latest = latest_observations_.find(bar.symbol.value());
+            if (latest != latest_observations_.end() && bar.end_time <= latest->second) {
+                continue;
+            }
             portfolio_.mark(
                 bar.symbol,
                 portfolio::ValuationMark::create(
                     slice.timestamp(), next_sequence(), bar.close));
+            latest_observations_[bar.symbol.value()] = bar.end_time;
         }
         history_.publish(slice.completed_bars());
     }
@@ -135,7 +140,7 @@ private:
         const auto snapshot = portfolio_.snapshot();
         const auto history = history_.snapshot();
         for (const auto& bar : slice.completed_bars()) {
-            strategy_.bar(bar, snapshot, history);
+            strategy_.bar(bar, snapshot, history, current_time_);
         }
     }
 
@@ -262,6 +267,7 @@ private:
                 opening.symbol,
                 portfolio::ValuationMark::create(
                     opening.timestamp, sequence, opening.price));
+            latest_observations_[opening.symbol.value()] = opening.timestamp;
             openings.emplace(opening.symbol.value(), std::pair{opening, sequence});
         }
 
@@ -336,7 +342,7 @@ private:
         const auto snapshot = portfolio_.snapshot();
         const auto history = history_.snapshot();
         for (const auto& fill : fills) {
-            strategy_.fill(fill, snapshot, history);
+            strategy_.fill(fill, snapshot, history, current_time_);
         }
     }
 
@@ -394,6 +400,14 @@ private:
                 open_trades.push_back(*trade);
             }
         }
+        std::optional<market_data::Timestamp> observation_end;
+        for (const auto& stream : dataset_.streams()) {
+            for (const auto& bar : stream.bars) {
+                if (!observation_end.has_value() || bar.end_time > *observation_end) {
+                    observation_end = bar.end_time;
+                }
+            }
+        }
         return BacktestResults{
             equity_curve_,
             std::move(order_snapshots),
@@ -404,7 +418,7 @@ private:
             final_snapshot.positions(),
             RunManifest{
                 market_data::canonical_hash(dataset_),
-                "fnv1a64-v1",
+                std::string{market_data::canonical_hash_algorithm(dataset_)},
                 dataset_.metadata().source_id(),
                 std::string{execution::OpenOnlyExecutionModel::model_id()},
                 market_data::kBarSchemaVersion,
@@ -416,6 +430,12 @@ private:
                 config_.history_capacity(),
                 dataset_.gaps().size(),
                 normalized_config(config_),
+                std::string{market_data::to_string(dataset_.metadata().timing_policy())},
+                dataset_.metadata().timing_source_id(),
+                *observation_end,
+                current_time_,
+                "at_bar_start_v1",
+                "strict_per_symbol_v1",
             },
         };
     }
@@ -432,6 +452,7 @@ private:
     std::map<std::uint64_t, std::unique_ptr<orders::OrderRecord>> orders_;
     std::map<std::uint64_t, risk::PendingOrderSnapshot> pending_;
     std::map<std::uint64_t, std::string> order_details_;
+    std::map<std::string, market_data::Timestamp> latest_observations_;
     std::vector<OrderEvent> order_events_;
     std::vector<EquityPoint> equity_curve_;
     core::EventSequenceGenerator sequences_;

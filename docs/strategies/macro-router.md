@@ -15,7 +15,9 @@ release availability, revision vintages, and transformation provenance. Missing,
 stale, risk-off, or extreme-volatility inputs do not authorize entries.
 
 At each matching-symbol bar close, the router calls
-`regime_filter.explain(bar.end_ns)`. The first family that is both configured and
+`regime_filter.explain(ctx.now_ns)` (equal to bar end on the legacy data path).
+Delayed bars use current callback time for macro availability/staleness and route
+logs. The first family that is both configured and
 permitted by that decision wins the following ordered priority list:
 
 | Macro state | Volatility | Default priority |

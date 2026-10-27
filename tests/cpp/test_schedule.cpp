@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -96,6 +97,23 @@ void check_throws(Function&& function, const std::string_view expression, const 
     if (reverse_streams) {
         std::swap(input.streams[0], input.streams[1]);
     }
+    return qte::market_data::preflight(std::move(input));
+}
+
+[[nodiscard]] ValidatedDataset delayed_dataset() {
+    DatasetInput input{
+        DatasetMetadata::create_explicit(
+            Currency::usd(), PriceAdjustmentMode::unadjusted,
+            CorporateActionCoverage::action_free, "shares", "schedule-fixture",
+            "declared-publication-times"),
+        {instrument("SPY"), instrument("QQQ")},
+        {
+            BarStream{Symbol{"SPY"}, {bar("SPY", 0), bar("SPY", 1)},
+                      {Timestamp{2h}, Timestamp{4h}}},
+            BarStream{Symbol{"QQQ"}, {bar("QQQ", 0), bar("QQQ", 2)},
+                      {Timestamp{3h}, Timestamp{5h}}},
+        },
+    };
     return qte::market_data::preflight(std::move(input));
 }
 
@@ -194,12 +212,69 @@ void bounded_history_publishes_completed_batches_and_preserves_gaps() {
     }
 }
 
+void explicit_publications_delay_completion_but_not_openings() {
+    const DeterministicSchedule schedule{delayed_dataset()};
+    bool opening_spy_zero = false;
+    bool opening_spy_one = false;
+    bool opening_qqq_two = false;
+    bool published_spy_zero = false;
+    bool published_spy_one = false;
+    bool published_qqq_zero = false;
+    bool published_qqq_two = false;
+    for (const auto& slice : schedule.slices()) {
+        std::set<std::string> released_symbols;
+        for (const auto& completed : slice.completed_bars()) {
+            CHECK(released_symbols.insert(completed.symbol.value()).second);
+            CHECK(completed.end_time <= slice.timestamp());
+            if (completed.symbol == Symbol{"SPY"} && completed.start_time == Timestamp{0h}) {
+                CHECK(slice.timestamp() == Timestamp{2h});
+                published_spy_zero = true;
+            } else if (completed.symbol == Symbol{"SPY"} &&
+                       completed.start_time == Timestamp{1h}) {
+                CHECK(slice.timestamp() == Timestamp{4h});
+                published_spy_one = true;
+            } else if (completed.symbol == Symbol{"QQQ"} &&
+                       completed.start_time == Timestamp{0h}) {
+                CHECK(slice.timestamp() == Timestamp{3h});
+                published_qqq_zero = true;
+            } else if (completed.symbol == Symbol{"QQQ"} &&
+                       completed.start_time == Timestamp{2h}) {
+                CHECK(slice.timestamp() == Timestamp{5h});
+                published_qqq_two = true;
+            }
+        }
+        for (const auto& opening : slice.openings()) {
+            CHECK(opening.timestamp == slice.timestamp());
+            if (opening.symbol == Symbol{"SPY"} && opening.timestamp == Timestamp{0h}) {
+                opening_spy_zero = true;
+            } else if (opening.symbol == Symbol{"SPY"} &&
+                       opening.timestamp == Timestamp{1h}) {
+                opening_spy_one = true;
+            } else if (opening.symbol == Symbol{"QQQ"} &&
+                       opening.timestamp == Timestamp{2h}) {
+                opening_qqq_two = true;
+            }
+        }
+        if (slice.timestamp() < Timestamp{2h}) {
+            CHECK(slice.completed_bars().empty());
+        }
+    }
+    CHECK(opening_spy_zero);
+    CHECK(opening_spy_one);
+    CHECK(opening_qqq_two);
+    CHECK(published_spy_zero);
+    CHECK(published_spy_one);
+    CHECK(published_qqq_zero);
+    CHECK(published_qqq_two);
+}
+
 }  // namespace
 
 int main() {
     schedule_merges_by_time_phase_and_symbol_deterministically();
     opening_observations_do_not_expose_future_bar_fields();
     bounded_history_publishes_completed_batches_and_preserves_gaps();
+    explicit_publications_delay_completion_but_not_openings();
 
     if (failures != 0) {
         std::cerr << failures << " schedule test(s) failed\n";

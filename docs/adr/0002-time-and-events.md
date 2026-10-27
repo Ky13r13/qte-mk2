@@ -7,13 +7,14 @@ Bar schema version 1.
 ## Data boundary
 
 Bar times are UTC nanosecond instants; interval is `[start_time, end_time)`.
-Historical completed bars are available at end_time. This is an explicit
-zero-publication-delay assumption. Future delayed/revised observations need an
-event envelope with availability time >= end_time, not a reinterpretation of
-Bar timestamp fields. Until supported, reject such datasets at preflight.
+Legacy completed bars are available at end_time, an explicit zero-delay
+assumption. [ADR 0012](0012-explicit-availability.md) adds an opt-in envelope
+with availability >= end_time and mixed durations, preserving Bar fields and
+legacy hashes. Revisions/out-of-order releases remain unsupported.
 
 Dataset preflight validates every Bar plus profile metadata before on_start.
-Require one fixed positive interval, duration equality for all bars, unique
+The legacy profile requires one fixed positive interval and duration equality.
+Both profiles require unique
 `(symbol, start_time, end_time)`, and strictly increasing non-overlapping bars
 within each symbol stream. Reject duplicates (even identical) and out-of-order
 streams; do not silently sort, merge, fill or drop rows. Input order between
@@ -30,7 +31,7 @@ Every event/command gets one run-global increasing sequence.
 
 | Phase | Work | Strategy visibility |
 |---|---|---|
-| 1 | Publish all bars ending at T; update their close marks and histories | No callback until the whole batch is published |
+| 1 | Publish all bars available at T; update histories and non-stale close marks | No callback until the whole batch is published |
 | 2 | Call on_bar for those bars in symbol order | Completed history through T and current committed portfolio |
 | 3 | Process buffered commands in callback/submission order: cancellations, submissions as issued | No reentrant callback |
 | 4 | Internally introduce opens of bars starting at T; mark all opening symbols, then execute eligible orders in ascending ID | Future Bar OHLCV objects remain private |

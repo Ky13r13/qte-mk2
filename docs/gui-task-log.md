@@ -1,7 +1,27 @@
 # Active GUI implementation checkpoint
 
-Last checkpoint: 2026-10-21, G9a offline connection readiness accepted.
-Verification: **1535 Python / 51 JavaScript / 15 CTest**, independent Astra
+Latest checkpoint: **W2b private Windows artifact reader implemented** on 2026-10-25:
+**1709 Python / 15 CTest**, seven native Windows tests skipped; independent Astra
+review passed. The storage facade and GUI remain Windows-blocked. W1/W2b native
+acceptance and W2c persistence/W2d integration remain; do not enable routes yet.
+Prior W2a gate: **1675 Python / 15 CTest** on 2026-10-24.
+User confirmed
+PowerShell failed on a Linux-only module and explicitly requested Windows GUI
+functionality. First increment isolates platform routes and adds pinned Windows
+document reads; W2 artifact storage and W3 supervised jobs remain separate gates.
+No Windows runtime is available here; native build/handle/browser acceptance is
+required before declaring support verified. W1 Linux regression passed on
+2026-10-23: **1655 Python / 53 JavaScript / 15 CTest**; three native Windows
+tests skipped. Limited-mode browser smoke and independent Astra review passed.
+W2a isolates the existing Linux artifact backend and centralizes snapshot identity
+without enabling Windows storage/jobs. W1 acceptance still requires Windows.
+
+Last accepted checkpoint: 2026-10-22, **R2b session-aware replay**.
+Verification: **1613 Python / 51 JavaScript / 15 CTest**, independent Astra
+review, offline extension rebuild and executable session example passed.
+R2c local session configuration/export/GUI integration remains queued after the
+user-requested Windows work. No network, new dependencies or Git operations.
+Prior G9a verification: **1535 Python / 51 JavaScript / 15 CTest**, independent Astra
 review, and real local Connections/benchmark browser smoke checks passed.
 The local research test build is usable; see [start/data-flow/strategy guide](test-build-guide.md).
 Status checks environment names only, never credential values. No broker
@@ -38,6 +58,287 @@ time. It fired, resumed this work, and was deleted after use; it is not a
 nightly schedule or usage-reset guarantee.
 
 ## Baseline / environment
+
+### October 24–25 W2b private Windows artifact reader
+
+Implemented privately. Reuses W1's no-follow, read-shared handle opens and volume-GUID paths;
+adds full 64-bit volume/128-bit file identity and raw Windows last-write/change
+times through an independent handle extension. A tagged Windows snapshot avoids
+fabricating POSIX inode/ctime equivalents. Bounded iterative inventory uses names
+only from directory enumeration, checks each entry through a handle, retains
+ancestors, checks directories for changes, and closes iterators/handles on errors.
+Stable reads check expected identity, size, and before/after metadata. No ordinary
+path-open fallback. This is change-detecting traversal, not an atomic snapshot.
+
+Sol's two identity files survived the October 24 usage interruption; root recovered
+them and Sol completed their tests on October 25. Root owns the private reader;
+Terra owns its independent tests and Astra reviews. Files so far:
+`windows_artifact_handles.py`, `_artifact_io_windows.py`, Windows handle/reader
+tests, Windows guide, roadmap and this log. Neither `artifact_io` dispatch nor GUI
+capabilities is changed. Native Windows, W2c persistence and W2d integration remain
+separate gates. Existing Linux filesystem behavior and the C++ core are unchanged.
+
+Verification commands from the repository root:
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_windows_handles.py tests/python/test_gui_windows_artifacts.py tests/python/test_gui_artifact_io.py tests/python/test_gui_catalog.py -q --maxfail=1 --tb=short --basetemp=build/test-w2b-final-focused-20261025
+# 71 passed, 4 native-only skipped in 0.95s
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# build/local-dev: no work; 15/15 passed in 0.08s
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-w2b-full-20261025
+# 1709 passed, 7 native-only skipped in 119.27s
+.venv/bin/python -m pytest tests/python/test_gui_windows_handles.py tests/python/test_gui_windows_artifacts.py -q --maxfail=1 --tb=short --basetemp=build/test-w2b-acceptance-fixtures-20261025
+# 34 passed, 4 native-only skipped in 0.51s after native-fixture refinement
+git diff --check
+# passed
+```
+
+Full regression used the previously required scoped local loopback/subprocess
+permissions. All Python stayed in `.venv`. No new dependencies, external network,
+Git mutations or foreground GUI restart. Read-only tool inspection still found
+native GCC but no PowerShell, Wine or MinGW Windows toolchain.
+
+Review corrected test fixtures rather than production safeguards: the total-size
+fixture now reaches the actual size limit instead of failing on its fake root;
+native tests call real wrappers rather than a nonexistent helper; the unsupported
+platform test injects Linux explicitly even when run on Windows. The native
+replacement fixture creates a distinct file before replacement to avoid relying
+on recycled IDs/timestamp resolution. Native volume IDs use the documented full
+unsigned range, not an invented nonzero prerequisite. Injected tests cover scanner
+and handle cleanup, identity changes, bounded reads, aliases/reparse points and
+independent limits. Astra's source/test reviews have no remaining required fixes.
+
+Native Windows identity/sharing/enumeration and replacement checks are still
+unrun; the seven native-only tests are listed in `windows-gui.md`. Next work is
+W2c's durable protection/disclosure and SQLite containment design, followed by
+implementation/integration. Do not select this backend for the GUI until the
+combined persistence and native acceptance gates pass. W3 jobs remain separate.
+
+### October 24 W2a artifact backend boundary
+
+Implemented: extracted existing descriptor-based artifact operations into private
+`_artifact_io_posix.py`, retaining the `artifact_io` facade and public signatures.
+Non-Linux hosts reject artifact filesystem operations before importing the backend
+or touching files; there is no ordinary-open fallback. Shared `Snapshot.identity()`
+now drives stable reads and sorted catalog fingerprints. No persistent format,
+holdout policy, engine behavior or Windows route availability changed.
+
+Sol implemented extraction, Terra added independent boundary tests, root integrated
+catalog cache checks and reviewed test sensitivity, and Astra reviewed the product
+change. New tests cover limits, forbidden entries, all expected identity fields,
+replacement/mutation, descriptor cleanup and unsupported hosts. Root's catalog
+regression proves reorder-only inventories reuse verification while same-content
+file replacement forces reinspection. Astra's product and final test reviews found
+no blockers. W1 native acceptance remains unavailable on this Linux host.
+
+Files changed this increment: `artifact_io.py`, new `_artifact_io_posix.py`,
+`catalog.py`, new `test_gui_artifact_io.py`, catalog tests, Windows guide, roadmap
+and this log. No core, frontend, dependency, disclosure format or database change.
+No internet, installations, Git mutations or foreground GUI restart.
+
+Commands run from the repository root:
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_artifacts.py tests/python/test_gui_catalog.py tests/python/test_gui_router_protection.py tests/python/test_gui_job_protection.py tests/python/test_gui_form_protection.py tests/python/test_gui_comparison_catalog.py -q --maxfail=1 --tb=short --basetemp=build/test-w2a-protection-scoped-20261024
+# 96 passed in 6.77s
+.venv/bin/python -m pytest tests/python/test_gui_artifact_io.py tests/python/test_gui_catalog.py -q --maxfail=1 --tb=short --basetemp=build/test-w2a-contract-final-20261024
+# 37 passed in 0.52s
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# build/local-dev: no work; 15/15 passed in 0.06s
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-w2a-full-20261024
+# 1675 passed, 3 native-Windows skipped in 118.06s
+git diff --check
+# passed
+```
+
+The sandboxed protection run (`--basetemp=build/test-w2a-protection-20261024`)
+stalled at the existing threaded API tests and was interrupted; the scoped local
+rerun above passed. An intermediate contract run (`--basetemp=build/test-w2a-contract-20261024`)
+had 18 passes plus a test-guard failure: Python's import `fromlist` can be None.
+The fixture now normalizes that value and restores import/filesystem patches
+before pytest reporting. Root also separated total-byte and entry-count limits
+so the latter cannot mask the former. No assertion or production safeguard was
+removed to obtain a pass. All Python used the repository `.venv`.
+
+Next: W2b native inventory/read implementation and acceptance, then W2c
+protection/SQLite persistence and W2d integration. Keep Windows artifacts/jobs
+disabled until their respective boundaries are verified. W1 native acceptance
+is independent and still requires the user's Windows checkout.
+
+### October 22–23 W1 Windows Library/Connections increment
+
+Removed unconditional Linux job/storage imports from GUI startup. Host-selected
+capabilities retain the complete Linux GUI and expose only authenticated Library
+and offline Connections elsewhere. Unsupported routes fail closed with 503 after
+authentication; browser links/deep links cannot expose job controls. Downloads and
+broker operations remain disabled. Added exclusive Windows loopback socket binding.
+
+Added a bounded Win32 document reader with pinned non-reparse ancestors, local
+volume-GUID child paths, denied write/delete sharing, size/identity checks and
+handle cleanup. Astra review caught ancestor write sharing and empty logical-path
+handling; both corrected with regression coverage. This code is implementation-
+reviewed, not native-Windows accepted. No Windows runtime/PowerShell is available
+on this host; no tools or dependencies were installed.
+
+Changed W1 files: GUI app/server/safeio/documents/static app; new platform-support,
+Windows-reader and JS capability modules; new Windows Python/JS tests and server
+regressions; `scripts/start-gui.ps1`; README, GUI usage, roadmap, Windows guide and
+this log. All preceding R2a/R2b and user changes remain intact. No Git mutations.
+
+Exact final verification commands from the repository root:
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gui_windows.py tests/python/test_gui_app.py tests/python/test_gui_server.py tests/python/test_gui_documents.py tests/python/test_gui_static.py tests/python/test_gui_connections.py -q --maxfail=1 --tb=short --basetemp=build/test-w1-final-focused-20261022
+# 93 passed, 3 native-only skipped in 1.15s
+/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --test tests/javascript/*.test.mjs
+# 53 passed
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# build/local-dev: no build work; 15/15 passed
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-w1-full-20261023
+# 1655 passed, 3 native-only skipped in 113.89s
+.venv/bin/python -m pytest tests/python/test_gui_documents.py -q --basetemp=build/test-w1-document-final-20261023
+# 9 passed in 0.11s after documentation formatting/acceptance-command correction
+git diff --check
+# passed
+```
+
+Existing loopback/subprocess tests needed scoped local execution. One sandboxed
+focused attempt stalled and was interrupted; October 22's full-suite approval
+attempt hit reviewer usage exhaustion. A fresh approved October 23 run completed
+above; neither interruption was counted as a pass or worked around with weakened
+tests. Python remained in the repository `.venv`.
+
+Browser smoke used a separate port-8767 preview with Linux capabilities explicitly
+limited for testing. Verified login, hidden Research/Data links, System routing to
+offline Connections, Windows-guide rendering, blocked research deep link without
+launch controls, and logout. This exercises UI gating, not Win32 handles. The
+guide's table was changed to a list for the Library's CommonMark renderer. The
+preview/tab were stopped/closed; the user's port-8765 GUI was left untouched.
+
+Remaining: run the native acceptance subset in [windows-gui.md](windows-gui.md)
+on the user's Windows checkout, including actual handle/junction/sharing tests,
+PowerShell/native extension and browser smoke. The subset excludes existing POSIX
+FIFO/process fixtures; the full Linux suite remains unchanged. W2 artifact/Data
+storage and W3 process supervision are queued and must not be advertised as
+Windows-ready. Fresh Windows dependency bootstrap is also unvalidated; installing
+missing tools/packages or enabling any online access still needs approval.
+
+### October 22 R2b session-aware replay bridge
+
+Implemented opt-in `explicit_availability_v1` datasets and `BarObservation`;
+canonical Bar v1 and fixed-interval hash bytes remain unchanged. Explicit
+publication clocks allow variable daily/short-tail durations, reject unordered
+per-symbol releases, and never backfill an already-processed opening. Strategy
+`now_ns` is callback time; candidate/router macro gates use it for point-in-time
+availability and staleness. Manifests distinguish observation and replay ends.
+
+The engine preserves newer economic marks while applying all ledger events at
+current replay time. Astra caught cross-symbol backwards-ledger timestamps and
+pre-epoch manifest initialization; both fixed and regression-tested. Final review
+also confirmed potential signed-duration overflow in existing analytics; analysis
+now rejects nonmonotonic events or elapsed spans above INT64_MAX before subtraction.
+This keeps normal-run arithmetic unchanged. Sol/Terra built scoped components;
+root completed integration/verification after their usage interruptions. Astra
+review found no remaining issues in the integrated changes or duration guard.
+
+Added `build_session_dataset` for already-canonical bars plus a caller-declared
+schedule/source/action-free assertion. No aggregation, repair, source verification
+or network. Missing buckets remain gaps; gap count still includes overnight
+closures. Direct Python replay/analytics work; existing GUI/CLI formats remain
+fixed-interval, and comparison/experiment APIs reject explicit timing pending R2c.
+Added ADR 0012, Library registration, data-flow/strategy guide and executable
+synthetic example. Foreground GUI was not restarted automatically.
+
+Files changed for R2b: dataset/schedule, engine and strategy headers/sources;
+analytics source; bindings; package/adapter exports; new session adapter;
+research/experiment guards; candidate/router clocks; GUI document registry;
+C++ dataset/schedule/strategy/backtest/analytics tests; new Python availability/
+session-adapter tests and candidate/router/document regressions; README, ADRs
+0002/0011/0012, architecture/adapters/roadmap/macro-router/test-build docs and log.
+Prior R2a/user work preserved. No Git history or remote changes.
+
+Commands run from the repository root (offline):
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 TMPDIR="$PWD/build" .venv/bin/python -m pip install --no-index --no-build-isolation --no-deps -e .
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+.venv/bin/python -m pytest tests/python/test_explicit_availability.py tests/python/test_bindings.py tests/python/test_candidates.py tests/python/test_router.py tests/python/test_experiments.py tests/python/test_research_baseline.py -q --maxfail=1 --tb=short --basetemp=build/test-r2b-bindings-20261022
+.venv/bin/python -m pytest tests/python/test_session_bars.py tests/python/test_session_calendar.py tests/python/test_sampling_integrity.py -q --maxfail=1 --tb=short --basetemp=build/test-r2b-session-20261022
+.venv/bin/python -m pytest tests/python/test_explicit_availability.py tests/python/test_session_bars.py tests/python/test_gui_documents.py -q --maxfail=1 --tb=short --basetemp=build/test-r2b-final-focused-20261022
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-r2b-full-20261022
+/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --test tests/javascript/*.test.mjs
+git diff --check
+```
+
+Focused stages: 188, 56 and 46 passed. Native build and **15/15 CTest** passed.
+Offline editable reinstall rebuilt only this repository's extension inside its
+`.venv`; no dependencies downloaded/installed. JS first encountered sandbox
+`spawnSync EPERM`; the same command with scoped local subprocess permission
+passed **51/51**, without code changes. Full Python **1613 passed in 112.08s**.
+The guide's Python example was executed directly from its Markdown code block:
+one next-session fill, final equity 1001, explicit timing manifest.
+
+During this work the user reported native Windows/PowerShell startup failure
+and confirmed a module error. Read-only audit found unconditional `fcntl` import
+in GUI jobs, Linux subreaper/process-group supervision, Unix venv paths and
+directory-relative file operations. Changing shell commands is insufficient;
+native Windows needs a separate portability milestone. No Windows fix or install
+was performed at that diagnostic point, and no Windows/WSL validation is claimed.
+The user subsequently explicitly requested the Windows GUI port (W1–W3 above).
+
+### October 21–22 R2a offline session contract
+
+Added `python/qte/session_calendar.py`: immutable explicit inclusive schedules,
+closed-date records, UTC-nanosecond daily/hourly windows, truncated tails,
+declared publication delays, close grids and revision-sensitive snapshot hashes.
+It rejects unknown/missing/out-of-order dates, invalid types and overflow.
+Schedules are caller-declared, not exchange-verified; no holiday/timezone rules
+are inferred. No Bar, Dataset, replay, adapter or broker behavior changed.
+
+Sol implemented the module; Terra added independent fixtures; root completed
+final tests/docs after Terra's usage interruption. Astra reviewed and cleared
+the implementation. Review found list copying before the coverage-size check;
+fixed and regression-tested. Two new test-fixture errors were diagnosed and
+corrected: Fill exposes `effective_ns`, and the frozen-window test needed valid
+date-matched timestamps before attempting mutation. Frozen tests now assert
+`FrozenInstanceError` specifically; no test was deleted or weakened.
+
+New `tests/python/test_session_calendar.py` covers 34 cases, including declared
+DST/holiday/weekend/early-close/exceptional closures, bounds, ownership and hash
+sensitivity. An actual-engine sampling regression preserves fixed half-hour bars,
+holiday gaps, next-available-open execution and exact equity, using an explicit
+run-start anchor plus declared session closes. It is not daily replay support.
+The new ADR is registered and link-tested in the existing GUI Library; the
+standalone example executes successfully. Existing foreground GUI was not
+restarted; its new registry entry requires a normal server restart.
+
+Changed files: new module, calendar tests and `docs/adr/0011-session-calendar.md`;
+sampling/document tests, GUI document registry, adapter/architecture/roadmap/
+test-build guidance and this checkpoint. Existing user work was preserved.
+
+Commands from the repository root (all offline, existing `.venv`/native tools):
+
+```sh
+.venv/bin/python -m pytest tests/python/test_session_calendar.py -q --basetemp=build/test-r2a-agent-20261021
+.venv/bin/python -m pytest tests/python/test_session_calendar.py tests/python/test_sampling_integrity.py tests/python/test_adapters.py tests/python/test_research_adapters.py tests/python/test_gui_documents.py -q --maxfail=1 --tb=short --basetemp=build/test-r2a-focused-20261021
+.venv/bin/python -m pytest tests/python/test_session_calendar.py tests/python/test_sampling_integrity.py tests/python/test_adapters.py tests/python/test_research_adapters.py tests/python/test_gui_documents.py -q --maxfail=1 --tb=short --basetemp=build/test-r2a-focused-20261022
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-r2a-full-20261022
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --test tests/javascript/*.test.mjs
+git diff --check
+```
+
+Final focused **62 passed**; full Python **1571 passed in 111.48 seconds**;
+native build succeeded (no work required), **15/15 CTest** and **51/51 JS**.
+No external data verification or new browser-flow acceptance claimed. No
+installs, internet, broker calls or Git history/remote operations. Remaining
+gates: R2b timing integration, verified schedule acquisition, corporate-action
+accounting and real-data research. No new approval was needed for this increment.
 
 ### October 21 local GUI launch
 

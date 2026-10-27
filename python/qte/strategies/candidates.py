@@ -182,7 +182,7 @@ class CandidateStrategy(Strategy):
             self._holding_bars += 1
         if self._pending_order_id is not None:
             return
-        allowed = True if self.regime_filter is None else self.regime_filter(bar.end_ns, self.config.kind)
+        allowed = True if self.regime_filter is None else self.regime_filter(context.now_ns, self.config.kind)
         if type(allowed) is not bool:
             raise TypeError("regime_filter must return bool")
         history = context.history(self.symbol)

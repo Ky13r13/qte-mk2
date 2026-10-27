@@ -111,6 +111,12 @@ struct RunManifest final {
     std::size_t history_capacity;
     std::size_t dataset_gap_count;
     std::string normalized_config;
+    std::string timing_policy{"fixed_interval_v1"};
+    std::string timing_source_id{};
+    market_data::Timestamp observation_end{};
+    market_data::Timestamp replay_end{};
+    std::string opening_availability{"at_bar_start_v1"};
+    std::string release_order{"strict_per_symbol_v1"};
 };
 
 class BacktestResults final {

@@ -28,8 +28,8 @@ episodes. The independent risk component evaluates immutable portfolio and
 pending-order snapshots at submission and again at candidate execution, with
 explicit limits, conservative reservations, and no ledger/order mutation. The
 C++ strategy contract supplies owned portfolio snapshots and callback-scoped
-command capabilities. Dataset preflight validates fixed-interval canonical
-streams and records gaps; the scheduler publishes equal-time close batches in
+command capabilities. Dataset preflight validates legacy fixed-interval or
+opt-in explicit-availability canonical streams and records gaps; the scheduler publishes equal-time release batches in
 stable symbol order with bounded causal histories. The synchronous replay engine
 integrates strategy commands, risk, open-only execution, atomic accounting,
 multi-symbol marks, audit logs, closed and open trade episodes, and a reproducible
@@ -51,7 +51,8 @@ operations still require explicit user direction.
 ## First supported research profile
 
 - Synchronous, single-threaded historical simulation; one strategy per run,
-  multiple symbols, one configured fixed-duration bar interval per run.
+  multiple symbols; legacy fixed-duration bars or opt-in variable-duration,
+  explicitly timed observations through the Python API (ADR 0012).
 - Cash equities/ETFs with multiplier 1, integer shares, configured positive price
   tick, one quote/valuation currency (default USD). Instrument metadata maps the
   existing normalized Symbol to these properties; no provider fields in Bar.
@@ -97,6 +98,8 @@ introduce an event bus, dependency-injection framework, or broker SDK dependency
 8. [Equity sampling](adr/0008-equity-sampling.md)
 9. [Causal regime research](adr/0009-regime-research.md)
 10. [Local research library/UI boundary — proposed](adr/0010-local-research-ui.md)
+11. [Explicit offline session schedules](adr/0011-session-calendar.md)
+12. [Explicit availability and session replay](adr/0012-explicit-availability.md)
 
 The [roadmap](roadmap.md) maps these contracts to independently testable changes.
 The [GUI architecture](gui-architecture.md) defines the minimal localhost

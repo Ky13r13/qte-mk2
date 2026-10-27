@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstdint>
 #include <iomanip>
+#include <limits>
 #include <map>
 #include <sstream>
 #include <utility>
@@ -96,7 +97,54 @@ DatasetMetadata DatasetMetadata::create(
         corporate_actions,
         std::move(volume_unit),
         std::move(source_id),
+        DatasetTiming::fixed_interval_v1,
+        {},
     };
+}
+
+DatasetMetadata DatasetMetadata::create_explicit(
+    core::Currency valuation_currency,
+    const PriceAdjustmentMode adjustment_mode,
+    const CorporateActionCoverage corporate_actions,
+    std::string volume_unit,
+    std::string source_id,
+    std::string timing_source_id) {
+    if (volume_unit.empty()) {
+        throw std::invalid_argument("dataset volume unit must not be empty");
+    }
+    if (source_id.empty()) {
+        throw std::invalid_argument("dataset source ID must not be empty");
+    }
+    const bool printable = std::all_of(
+        timing_source_id.begin(), timing_source_id.end(), [](const unsigned char value) {
+            return std::isprint(value) != 0;
+        });
+    const bool only_whitespace = std::all_of(
+        timing_source_id.begin(), timing_source_id.end(), [](const unsigned char value) {
+            return std::isspace(value) != 0;
+        });
+    if (timing_source_id.empty() || timing_source_id.size() > 256 || !printable ||
+        only_whitespace) {
+        throw std::invalid_argument(
+            "dataset timing source ID must be printable, nonblank, and at most 256 bytes");
+    }
+    return DatasetMetadata{
+        std::chrono::nanoseconds::zero(),
+        std::move(valuation_currency),
+        adjustment_mode,
+        corporate_actions,
+        std::move(volume_unit),
+        std::move(source_id),
+        DatasetTiming::explicit_availability_v1,
+        std::move(timing_source_id),
+    };
+}
+
+std::chrono::nanoseconds DatasetMetadata::bar_interval() const {
+    if (timing_policy_ != DatasetTiming::fixed_interval_v1) {
+        throw std::logic_error("explicit-availability datasets have no fixed bar interval");
+    }
+    return bar_interval_;
 }
 
 DatasetMetadata::DatasetMetadata(
@@ -105,13 +153,35 @@ DatasetMetadata::DatasetMetadata(
     const PriceAdjustmentMode adjustment_mode,
     const CorporateActionCoverage corporate_actions,
     std::string volume_unit,
-    std::string source_id)
+    std::string source_id,
+    const DatasetTiming timing_policy,
+    std::string timing_source_id)
     : bar_interval_(bar_interval),
       valuation_currency_(std::move(valuation_currency)),
       adjustment_mode_(adjustment_mode),
       corporate_actions_(corporate_actions),
       volume_unit_(std::move(volume_unit)),
-      source_id_(std::move(source_id)) {}
+      source_id_(std::move(source_id)),
+      timing_policy_(timing_policy),
+      timing_source_id_(std::move(timing_source_id)) {}
+
+BarStream BarStream::from_observations(
+    Symbol symbol,
+    std::vector<BarObservation> observations) {
+    BarStream result{std::move(symbol), {}, {}};
+    result.bars.reserve(observations.size());
+    result.availability_times.reserve(observations.size());
+    for (auto& observation : observations) {
+        result.bars.push_back(std::move(observation.bar));
+        result.availability_times.push_back(observation.available_at);
+    }
+    return result;
+}
+
+Timestamp BarStream::publication_time(const std::size_t index) const {
+    return availability_times.empty() ? bars.at(index).end_time
+                                      : availability_times.at(index);
+}
 
 InvalidDataset::InvalidDataset(std::vector<DatasetValidationError> errors)
     : std::invalid_argument(validation_message(errors)), errors_(std::move(errors)) {}
@@ -194,9 +264,21 @@ ValidatedDataset preflight(DatasetInput input) {
                 DatasetValidationCode::empty_stream,
                 "stream contains no bars: " + symbol);
         }
+        const bool explicit_timing = input.metadata.timing_policy() ==
+                                     DatasetTiming::explicit_availability_v1;
+        if ((!explicit_timing && !stream.availability_times.empty()) ||
+            (explicit_timing && stream.availability_times.size() != stream.bars.size())) {
+            add_error(
+                errors,
+                DatasetValidationCode::availability_count_mismatch,
+                "availability cardinality differs from timing policy: " + symbol);
+        }
 
         const Bar* previous = nullptr;
-        for (const auto& bar : stream.bars) {
+        Timestamp previous_publication{};
+        bool has_previous_publication = false;
+        for (std::size_t bar_index = 0; bar_index < stream.bars.size(); ++bar_index) {
+            const auto& bar = stream.bars[bar_index];
             ++bar_count;
             if (bar.symbol != stream.symbol) {
                 add_error(
@@ -217,11 +299,34 @@ ValidatedDataset preflight(DatasetInput input) {
                     DatasetValidationCode::nonpositive_tradable_price,
                     "tradable OHLC prices must be strictly positive: " + symbol);
             }
-            if (bar.end_time - bar.start_time != input.metadata.bar_interval()) {
-                add_error(
-                    errors,
-                    DatasetValidationCode::interval_mismatch,
-                    "bar duration differs from dataset interval: " + symbol);
+            if (!explicit_timing) {
+                const auto start = bar.start_time.time_since_epoch().count();
+                const auto end = bar.end_time.time_since_epoch().count();
+                const auto interval = input.metadata.bar_interval().count();
+                if (start > std::numeric_limits<std::int64_t>::max() - interval ||
+                    start + interval != end) {
+                    add_error(
+                        errors,
+                        DatasetValidationCode::interval_mismatch,
+                        "bar duration differs from dataset interval: " + symbol);
+                }
+            }
+            if (explicit_timing && bar_index < stream.availability_times.size()) {
+                const auto publication = stream.availability_times[bar_index];
+                if (publication < bar.end_time) {
+                    add_error(
+                        errors,
+                        DatasetValidationCode::publication_before_bar_end,
+                        "bar publication precedes its end: " + symbol);
+                }
+                if (has_previous_publication && publication <= previous_publication) {
+                    add_error(
+                        errors,
+                        DatasetValidationCode::publication_out_of_order,
+                        "bar publications are not strictly increasing: " + symbol);
+                }
+                previous_publication = publication;
+                has_previous_publication = true;
             }
 
             if (previous != nullptr) {
@@ -296,9 +401,19 @@ ValidatedDataset preflight(DatasetInput input) {
 
 std::string canonical_hash(const ValidatedDataset& dataset) {
     StableHasher hash;
+    const bool explicit_timing = dataset.metadata().timing_policy() ==
+                                 DatasetTiming::explicit_availability_v1;
+    if (explicit_timing) {
+        hash.add_string("fnv1a64-timed-v1");
+    }
     hash.add_uint64(kBarSchemaVersion);
-    hash.add_uint64(static_cast<std::uint64_t>(
-        dataset.metadata().bar_interval().count()));
+    if (explicit_timing) {
+        hash.add_uint64(static_cast<std::uint64_t>(dataset.metadata().timing_policy()));
+        hash.add_string(dataset.metadata().timing_source_id());
+    } else {
+        hash.add_uint64(static_cast<std::uint64_t>(
+            dataset.metadata().bar_interval().count()));
+    }
     hash.add_string(dataset.metadata().valuation_currency().code());
     hash.add_uint64(static_cast<std::uint64_t>(dataset.metadata().adjustment_mode()));
     hash.add_uint64(static_cast<std::uint64_t>(dataset.metadata().corporate_actions()));
@@ -312,7 +427,8 @@ std::string canonical_hash(const ValidatedDataset& dataset) {
     for (const auto& stream : dataset.streams()) {
         hash.add_string(stream.symbol.value());
         hash.add_uint64(stream.bars.size());
-        for (const auto& bar : stream.bars) {
+        for (std::size_t index = 0; index < stream.bars.size(); ++index) {
+            const auto& bar = stream.bars[index];
             hash.add_uint64(static_cast<std::uint64_t>(
                 bar.start_time.time_since_epoch().count()));
             hash.add_uint64(static_cast<std::uint64_t>(
@@ -322,9 +438,27 @@ std::string canonical_hash(const ValidatedDataset& dataset) {
             hash.add_double(bar.low);
             hash.add_double(bar.close);
             hash.add_double(bar.volume);
+            if (explicit_timing) {
+                hash.add_uint64(static_cast<std::uint64_t>(
+                    stream.availability_times.at(index).time_since_epoch().count()));
+            }
         }
     }
     return hash.hex();
+}
+
+std::string_view canonical_hash_algorithm(const ValidatedDataset& dataset) noexcept {
+    return dataset.metadata().timing_policy() == DatasetTiming::fixed_interval_v1
+               ? "fnv1a64-v1"
+               : "fnv1a64-timed-v1";
+}
+
+std::string_view to_string(const DatasetTiming timing) noexcept {
+    switch (timing) {
+        case DatasetTiming::fixed_interval_v1: return "fixed_interval_v1";
+        case DatasetTiming::explicit_availability_v1: return "explicit_availability_v1";
+    }
+    return "unknown";
 }
 
 std::string_view to_string(const DatasetValidationCode code) noexcept {
@@ -345,6 +479,9 @@ std::string_view to_string(const DatasetValidationCode code) noexcept {
         case DatasetValidationCode::duplicate_bar: return "duplicate_bar";
         case DatasetValidationCode::out_of_order_bar: return "out_of_order_bar";
         case DatasetValidationCode::overlapping_bars: return "overlapping_bars";
+        case DatasetValidationCode::availability_count_mismatch: return "availability_count_mismatch";
+        case DatasetValidationCode::publication_before_bar_end: return "publication_before_bar_end";
+        case DatasetValidationCode::publication_out_of_order: return "publication_out_of_order";
     }
     return "unknown";
 }

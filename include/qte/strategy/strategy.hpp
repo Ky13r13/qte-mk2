@@ -100,6 +100,7 @@ public:
         const market_data::Symbol& symbol) const;
     [[nodiscard]] std::vector<market_data::Bar> history(
         const market_data::Symbol& symbol) const;
+    [[nodiscard]] market_data::Timestamp now() const;
     [[nodiscard]] SubmissionReceipt submit_order(orders::OrderRequest request);
     [[nodiscard]] CancellationReceipt cancel_order(core::OrderId order_id);
 
@@ -146,21 +147,26 @@ public:
 
     void start(
         portfolio::PortfolioSnapshot snapshot,
-        market_data::BarHistorySnapshot history = {});
+        market_data::BarHistorySnapshot history = {},
+        market_data::Timestamp now = {});
     void bar(
         const market_data::Bar& bar,
         portfolio::PortfolioSnapshot snapshot,
-        market_data::BarHistorySnapshot history = {});
+        market_data::BarHistorySnapshot history = {},
+        std::optional<market_data::Timestamp> now = std::nullopt);
     void fill(
         const orders::Fill& fill,
         portfolio::PortfolioSnapshot snapshot,
-        market_data::BarHistorySnapshot history = {});
+        market_data::BarHistorySnapshot history = {},
+        std::optional<market_data::Timestamp> now = std::nullopt);
     void end(
         portfolio::PortfolioSnapshot snapshot,
-        market_data::BarHistorySnapshot history = {});
+        market_data::BarHistorySnapshot history = {},
+        std::optional<market_data::Timestamp> now = std::nullopt);
     void order_update(const OrderUpdate& update,
                       portfolio::PortfolioSnapshot snapshot,
-                      market_data::BarHistorySnapshot history = {});
+                      market_data::BarHistorySnapshot history = {},
+                      std::optional<market_data::Timestamp> now = std::nullopt);
 
     [[nodiscard]] std::vector<StrategyCommand> buffered_commands() const;
     [[nodiscard]] std::vector<StrategyCommand> take_commands();
@@ -179,13 +185,15 @@ private:
     [[nodiscard]] StrategyContext begin_callback(
         portfolio::PortfolioSnapshot snapshot,
         market_data::BarHistorySnapshot history,
-        bool allow_mutation);
+        bool allow_mutation,
+        market_data::Timestamp now);
     void finish_callback() noexcept;
     void fail_callback() noexcept;
 
     std::shared_ptr<Strategy> strategy_;
     std::shared_ptr<detail::StrategyContextState> state_;
     Lifecycle lifecycle_{Lifecycle::ready};
+    market_data::Timestamp last_clock_{};
 };
 
 }  // namespace qte::strategy

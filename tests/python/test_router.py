@@ -45,6 +45,27 @@ def actual_fills(result):
     return [(fill.side, fill.quantity, fill.effective_ns, fill.executed_price) for fill in result.fills]
 
 
+@pytest.mark.parametrize("stale", [False, True])
+def test_delayed_bar_uses_current_macro_release_and_staleness(stale):
+    filter_ = (gate(release(), config=RegimeConfig(max_macro_age_ns=2 * S,
+                                                max_volatility_age_ns=2 * S))
+               if stale else gate(release(), release(2 * S, score=-1)))
+    router = MacroRouterStrategy("SPY", [candidate()], filter_)
+    values = [qte.Bar("SPY", i * S, (i + 1) * S, 100 + i, 101 + i, 99 + i, 100 + i, 1000)
+              for i in range(5)]
+    data = qte.Dataset.from_observations(
+        [qte.BarObservation(value, value.end_ns + 10 * S) for value in values],
+        source_id="synthetic-delayed-router", timing_source_id="test-delay")
+    result = qte.BacktestEngine(qte.BacktestConfig(100_000)).run(data, router)
+    assert not result.orders and not result.fills
+    assert router.route_events[0].timestamp_ns == 11 * S
+    assert all(event.phase == "cash" for event in router.route_events)
+    if stale:
+        assert "stale:growth_z" in router.route_events[0].reasons
+    else:
+        assert router.route_events[0].macro_regime == "risk_off"
+
+
 def test_real_engine_exits_before_family_switch_with_exact_one_book_accounting():
     router = MacroRouterStrategy("SPY", [candidate(), candidate("mean_reversion")],
                                  gate(release(), release(4 * S, score=0)))

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -215,6 +216,51 @@ void explicit_samples_resolve_duplicate_timestamps_and_gaps() {
     CHECK(overflow.annualized_return.undefined_reason() == "annualized return exceeds numeric range");
 }
 
+void elapsed_span_is_validated_before_signed_duration_arithmetic() {
+    const auto manifest = replay().manifest();
+    const auto minimum = std::numeric_limits<std::int64_t>::min();
+    const auto maximum = std::numeric_limits<std::int64_t>::max();
+    const auto make_result = [&](const std::vector<std::int64_t>& times) {
+        std::vector<engine::EquityPoint> points;
+        std::uint64_t sequence = 1;
+        for (const auto time : times) {
+            points.push_back({market_data::Timestamp{std::chrono::nanoseconds{time}},
+                              core::EventSequence{sequence++}, 100.0, 10.0});
+        }
+        return engine::BacktestResults{std::move(points), {}, {}, {}, {}, {}, {}, manifest};
+    };
+    for (const auto& times : std::vector<std::vector<std::int64_t>>{
+             {minimum, -1}, {0, maximum}, {-30, -20, -10}}) {
+        const auto result = analytics::analyze(make_result(times), analytics::AnnualizationConfig{252});
+        CHECK(result.average_gross_exposure.value() == std::optional{0.1});
+        CHECK(result.annualized_return.value() == std::optional{0.0});
+    }
+    for (const auto& times : std::vector<std::vector<std::int64_t>>{
+             {minimum, 0}, {minimum, -1, 0}, {minimum, maximum}}) {
+        const auto result = make_result(times);
+        for (const bool sampled : {false, true}) {
+            bool rejected = false;
+            try {
+                const auto grid = sampled ? std::optional{analytics::SamplingConfig{
+                    {result.equity_curve().front().timestamp, result.equity_curve().back().timestamp}, 0ns}}
+                    : std::nullopt;
+                static_cast<void>(analytics::analyze(result, analytics::AnnualizationConfig{252}, grid));
+            } catch (const std::invalid_argument& error) {
+                rejected = std::string_view{error.what()}.find("elapsed span") != std::string_view::npos;
+            }
+            CHECK(rejected);
+        }
+        bool rejected = false;
+        try { static_cast<void>(analytics::analyze(result)); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        CHECK(rejected);
+    }
+    bool rejected = false;
+    try { static_cast<void>(analytics::analyze(make_result({1, 0}))); }
+    catch (const std::invalid_argument&) { rejected = true; }
+    CHECK(rejected);
+}
+
 }  // namespace
 
 int main() {
@@ -222,6 +268,7 @@ int main() {
     annualized_metrics_require_an_explicit_regular_grid();
     zero_trade_and_open_trade_cases_stay_undefined();
     explicit_samples_resolve_duplicate_timestamps_and_gaps();
+    elapsed_span_is_validated_before_signed_duration_arithmetic();
     if (failures != 0) {
         std::cerr << failures << " analytics test(s) failed\n";
         return EXIT_FAILURE;

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <numeric>
 #include <stdexcept>
@@ -93,6 +94,22 @@ PerformanceReport analyze(
     const engine::BacktestResults& results,
     const std::optional<AnnualizationConfig> annualization,
     const std::optional<SamplingConfig> sampling) {
+    const auto& events = results.equity_curve();
+    if (events.empty()) {
+        throw std::invalid_argument("analytics requires at least one equity point");
+    }
+    for (std::size_t index = 1; index < events.size(); ++index) {
+        if (events[index].timestamp < events[index - 1].timestamp) {
+            throw std::invalid_argument("analytics requires nondecreasing timestamps");
+        }
+    }
+    // Ordered signed endpoints may span more than a signed duration can hold.
+    // Unsigned subtraction gives the exact nonnegative span without overflow.
+    const auto span = static_cast<std::uint64_t>(events.back().timestamp.time_since_epoch().count()) -
+                      static_cast<std::uint64_t>(events.front().timestamp.time_since_epoch().count());
+    if (span > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+        throw std::invalid_argument("analytics elapsed span exceeds signed 64-bit nanoseconds");
+    }
     const auto sampled = sampling ? sample_equity(results.equity_curve(), *sampling)
                                   : std::vector<engine::EquityPoint>{};
     const auto& curve = sampling ? sampled : results.equity_curve();

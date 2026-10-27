@@ -56,6 +56,10 @@ succeeds, register its output and choose **Use matching source in run**. The
 mapping and source checksum stay pinned; changed or missing original files block
 reuse. The validation artifact keeps its captured bytes, metadata and provenance.
 This checks canonical contracts, not exchange calendars or data authenticity.
+The standalone [session-schedule utility](adr/0011-session-calendar.md) can
+inspect declared session boundaries; it does not yet enable session-aware
+daily/short-tail bars or delayed publication in a GUI/CLI replay.
+The trusted Python API now supports that opt-in replay profile below.
 
 **Data → Prepare Alpaca download** previews a feed/symbol/window request offline.
 Downloads are disabled by default; this build has only offline/mock acceptance.
@@ -97,6 +101,8 @@ flowchart TD
     Prepare --> Lab[Fixed synthetic lab: generated data and scripted macro]
     Lab --> Dataset
     Adapter --> Dataset[Canonical Bar dataset and metadata]
+    Session[Declared session snapshot and canonical bars] --> Timed[Python session adapter: exact windows and publication times]
+    Timed --> Dataset
     Dataset --> Binding[pybind11 boundary]
     Binding --> Replay[C++ deterministic event replay]
     Replay --> Context[Completed history and owned state snapshots]
@@ -127,6 +133,8 @@ The browser handles presentation and orchestration, never accounting or strategy
 execution. Python handles adapters, configuration and research; C++ owns replay,
 execution, risk and the ledger. pybind11 exposes owned results and bounded
 callback contexts, not mutable ledger access. No provider schema reaches the core.
+The session-adapter branch is Python API only; existing GUI jobs and export
+formats remain on the fixed-interval branch.
 
 ## What happens at each simulation timestamp
 
@@ -210,6 +218,52 @@ access and safe candidate/window/comparison views. Test/mixed content remains
 guarded by disclosure confirmation. Select a train/validation window to compare
 base/stressed scenarios. **New comparison** previews and executes these fixed
 jobs through the browser; see the workflow above.
+
+## Session-aware Python experiment
+
+This example uses invented prices and a caller-declared schedule, not verified
+market history. Run it in the repository `.venv`; no download is needed.
+
+```python
+import qte
+from qte.adapters import build_session_dataset
+from qte.adapters.common import parse_rfc3339_utc_ns as ns
+from qte.session_calendar import SessionDay, SessionSchedule
+
+days = [SessionDay("2024-11-27", ns("2024-11-27T14:30:00Z"), ns("2024-11-27T21:00:00Z")),
+        SessionDay("2024-11-28"),
+        SessionDay("2024-11-29", ns("2024-11-29T14:30:00Z"), ns("2024-11-29T18:00:00Z"))]
+schedule = SessionSchedule("2024-11-27", "2024-11-29", "invented-calendar",
+                           "a" * 64, "synthetic", days)
+bars = [qte.Bar("SPY", day.open_ns, day.close_ns, p, p + 2, p - 2, p + 1, 1000)
+        for day, p in ((days[0], 100), (days[2], 110))]
+loaded = build_session_dataset(bars, schedule=schedule, kind="daily",
+    publication_delay_ns=1_000_000_000, source_id="invented-prices",
+    source_sha256="b" * 64, action_free=True)
+
+class BuyOnce(qte.Strategy):
+    def on_start(self, ctx):
+        self.sent = False
+
+    def on_bar(self, ctx, bar):
+        assert ctx.now_ns >= bar.end_ns
+        if not self.sent:
+            ctx.submit_order(qte.market_order("SPY", qte.OrderSide.BUY, 1))
+            self.sent = True
+
+result = qte.BacktestEngine(qte.BacktestConfig(1000)).run(loaded.dataset, BuyOnce())
+assert result.fills[0].effective_ns == days[2].open_ns
+assert result.equity_curve[-1].equity == 1001
+print(result.manifest.timing_policy, result.manifest.replay_end_ns)
+```
+
+Signals use delivered bars; time-dependent filters use `ctx.now_ns`, while
+`bar.end_ns` remains observation end. Preserve `loaded.provenance` with results.
+The placeholder source digests above are declarations, not source verification.
+No frequency/annualization is inferred: explicit analytics grids must include
+run start and final publication, not just physical session closes. Existing
+GUI/CLI ingestion and comparison commands still require the fixed-interval
+profile. See [timing decisions and limits](adr/0012-explicit-availability.md).
 
 ## Test-build limits
 

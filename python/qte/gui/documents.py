@@ -28,6 +28,7 @@ def _spec(doc_id: str, title: str, category: str, path: str, status: str) -> Doc
 
 DOCUMENTS = (
     _spec("gui-usage", "Using the local GUI", "reference", "docs/gui-usage.md", "mixed"),
+    _spec("windows-gui", "Native Windows GUI status and setup", "reference", "docs/windows-gui.md", "mixed"),
     _spec("gui-result-bindings", "Read-only result bindings", "reference", "docs/gui-result-bindings.md", "implemented"),
     _spec("gui-export-v2", "Owned-result export format", "reference", "docs/gui-export-v2.md", "implemented"),
     _spec("gui-lab-views", "Role-filtered lab views", "reference", "docs/gui-lab-views.md", "implemented"),
@@ -59,6 +60,8 @@ DOCUMENTS = (
                (5, "numerics", "implemented"), (6, "python-boundary", "implemented"),
                (7, "paper-coordination", "mixed"), (8, "equity-sampling", "implemented"),
                (9, "regime-research", "mixed"), (10, "local-research-ui", "proposed"),
+               (11, "session-calendar", "mixed"),
+               (12, "explicit-availability", "implemented"),
            )),
 )
 

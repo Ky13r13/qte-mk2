@@ -111,3 +111,19 @@ def test_occupied_port_fails_without_access_code_or_server(monkeypatch, tmp_path
     with pytest.raises(OSError, match='select --port explicitly'):
         server.serve(tmp_path, announce=messages.append)
     assert messages == []
+
+
+def test_windows_listener_uses_exclusive_binding_not_reuseaddr(monkeypatch, tmp_path):
+    options = []
+    class Listener:
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def setsockopt(self, *args): options.append(args)
+        def bind(self, _): raise OSError("fixture port busy")
+    monkeypatch.setattr(server.sys, "platform", "win32")
+    monkeypatch.setattr(server.socket, "SO_EXCLUSIVEADDRUSE", -5, raising=False)
+    monkeypatch.setattr(server.socket, "socket", lambda *_: Listener())
+    monkeypatch.setattr(server.importlib, "import_module", lambda _: object())
+    with pytest.raises(OSError, match="Cannot bind"):
+        server.serve(tmp_path)
+    assert options == [(server.socket.SOL_SOCKET, -5, 1)]

@@ -10,13 +10,15 @@ namespace qte::market_data {
 DeterministicSchedule::DeterministicSchedule(const ValidatedDataset& dataset) {
     std::map<Timestamp, TimeSlice> by_time;
     for (const auto& stream : dataset.streams()) {
-        for (const auto& bar : stream.bars) {
+        for (std::size_t index = 0; index < stream.bars.size(); ++index) {
+            const auto& bar = stream.bars[index];
             auto opening = by_time.emplace(
                 bar.start_time, TimeSlice{bar.start_time}).first;
             opening->second.openings_.push_back(
                 OpeningObservation{bar.symbol, bar.start_time, bar.open});
             auto closing = by_time.emplace(
-                bar.end_time, TimeSlice{bar.end_time}).first;
+                stream.publication_time(index),
+                TimeSlice{stream.publication_time(index)}).first;
             closing->second.completed_bars_.push_back(bar);
         }
     }

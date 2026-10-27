@@ -92,6 +92,8 @@ def compare_moving_average(
     ),
 ) -> ComparisonReport:
     """Run pre-registered parameters; this function performs no optimization."""
+    if any(data.timing_policy != "fixed_interval_v1" for data in (in_sample, out_of_sample)):
+        raise ValueError('comparison requires fixed-interval datasets; session comparison is not yet supported')
     if in_sample.end_ns > out_of_sample.start_ns:
         raise ValueError('train/test splits must be chronological and non-overlapping')
     if in_sample.interval_ns != out_of_sample.interval_ns:

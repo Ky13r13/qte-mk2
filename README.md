@@ -106,8 +106,10 @@ planned behavior from the currently implemented foundation.
 
 - Times are UTC instants with nanosecond precision; adapters must resolve source
   timezones before constructing a canonical bar.
-- A completed bar covers `[start_time, end_time)` and becomes available to a
-  strategy at `end_time`. The deterministic scheduler enforces that boundary.
+- A completed bar covers `[start_time, end_time)`. Legacy datasets publish at
+  `end_time`; the opt-in [explicit-availability profile](docs/adr/0012-explicit-availability.md)
+  publishes no earlier than end, without changing Bar fields. Strategy
+  `ctx.now_ns` is callback time, not necessarily observation end.
 - Symbols are non-empty, provider-normalized instrument identifiers. The first
   engine slice assumes instruments priced in one configured valuation currency
   and does not perform foreign-exchange conversion.
@@ -124,6 +126,11 @@ planned behavior from the currently implemented foundation.
   action-free contract; unsupported or unknown declarations fail preflight.
 
 ## Build
+
+The following setup commands target Linux. Native Windows GUI support is being
+ported incrementally: Library and offline Connections first, not research/job
+parity. See [Windows setup and acceptance](docs/windows-gui.md); use a native
+Windows venv/build, never copied Linux binaries.
 
 ```sh
 ./scripts/bootstrap.sh

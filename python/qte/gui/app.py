@@ -17,23 +17,15 @@ from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
 from .documents import DocumentLibrary
-from .artifact_routes import artifact_routes
-from .catalog import Catalog
-from .dataset_routes import dataset_routes
-from .form_routes import form_routes
-from .comparison_routes import comparison_routes
-from .job_routes import job_routes
-from .test_routes import test_routes
-from .benchmark_routes import benchmark_routes
 from .connection_routes import connection_routes
-from .jobs import JobManager
+from .platform_support import full_gui_supported, LIMITED_REASON
 from .requests import json_request, pagination
 from .safeio import SafeReadError
 from .security import IDLE_TIMEOUT_SECONDS, SecurityError, SessionController, unique_header
 
 TOKEN_HEADER = "X-QTE-Token"
 COOKIE_NAME = "qte_session"
-STATIC_NAMES = {"index.html", "app.css", "app.js", "experiments.js", "comparisons.js", "comparison_forms.js", "research_forms.js", "research_jobs.js", "datasets.js", "system_tests.js", "system_benchmarks.js", "system_connections.js"}
+STATIC_NAMES = {"index.html", "app.css", "app.js", "platform_capabilities.js", "experiments.js", "comparisons.js", "comparison_forms.js", "research_forms.js", "research_jobs.js", "datasets.js", "system_tests.js", "system_benchmarks.js", "system_connections.js"}
 
 
 def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str], object] = print,
@@ -41,11 +33,24 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
                alpaca_download_enabled: bool = False) -> Starlette:
     controller = SessionController(code_sink, clock)
     library = DocumentLibrary(Path(repository))
-    catalog = Catalog(Path(repository))
-    # The job dispatcher owns its own verification cache; durable catalog and
-    # protection storage are shared, not mutable request-thread cache objects.
-    jobs = JobManager(Path(repository), Catalog(Path(repository)),
-                      alpaca_download_enabled=alpaca_download_enabled)
+    full_gui = full_gui_supported()
+    catalog = jobs = None
+    if full_gui:
+        # Do not import Unix-only job/storage modules on native Windows.
+        from .artifact_routes import artifact_routes
+        from .catalog import Catalog
+        from .dataset_routes import dataset_routes
+        from .form_routes import form_routes
+        from .comparison_routes import comparison_routes
+        from .job_routes import job_routes
+        from .test_routes import test_routes
+        from .benchmark_routes import benchmark_routes
+        from .jobs import JobManager
+        catalog = Catalog(Path(repository))
+        # The dispatcher has its own verification cache; durable catalog and
+        # protection storage are shared, not mutable request-thread cache objects.
+        jobs = JobManager(Path(repository), Catalog(Path(repository)),
+                          alpaca_download_enabled=alpaca_download_enabled)
     expected_host = f"127.0.0.1:{port}"
     expected_origin = f"http://{expected_host}"
     static_root = Path(__file__).with_name("static")
@@ -127,10 +132,16 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
             {"id": "broker_reads", "state": "blocked", "reason": "GUI broker transport is disabled; approved setup and private-response contracts remain unresolved."},
             {"id": "paper_execution", "state": "blocked", "reason": "Operational paper execution is not integrated."},
         ]
+        if not full_gui:
+            for value in values:
+                if value["id"] in {"research", "data", "test_execution", "benchmarks"}:
+                    value.update(state="blocked", reason=LIMITED_REASON)
         return JSONResponse({"schema_version": 1, "capabilities": values}, headers={"Cache-Control": "no-store"})
 
     async def download_prerequisites(request: Request) -> Response:
         session_for(request, token=True)
+        if not full_gui:
+            raise SecurityError("platform_unavailable", 503, LIMITED_REASON)
         if request.query_params:
             raise SecurityError("invalid_query", 400, "This route does not accept query parameters.")
         return JSONResponse({"schema_version": 1, **jobs.download_prerequisites()},
@@ -174,7 +185,24 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
         Route("/data/{artifact_id:str}", shell, methods=["GET"]), Route("/system", shell, methods=["GET"]),
         Route("/system/benchmarks", shell, methods=["GET"]),
         Route("/system/connections", shell, methods=["GET"]),
-    ] + connection_routes(session_for) + benchmark_routes(jobs, session_for) + test_routes(jobs, session_for) + comparison_routes(Catalog(Path(repository)), session_for) + artifact_routes(catalog, session_for) + job_routes(jobs, session_for) + form_routes(Catalog(Path(repository)), session_for) + dataset_routes(Catalog(Path(repository)), session_for)
+    ] + connection_routes(session_for)
+    if full_gui:
+        routes += (benchmark_routes(jobs, session_for) + test_routes(jobs, session_for)
+                   + comparison_routes(Catalog(Path(repository)), session_for)
+                   + artifact_routes(catalog, session_for) + job_routes(jobs, session_for)
+                   + form_routes(Catalog(Path(repository)), session_for)
+                   + dataset_routes(Catalog(Path(repository)), session_for))
+    else:
+        async def unsupported(request: Request) -> Response:
+            session_for(request, token=True)
+            raise SecurityError("platform_unavailable", 503, LIMITED_REASON)
+
+        for prefix in ("catalog", "artifacts", "runs", "experiments", "comparisons",
+                       "jobs", "research", "configs", "datasets", "downloads", "data",
+                       "system/tests", "system/benchmarks"):
+            for suffix in ("", "/{remaining:path}"):
+                routes.append(Route(f"/api/v1/{prefix}{suffix}", unsupported,
+                                    methods=["GET", "POST", "PUT", "PATCH", "DELETE"]))
     class BoundaryMiddleware:
         def __init__(self, app) -> None:
             self.app = app
@@ -227,7 +255,8 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
         finally:
             # Construction and browsing are idle. Only explicit job operations
             # initialize scheduling; shutdown still cleans up any owned worker.
-            await run_in_threadpool(jobs.close)
+            if jobs is not None:
+                await run_in_threadpool(jobs.close)
 
     app = Starlette(routes=routes, middleware=[Middleware(BoundaryMiddleware)], lifespan=lifespan)
     app.state.session_controller = controller

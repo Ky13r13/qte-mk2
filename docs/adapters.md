@@ -35,3 +35,17 @@ from filenames or values. Extra columns are ignored; missing mapped columns,
 invalid rows, empty files, non-raw adjustment, and undeclared action coverage
 fail before replay. Canonical dataset preflight remains the final validation
 boundary for ordering, duration, prices, gaps, and instrument assumptions.
+
+## Offline session contract and replay (R2a–R2b)
+
+`qte.session_calendar` validates explicit finite schedules and projects session
+daily/open-anchored hourly boundaries, delayed availability and close grids.
+It does not aggregate OHLCV or infer holidays/DST. `build_session_dataset` binds
+canonical bars to exact declared buckets and builds an explicit-availability
+dataset. Require source ID/SHA-256 and `action_free=True`; USD/raw/share assumptions
+remain explicit. Missing buckets remain missing; closed/outside/misaligned ones
+fail. Calendar snapshot, kind and delay are recorded in timing identity.
+Existing CSV/Alpaca loaders and CLI/GUI remain fixed-duration/at-end paths.
+Use [ADR 0011](adr/0011-session-calendar.md) and
+[ADR 0012](adr/0012-explicit-availability.md) for exact contracts and limits.
+Caller-declared snapshots are not official calendars or verified action coverage.

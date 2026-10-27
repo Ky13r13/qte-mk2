@@ -23,6 +23,7 @@ using qte::core::FillId;
 using qte::core::OrderId;
 using qte::core::PriceGrid;
 using qte::core::ShareAmount;
+using qte::core::ShareQuantity;
 using qte::market_data::Bar;
 using qte::market_data::InstrumentSpec;
 using qte::market_data::Symbol;
@@ -453,6 +454,40 @@ void invalid_intent_is_not_buffered_and_does_not_consume_an_order_id() {
     CHECK(driver.buffered_commands().size() == 1);
 }
 
+struct ClockState final {
+    std::vector<Timestamp> clocks;
+};
+
+class ClockStrategy final : public Strategy {
+public:
+    explicit ClockStrategy(ClockState& state) : state_(state) {}
+    void on_start(StrategyContext& context) override { state_.clocks.push_back(context.now()); }
+    void on_bar(StrategyContext& context, const Bar&) override { state_.clocks.push_back(context.now()); }
+    void on_fill(StrategyContext& context, const Fill&) override { state_.clocks.push_back(context.now()); }
+    void on_order_update(StrategyContext& context, const qte::strategy::OrderUpdate&) override {
+        state_.clocks.push_back(context.now());
+    }
+    void on_end(StrategyContext& context) override { state_.clocks.push_back(context.now()); }
+
+private:
+    ClockState& state_;
+};
+
+void callback_clock_defaults_are_scoped_and_deterministic() {
+    ClockState state;
+    StrategyTestDriver driver{std::make_unique<ClockStrategy>(state)};
+    auto account = portfolio();
+    driver.start(account.snapshot(), {}, Timestamp{10ns});
+    driver.bar(bar(), account.snapshot(), {}, Timestamp{20ns});
+    driver.fill(fill(), account.snapshot(), {}, Timestamp{30ns});
+    driver.order_update(qte::strategy::OrderUpdate{
+        OrderId{1}, Symbol{"SPY"}, qte::orders::OrderStatus::open,
+        ShareQuantity::zero(), ShareQuantity::from_raw(1), Timestamp{40ns}, "test"},
+        account.snapshot());
+    driver.end(account.snapshot());
+    CHECK(state.clocks == std::vector<Timestamp>({Timestamp{10ns}, Timestamp{20ns}, Timestamp{30ns}, Timestamp{40ns}, Timestamp{40ns}}));
+}
+
 }  // namespace
 
 int main() {
@@ -463,6 +498,7 @@ int main() {
     invalid_lifecycle_transitions_are_rejected();
     callback_exceptions_fail_the_driver_and_invalidate_context();
     invalid_intent_is_not_buffered_and_does_not_consume_an_order_id();
+    callback_clock_defaults_are_scoped_and_deterministic();
 
     if (failures != 0) {
         std::cerr << failures << " strategy test(s) failed\n";

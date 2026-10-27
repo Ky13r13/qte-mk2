@@ -80,7 +80,10 @@ does not download data, contact brokers, run arbitrary commands or auto-register
 results. Known protected inputs require prior explicit disclosure; derived
 outputs remain protected. Restarted jobs are interrupted, not silently retried.
 
-The current runner requires Linux process supervision. No job launches merely
+The current runner requires Linux process supervision. The initial
+[native Windows GUI slice](windows-gui.md) provides Library/offline Connections
+only, with native acceptance pending; Research/Data/jobs stay blocked there.
+No job launches merely
 by browsing a page. Research now offers **New run** and **New synthetic lab**.
 Preview assumptions before launch; edits invalidate the preview. Recent jobs
 retain failures and support pagination. Job detail offers bounded live updates,

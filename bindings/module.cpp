@@ -28,6 +28,17 @@ using namespace qte;
     return market_data::Timestamp{std::chrono::nanoseconds{value}};
 }
 
+[[nodiscard]] market_data::Timestamp exact_timestamp(const py::object& value) {
+    if (!PyLong_CheckExact(value.ptr())) {
+        throw py::value_error("available_at_ns must be a signed 64-bit integer");
+    }
+    try {
+        return timestamp(value.cast<std::int64_t>());
+    } catch (const py::cast_error&) {
+        throw py::value_error("available_at_ns must be a signed 64-bit integer");
+    }
+}
+
 class PythonStrategy final : public strategy::Strategy,
                              public py::trampoline_self_life_support {
 public:
@@ -126,6 +137,34 @@ public:
         std::move(instruments), std::move(streams)});
 }
 
+[[nodiscard]] market_data::ValidatedDataset make_observation_dataset(
+    std::vector<market_data::BarObservation> observations,
+    std::string source_id,
+    std::string timing_source_id,
+    const double tick_size,
+    std::string currency,
+    std::string volume_unit) {
+    std::map<std::string, std::vector<market_data::BarObservation>> grouped;
+    for (auto& observation : observations) {
+        grouped[observation.bar.symbol.value()].push_back(std::move(observation));
+    }
+    std::vector<market_data::InstrumentSpec> instruments;
+    std::vector<market_data::BarStream> streams;
+    const auto quote = core::Currency::from_code(std::move(currency));
+    const auto grid = core::PriceGrid::from_tick_size(tick_size);
+    for (auto& [symbol, stream] : grouped) {
+        instruments.emplace_back(market_data::Symbol{symbol}, quote, grid);
+        streams.push_back(market_data::BarStream::from_observations(
+            market_data::Symbol{symbol}, std::move(stream)));
+    }
+    return market_data::preflight(market_data::DatasetInput{
+        market_data::DatasetMetadata::create_explicit(
+            quote, market_data::PriceAdjustmentMode::unadjusted,
+            market_data::CorporateActionCoverage::action_free,
+            std::move(volume_unit), std::move(source_id), std::move(timing_source_id)),
+        std::move(instruments), std::move(streams)});
+}
+
 }  // namespace
 
 PYBIND11_MODULE(_core, module) {
@@ -201,11 +240,31 @@ PYBIND11_MODULE(_core, module) {
         .def_readonly("close", &market_data::Bar::close)
         .def_readonly("volume", &market_data::Bar::volume);
 
+    py::class_<market_data::BarObservation>(module, "BarObservation")
+        .def(py::init([](market_data::Bar bar, const py::object& available_at_ns) {
+            const auto available = exact_timestamp(available_at_ns);
+            if (available < bar.end_time) {
+                throw py::value_error("available_at_ns must not precede bar end");
+            }
+            return market_data::BarObservation{std::move(bar), available};
+        }), py::arg("bar"), py::arg("available_at_ns"))
+        .def_property_readonly("bar", [](const market_data::BarObservation& value) {
+            return value.bar;
+        })
+        .def_property_readonly("available_at_ns", [](const market_data::BarObservation& value) {
+            return nanos(value.available_at);
+        });
+
     py::class_<market_data::ValidatedDataset>(module, "Dataset")
         .def_static(
             "from_bars", &make_dataset, py::arg("bars"), py::arg("interval_ns"),
             py::arg("source_id"), py::arg("tick_size") = 0.01,
             py::arg("currency") = "USD", py::arg("volume_unit") = "shares")
+        .def_static(
+            "from_observations", &make_observation_dataset, py::arg("observations"),
+            py::arg("source_id"), py::arg("timing_source_id"),
+            py::arg("tick_size") = 0.01, py::arg("currency") = "USD",
+            py::arg("volume_unit") = "shares")
         .def_property_readonly("bar_count", &market_data::ValidatedDataset::bar_count)
         .def_property_readonly("start_ns", [](const market_data::ValidatedDataset& d) {
             auto t = d.streams().front().bars.front().start_time;
@@ -213,6 +272,13 @@ PYBIND11_MODULE(_core, module) {
             return nanos(t);
         })
         .def_property_readonly("end_ns", [](const market_data::ValidatedDataset& d) {
+            auto t = d.streams().front().publication_time(d.streams().front().bars.size() - 1);
+            for (const auto& s : d.streams()) {
+                t = std::max(t, s.publication_time(s.bars.size() - 1));
+            }
+            return nanos(t);
+        })
+        .def_property_readonly("observation_end_ns", [](const market_data::ValidatedDataset& d) {
             auto t = d.streams().front().bars.back().end_time;
             for (const auto& s : d.streams()) t = std::max(t, s.bars.back().end_time);
             return nanos(t);
@@ -222,8 +288,21 @@ PYBIND11_MODULE(_core, module) {
             for (const auto& s : d.streams()) symbols.push_back(s.symbol.value());
             return symbols;
         })
-        .def_property_readonly("interval_ns", [](const market_data::ValidatedDataset& d) {
+        .def_property_readonly("interval_ns", [](const market_data::ValidatedDataset& d)
+                -> std::optional<std::int64_t> {
+            if (d.metadata().timing_policy() == market_data::DatasetTiming::explicit_availability_v1) {
+                return std::nullopt;
+            }
             return d.metadata().bar_interval().count();
+        })
+        .def_property_readonly("timing_policy", [](const market_data::ValidatedDataset& d) {
+            return std::string{market_data::to_string(d.metadata().timing_policy())};
+        })
+        .def_property_readonly("timing_source_id", [](const market_data::ValidatedDataset& d) {
+            return d.metadata().timing_source_id();
+        })
+        .def_property_readonly("hash_algorithm", [](const market_data::ValidatedDataset& d) {
+            return std::string{market_data::canonical_hash_algorithm(d)};
         })
         .def_property_readonly("currency", [](const market_data::ValidatedDataset& d) {
             return d.metadata().valuation_currency().code();
@@ -335,6 +414,9 @@ PYBIND11_MODULE(_core, module) {
         .def_property_readonly("positions", [](const portfolio::PortfolioSnapshot& value) { return value.positions(); });
 
     py::class_<strategy::StrategyContext>(module, "StrategyContext")
+        .def_property_readonly("now_ns", [](const strategy::StrategyContext& context) {
+            return nanos(context.now());
+        })
         .def_property_readonly("portfolio", &strategy::StrategyContext::portfolio)
         .def("position", [](const strategy::StrategyContext& context, const std::string& symbol) {
             return context.position(market_data::Symbol{symbol});
@@ -456,7 +538,17 @@ PYBIND11_MODULE(_core, module) {
         .def_readonly("execution_model", &engine::RunManifest::execution_model)
         .def_readonly("random_seed", &engine::RunManifest::random_seed)
         .def_readonly("build_identity", &engine::RunManifest::build_identity)
-        .def_readonly("normalized_config", &engine::RunManifest::normalized_config);
+        .def_readonly("normalized_config", &engine::RunManifest::normalized_config)
+        .def_readonly("timing_policy", &engine::RunManifest::timing_policy)
+        .def_readonly("timing_source_id", &engine::RunManifest::timing_source_id)
+        .def_readonly("opening_availability", &engine::RunManifest::opening_availability)
+        .def_readonly("release_order", &engine::RunManifest::release_order)
+        .def_property_readonly("observation_end_ns", [](const engine::RunManifest& value) {
+            return nanos(value.observation_end);
+        })
+        .def_property_readonly("replay_end_ns", [](const engine::RunManifest& value) {
+            return nanos(value.replay_end);
+        });
     py::class_<engine::BacktestResults>(module, "BacktestResults")
         .def_property_readonly("equity_curve", [](const engine::BacktestResults& value) { return value.equity_curve(); })
         .def_property_readonly("orders", [](const engine::BacktestResults& value) { return value.orders(); })

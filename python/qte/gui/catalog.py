@@ -8,7 +8,8 @@ from pathlib import Path
 import re
 from uuid import uuid4
 
-from .artifact_io import ArtifactIOError, checked_relative, inventory, read_stable, validate_root
+from .artifact_io import (ArtifactIOError, checked_relative, inventory,
+                          inventory_fingerprint, read_stable, validate_root)
 from .artifacts import Artifact, ArtifactError, inspect_artifact, invalid_artifact
 from .disclosures import DisclosureJournal
 
@@ -111,8 +112,7 @@ class Catalog:
         except ArtifactIOError as exc: raise ArtifactError("artifact_unavailable", 404, "Artifact unavailable.") from exc
         try:
             snaps = inventory(root)
-            fingerprint = tuple((name, value.size, value.mtime_ns, value.ctime_ns, value.device, value.inode)
-                                for name, value in snaps.items())
+            fingerprint = inventory_fingerprint(snaps)
             cached = self._verification_cache.get(artifact_id)
             if cached and cached[0] == fingerprint:
                 self._record_protection(cached[1])

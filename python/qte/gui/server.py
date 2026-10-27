@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib
 from pathlib import Path
 import socket
+import sys
 from typing import Callable
 
 
@@ -29,7 +30,10 @@ def serve(repository: Path, *, port: int = 8765,
     # Bind before generating/printing an access code. An occupied port never
     # launches another server or silently changes the authenticated origin.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if sys.platform == "win32":
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        else:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             listener.bind(('127.0.0.1', port))
         except OSError as error:

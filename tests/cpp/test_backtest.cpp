@@ -113,6 +113,23 @@ void check_throws(Callable&& callable, const std::string_view expression, const 
     });
 }
 
+[[nodiscard]] ValidatedDataset delayed_one_symbol_dataset(
+    const std::vector<Bar>& bars, const std::vector<std::int64_t>& available_hours) {
+    std::vector<qte::market_data::BarObservation> observations;
+    observations.reserve(bars.size());
+    for (std::size_t index = 0; index < bars.size(); ++index) {
+        observations.push_back(qte::market_data::BarObservation{
+            bars.at(index), Timestamp{std::chrono::hours{available_hours.at(index)}}});
+    }
+    return qte::market_data::preflight(DatasetInput{
+        DatasetMetadata::create_explicit(
+            Currency::usd(), PriceAdjustmentMode::unadjusted,
+            CorporateActionCoverage::action_free, "shares", "delayed-one-symbol", "declared-fixture"),
+        {instrument("SPY")},
+        {BarStream::from_observations(Symbol{"SPY"}, std::move(observations))},
+    });
+}
+
 [[nodiscard]] OrderRequest market_request(
     const char* const symbol,
     const OrderSide side,
@@ -455,6 +472,85 @@ void final_positions_expose_stale_mark_time_and_open_trades_stay_open() {
     }
 }
 
+struct DelayedState final {
+    std::vector<std::int64_t> bar_starts;
+    std::vector<Timestamp> callback_clocks;
+    std::vector<Timestamp> fill_clocks;
+    std::vector<Timestamp> update_clocks;
+    Timestamp end_clock{};
+};
+
+class DelayedStrategy final : public Strategy {
+public:
+    explicit DelayedStrategy(DelayedState& state) : state_(state) {}
+    void on_bar(StrategyContext& context, const Bar& value) override {
+        state_.bar_starts.push_back(std::chrono::duration_cast<std::chrono::hours>(
+            value.start_time.time_since_epoch()).count());
+        state_.callback_clocks.push_back(context.now());
+        if (value.start_time == Timestamp{0h} || value.start_time == Timestamp{2h}) {
+            static_cast<void>(context.submit_order(market_request("SPY", OrderSide::buy, 1)));
+        }
+    }
+    void on_fill(StrategyContext& context, const Fill&) override {
+        state_.fill_clocks.push_back(context.now());
+    }
+    void on_order_update(StrategyContext& context, const qte::strategy::OrderUpdate& update) override {
+        if (update.reason == "end_of_data") state_.update_clocks.push_back(context.now());
+    }
+    void on_end(StrategyContext& context) override { state_.end_clock = context.now(); }
+
+private:
+    DelayedState& state_;
+};
+
+void delayed_publication_never_backfills_and_preserves_newer_open_marks() {
+    const auto data = delayed_one_symbol_dataset({
+        bar("SPY", 0, 100.0, 10.0), bar("SPY", 1, 110.0, 20.0),
+        bar("SPY", 2, 120.0, 5.0), bar("SPY", 3, 130.0, 131.0),
+    }, {3, 4, 5, 6});
+    DelayedState state;
+    const auto results = engine().run(data, std::make_unique<DelayedStrategy>(state));
+    CHECK(state.bar_starts == std::vector<std::int64_t>({0, 1, 2, 3}));
+    CHECK(state.callback_clocks == std::vector<Timestamp>({Timestamp{3h}, Timestamp{4h}, Timestamp{5h}, Timestamp{6h}}));
+    CHECK(state.fill_clocks == std::vector<Timestamp>({Timestamp{3h}}));
+    CHECK(state.update_clocks == std::vector<Timestamp>({Timestamp{6h}}));
+    CHECK(state.end_clock == Timestamp{6h});
+    CHECK(results.fills().size() == 1);
+    if (results.fills().size() == 1) CHECK(results.fills().front().effective_at() == Timestamp{3h});
+    const auto point = std::find_if(results.equity_curve().begin(), results.equity_curve().end(),
+        [](const auto& value) { return value.timestamp == Timestamp{5h}; });
+    CHECK(point != results.equity_curve().end());
+    if (point != results.equity_curve().end()) CHECK(near(point->equity, 1000.0));
+    CHECK(results.manifest().timing_policy == "explicit_availability_v1");
+    CHECK(results.manifest().timing_source_id == "declared-fixture");
+    CHECK(results.manifest().observation_end == Timestamp{4h});
+    CHECK(results.manifest().replay_end == Timestamp{6h});
+    CHECK(results.manifest().dataset_hash_algorithm == "fnv1a64-timed-v1");
+}
+
+class PassiveStrategy final : public Strategy {
+public:
+    void on_bar(StrategyContext&, const Bar&) override {}
+};
+
+void delayed_cross_symbol_close_uses_replay_time_not_past_observation_time() {
+    const auto data = qte::market_data::preflight(DatasetInput{
+        DatasetMetadata::create_explicit(
+            Currency::usd(), PriceAdjustmentMode::unadjusted,
+            CorporateActionCoverage::action_free, "shares", "cross-delay", "declared-fixture"),
+        {instrument("AAA"), instrument("BBB")},
+        {
+            BarStream::from_observations(Symbol{"AAA"}, {{bar("AAA", 0, 10.0, 11.0), Timestamp{3h}}}),
+            BarStream::from_observations(Symbol{"BBB"}, {{bar("BBB", 2, 20.0, 21.0), Timestamp{4h}}}),
+        },
+    });
+    const auto results = engine().run(data, std::make_unique<PassiveStrategy>());
+    const auto mark = std::find_if(results.positions().begin(), results.positions().end(),
+        [](const auto& value) { return value.symbol == Symbol{"AAA"}; });
+    CHECK(mark != results.positions().end());
+    if (mark != results.positions().end()) CHECK(mark->mark_timestamp == std::optional{Timestamp{3h}});
+}
+
 class ThrowingStrategy final : public Strategy {
 public:
     void on_bar(StrategyContext&, const Bar&) override {
@@ -478,6 +574,8 @@ int main() {
     outstanding_orders_cancel_at_end_without_liquidation();
     multisymbol_priority_results_and_manifest_are_reproducible();
     final_positions_expose_stale_mark_time_and_open_trades_stay_open();
+    delayed_publication_never_backfills_and_preserves_newer_open_marks();
+    delayed_cross_symbol_close_uses_replay_time_not_past_observation_time();
     strategy_exceptions_abort_the_run();
 
     if (failures != 0) {

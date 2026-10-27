@@ -7,6 +7,7 @@ from ._core import (  # noqa: F401
     BacktestConfig,
     BacktestEngine,
     Bar,
+    BarObservation,
     Dataset,
     ExecutionCosts,
     OrderCancellationReason,

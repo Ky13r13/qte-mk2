@@ -36,6 +36,23 @@ def bars(prices, width=.1):
             for i, price in enumerate(prices)]
 
 
+def test_delayed_bar_filter_uses_current_callback_clock():
+    values = bars([100, 101, 102, 103, 104])
+    data = qte.Dataset.from_observations(
+        [qte.BarObservation(value, value.end_ns + 10 * SECOND) for value in values],
+        source_id="synthetic-delayed-candidate", timing_source_id="test-delay")
+    seen = []
+
+    def deny(now_ns, family):
+        seen.append((now_ns, family))
+        return False
+
+    result = qte.BacktestEngine(qte.BacktestConfig(100_000)).run(
+        data, CandidateStrategy("SPY", config(), deny))
+    assert seen == [(value.end_ns + 10 * SECOND, "trend") for value in values]
+    assert not result.orders
+
+
 def run(prices, cfg, strategy=None, **engine_kwargs):
     data = qte.Dataset.from_bars(bars(prices), interval_ns=SECOND, source_id="synthetic-candidates")
     engine_kwargs.setdefault("history_capacity", cfg.history_required)

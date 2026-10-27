@@ -291,6 +291,8 @@ def _validate_windows(windows: tuple[ResearchWindow, ...]) -> None:
         raise ValueError("declare train, validation, and final test windows before running")
     order = {"train": 0, "validation": 1, "test": 2}
     first = windows[0].data
+    if any(window.data.timing_policy != "fixed_interval_v1" for window in windows):
+        raise ValueError("experiments require fixed-interval datasets; session comparison is not yet supported")
     signature = (tuple(first.symbols), first.currency, first.interval_ns)
     previous = None
     for window in windows:

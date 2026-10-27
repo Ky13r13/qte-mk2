@@ -53,6 +53,38 @@ def test_unprotected_single_does_not_create_disclosure_storage(tmp_path):
     assert not catalog.disclosures.root.exists()
 
 
+def test_verification_cache_ignores_inventory_order_but_rechecks_replacement(tmp_path, monkeypatch):
+    from qte.gui import catalog as module
+
+    relative = _unknown(tmp_path, "cache-identity")
+    root = tmp_path / relative
+    (root / "second.bin").write_bytes(b"second")
+    catalog = Catalog(tmp_path)
+    detail = catalog.register(relative)
+    original_inspect, original_inventory = module.inspect_artifact, module.inventory
+    inspections = []
+
+    def inspected(path, snapshots=None):
+        inspections.append(path)
+        return original_inspect(path, snapshots)
+
+    monkeypatch.setattr(module, "inspect_artifact", inspected)
+    first = catalog.inspect(detail["id"])
+    assert len(inspections) == 1
+    monkeypatch.setattr(module, "inventory",
+                        lambda path: dict(reversed(list(original_inventory(path).items()))))
+    assert catalog.inspect(detail["id"]) is first
+    assert len(inspections) == 1
+
+    replacement = root / "replacement.bin"
+    replacement.write_bytes(b"secret")
+    replacement.replace(root / "attachment.bin")
+    refreshed = catalog.inspect(detail["id"])
+    assert refreshed is not first
+    assert len(inspections) == 2
+    assert refreshed.snapshots != first.snapshots
+
+
 def test_catalog_keeps_invalid_and_incomplete_entries_visible(tmp_path):
     root = tmp_path / "build/bad"; root.mkdir(parents=True)
     (root / "manifest.json").write_text('{"schema_version":1}')

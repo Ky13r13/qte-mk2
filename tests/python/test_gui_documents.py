@@ -120,3 +120,23 @@ def test_missing_source_is_explicit(tmp_path):
     assert total == 1
     assert items[0]["availability"] == "unavailable"
     assert items[0]["source_sha256"] is None
+
+
+def test_session_calendar_contract_is_registered_and_linked():
+    library = DocumentLibrary(Path(__file__).parents[2])
+    document = library.render("adr-0011")
+    assert document["document"]["source_path"] == "docs/adr/0011-session-calendar.md"
+    assert document["document"]["availability"] == "available"
+    assert document["document"]["implementation_status"] == "mixed"
+    assert '/library/adr-0011' in library.render("architecture")["rendered_html"]
+    assert '/library/adr-0002' in document["rendered_html"]
+    assert '/library/adr-0008' in document["rendered_html"]
+
+
+def test_explicit_availability_contract_is_registered_and_linked():
+    library = DocumentLibrary(Path(__file__).parents[2])
+    document = library.render("adr-0012")
+    assert document["document"]["source_path"] == "docs/adr/0012-explicit-availability.md"
+    assert document["document"]["availability"] == "available"
+    assert '/library/adr-0012' in library.render("architecture")["rendered_html"]
+    assert '/library/adr-0011' in document["rendered_html"]
