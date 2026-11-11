@@ -1,6 +1,396 @@
 # Active GUI implementation checkpoint
 
-Latest checkpoint: **W2b private Windows artifact reader implemented** on 2026-10-25:
+## November 11 — research candles and form guidance
+
+Implemented in the separate research visualization task. New Candles & regimes
+tabs align raw candles, factual fills, as-of regime context and recorded equity;
+lab candidates compare on the same safe window and base/stress costs. New v2
+single exports include validated canonical `market_data.json`; old exports
+without OHLC explicitly remain unavailable. Form presets replace dirty drafts,
+and units/defaults/bounds plus actionable validation messages are now visible.
+See `docs/gui-usage.md` for expected values and usage.
+
+Files: adapters `common.py`, `csv_bars.py`, `alpaca.py`; `cli.py`,
+`market_export.py`, `research_export.py`, `strategy_lab.py`; GUI `app.py`,
+`artifact_routes.py`, `catalog.py`, `export_v2.py`, `market_views.py`,
+`run_views.py`, `research_forms.py`; static `app.js`, `app.css`, `experiments.js`,
+`market_chart.js`, `research_forms.js`; corresponding market/form/export tests.
+No C++ source edits, dependencies, provider calls or Git operations this task.
+
+Browser verification found blanket mixed-file journaling blocked safe lab
+charts. New registrations now avoid permanently tainting validated safe-window
+files solely for residing in a mixed lab; raw downloads remain guarded. Old
+protection records are preserved. A regression verifies a fresh safe chart works
+and explicit inherited protection still blocks it. Test windows remain denied,
+including after reveal. Candle tampering fails even after recomputing checksums.
+
+Commands / results:
+
+```sh
+.venv/bin/cmake --build build/local-dev -j 2
+.venv/bin/ctest --test-dir build/local-dev --output-on-failure
+.venv/bin/python -m pytest -q tests/python/test_gui_market_export.py tests/python/test_gui_market_views.py tests/python/test_gui_catalog.py tests/python/test_gui_run_views.py tests/python/test_gui_research_forms.py tests/python/test_research_export.py tests/python/test_research_adapters.py tests/python/test_gui_static.py --basetemp=build/test-research-charts-delivery --tb=short
+/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node tests/javascript/market_chart.test.mjs
+/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node tests/javascript/research_ui.test.mjs
+git diff --check
+```
+
+Build succeeded; 19/19 C++ targets, 109 Python tests and 22 JS tests passed.
+Bare `cmake`/`ctest` were absent from PATH; repository-local executables worked.
+Node form tests required scoped permission to spawn `.venv` Python; no install.
+Ninja recovered an existing truncated log. The full unrelated suite was not run.
+An isolated loopback preview on port 8769 verified the new chart controls and
+raw candle rendering. Existing user servers were not restarted. Demo is
+`build/chart-demo-20261111/visual-lab`, seed 7319, hourly regime-switch fixture;
+catalog ID `68d3f5fca782402dbb098b0eaf54b03f`. Synthetic mechanics only.
+
+Limits: 4096 candles/instrument; unavailable historical OHLC is not fabricated;
+comparison choices reset on reload; old durable mixed-file protections can
+require deliberate disclosure. No live data or strategy profitability claim.
+
+Latest checkpoint, November 10: **D2b.2a futures submission admission implemented.**
+The completed Gamma Lab remains unchanged. A NEW future order now gets a
+read-only margin decision using authoritative instrument metadata, a fresh target
+mark, the inclusive last-trade cutoff and candidate-plus-pending reservations.
+Bounded nonreversing reductions can be admitted during a margin breach. Decisions
+do not mutate orders or accounting. Full derivative replay remains gated.
+
+- Changed: `include/qte/risk/futures_margin.hpp`, `src/risk/futures_margin.cpp`,
+  `tests/cpp/test_futures_margin.cpp`; Portfolio's header/source and its C++ test
+  gain a borrowed read-only instrument lookup; `examples/futures_accounting.cpp`
+  gains an accept/reject/cancel/retry demonstration. This log, the roadmap and
+  ADR 0013 record the contract and next step. Prior dirty user work is preserved.
+- Sol implemented admission and regressions; Astra reviewed read-only with no
+  unsafe-approval blocker. Missing-mark denial deliberately short-circuits later
+  validation; this precedence is documented and tested. Root corrected a header
+  declaration placement and two test fixtures whose first FillId violated the
+  ledger's existing sequence contract. No test was removed or weakened.
+- Native GCC build succeeded in `build/local-dev`; **19/19 CTest targets and
+  47 focused Python tests passed**. The demo passed: accounting still ends at
+  10195; its separate submission ledger stays at 10000 with zero fills.
+  Ninja reported recovery of a truncated incremental build log and completed.
+  The full Python/GUI suite was not repeated; no GUI code changed.
+- **Next: D2b.2b**, fill-time margin revalidation, actual per-contract fees and
+  pending lifecycle integration. Submission approval is not an execution promise
+  or persistent reduce-only flag. D2a still needs causal event-source wiring;
+  D3–D5 remain gated. No new approval is needed for the next offline code step.
+
+Commands run from the repository root (build/CTest repeated after fixture repair):
+
+```sh
+/usr/bin/g++ --version
+.venv/bin/python -c 'import sys; print(sys.executable)'
+git status --short
+PATH="$PWD/.venv/bin:$PATH" cmake --preset dev -DQTE_BUILD_EXAMPLES=ON
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev -j2
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+./build/local-dev/qte_futures_accounting_demo
+PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 TMPDIR="$PWD/build" CMAKE_BUILD_PARALLEL_LEVEL=2 .venv/bin/python -m pip install --no-index --no-build-isolation --no-deps -e .
+.venv/bin/python -m pytest tests/python/test_bindings.py tests/python/test_lifecycle.py tests/python/test_research_config.py tests/python/test_research_baseline.py -q --maxfail=1 --tb=short --basetemp=build/test-futures-admission-20261110
+git diff --check
+```
+
+Only the existing local QTE extension was rebuilt inside `.venv`, offline; no
+new dependencies, downloads, broker connections, Git history operations, server
+restarts or outside-repository writes. No stale `build/dev` use.
+
+Previous checkpoint, November 9: **Gamma Lab now defaults to a rotatable 3D
+surface**, using the same model grid, with a heatmap toggle and reset view.
+Mouse/touch drag and arrow keys control the camera; log-day and linear-gamma
+scales are explicit. Exact sample selectors and calculation diagnostics remain.
+No pricing/backend/C++ changes or dependency installs. Astra's bounded read-only
+review found no blocker; root checked the actual local browser. The running
+8768 preview serves these static edits on refresh; no server restart required.
+Prior model-only/live-feed and derivative-execution boundaries remain unchanged.
+Browser checks confirmed drag and arrow-key rotation, reset, and heatmap/3D
+switching. **38 focused tests passed**; unchanged C++/full Python suites were not
+repeated. Exact command:
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gamma_surface.py tests/python/test_gui_static.py -q --maxfail=1 --tb=short --basetemp=build/test-gamma-3d-final-20261109
+```
+
+Previous checkpoint, November 9: **GL1 Gamma Lab implemented** at `/gamma`.
+Manual-input Black-76 model surface (futures price × calendar time), selected
+expiry slice, signed USD/point² exposure and analytic-versus-numerical check.
+This is live recalculation, **not live market data**, an options-chain surface,
+dealer positioning or execution. No derivative gate was removed. See
+[Gamma Lab](gamma-lab.md) for formulas, units and source convention.
+
+- Sol implemented the pure Python model/routes/tests; Terra drafted the UI
+  before reaching a usage limit. Root completed responsive charts, integration,
+  stale-result disposal, keyboard inspection and documentation. Astra's bounded
+  backend and final UI reviews found no blockers. No new dependencies.
+- Browser smoke on a separate loopback preview (`8768`) showed the surface/slice,
+  IV edits updating gamma, analytic/numerical agreement, and invalid inputs
+  clearing all old results. Preview used only synthetic/manual inputs. The
+  existing `8765` process was not stopped; lazy loading keeps its older routes
+  usable. Restart that process to make the new capability available there.
+- Focused verification: **98 passed, 3 native-Windows checks skipped**; after the
+  final UI update, **19 static regressions passed** (includes one new regression).
+  C++ was unchanged; the previously passing 19-test C++ suite was not rerun.
+  Full Python regression was intentionally not repeated.
+
+```sh
+.venv/bin/python -m pytest tests/python/test_gamma_surface.py tests/python/test_gui_gamma.py tests/python/test_gui_gamma_integration.py tests/python/test_gui_app.py tests/python/test_gui_static.py tests/python/test_gui_documents.py tests/python/test_gui_windows.py -q --maxfail=1 --tb=short -o faulthandler_timeout=30 --basetemp=build/test-gamma-gui-local-20261109
+.venv/bin/python -m pytest tests/python/test_gui_static.py -q --maxfail=1 --tb=short --basetemp=build/test-gamma-static-final-20261109
+PYTHONUNBUFFERED=1 .venv/bin/python -m qte gui --port 8768
+```
+
+The initial sandboxed GUI bind was denied; the sandboxed integrated tests stalled
+in the existing AnyIO worker/event loop and were interrupted after diagnosis.
+Scoped local-process permission allowed the above focused suite and preview to
+run; no tests were weakened. No broker/account/data-feed connection, Git history
+operation, package install or outside-repository write. Market-live surfaces
+still require an entitled, timestamp-qualified options source and separate
+provider integration; D2b.2 execution work remains the next engine milestone.
+
+Previous checkpoint, November 8: **D2a settlement accounting and D2b.1 futures
+margin budgeting implemented; 19/19 CTest and 80 focused Python tests passed.**
+The runnable `qte_futures_accounting_demo` shows entry, opposing pending orders,
+cash settlement and closing without double-counted PnL. This is synthetic
+accounting/risk functionality, not an enabled derivatives strategy or broker.
+No equity, Bar, strategy-selection or GUI execution gates were removed.
+Preserve all prior Windows/D1/V1 changes.
+
+### D2a / D2b.1 changes and handoff
+
+- Position keeps economic entry price separate from the futures cash settlement
+  basis. Portfolio owns an immutable settlement journal, shared event ordering,
+  exact duplicate handling, provenance and atomic cash/position updates.
+  Settlement preserves equity at an unchanged mark; later closes do not realize
+  the same cash twice. Late events requiring historical inventory reconstruction,
+  reference corrections and expiry processing remain unsupported and fail closed.
+- The read-only futures margin evaluator consumes the authoritative Portfolio
+  and accepted pending-order snapshots. It reports current initial/maintenance
+  requirements, conservative pending reservations, estimated fees and collateral.
+  Opposing pending orders receive no netting credit. Visible, fresh marks and a
+  sourced, time-valid, matching futures-only margin schedule are required.
+- `examples/futures_accounting.cpp` uses artificial NQ-like values and margin
+  rates. Its final equity is 10195 from initial cash 10000, economic gross PnL
+  200 and fees 5. These are fixture arithmetic, not strategy performance.
+- Sol implemented the accounting/margin components; root completed integration,
+  the runnable example and documentation. Astra's bounded read-only reviews
+  found no remaining blockers. Draft test expectations that double-counted
+  settlement cash and an incorrect getter name were corrected; no checks were
+  weakened or tests deleted. The settlement path regression compares 32
+  deterministic paths with and without cash settlement.
+- **Next: D2b.2**, use margin budgets for order admission/fill decisions and
+  integrate derivative execution fees. A causal settlement-event source still
+  needs event-loop integration. D3 quote execution, D4 strategy lifecycle and D5
+  GUI execution remain gated; neither this margin report nor the demo grants
+  trading permission. See [ADR 0013](adr/0013-derivative-research-foundation.md).
+
+### Final verification (repository root, November 8)
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" cmake --preset dev -DQTE_BUILD_EXAMPLES=ON
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev -j2
+# build/local-dev, native /usr/bin/g++; successful
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# 19/19 passed
+./build/local-dev/qte_futures_accounting_demo
+# successful; settlement preserves equity, final cash/equity 10195
+PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 TMPDIR="$PWD/build" CMAKE_BUILD_PARALLEL_LEVEL=2 .venv/bin/python -m pip install --no-index --no-build-isolation --no-deps -e .
+# existing QTE rebuilt/reinstalled inside .venv, offline; no new dependencies
+.venv/bin/python -m pytest tests/python/test_bindings.py tests/python/test_lifecycle.py tests/python/test_explicit_availability.py tests/python/test_research_config.py tests/python/test_research_baseline.py tests/python/test_gui_documents.py -q --maxfail=1 --tb=short --basetemp=build/test-d2-focused-20261108
+# 80 passed
+```
+
+Verification was deliberately bounded to the complete C++ suite and affected
+Python integration tests; the full Python suite was not rerun (last complete
+run: V1 below). No Git history/remote operations, GUI restart, broker connection,
+system installation or outside-repository write. No new market data downloaded.
+Generated build/test artifacts remain in ignored repository paths.
+
+Previous checkpoint, November 5: **V1 VIX analysis sidecar implemented and reviewed;
+1963 Python passed / 8 native-Windows tests skipped; 16/16 CTest passed**.
+This resumes the November 4 usage interruption.
+No D2 trading gates were removed. Prior D1 and Windows edits remain preserved.
+
+### V1 changes and review
+
+- `python/qte/volatility.py`: pure point-in-time selected-VX proxy analysis,
+  explicit target scale, Calendar365 durations, ±1/2/3σ endpoint bands, normal
+  expected absolute moves, all supplied completed-candle OHLC level distances,
+  and optional independently supplied signed USD/point² gamma scenarios.
+  The interpretation of “all candle levels” defaults to both timeframes and
+  completed OHLC levels; no clarification answer arrived.
+- `python/qte/adapters/cboe_vix.py`: strict offline saved-byte Cboe adapter,
+  exact-byte hash and retrieval-based vintage, monthly/weekly VX identities
+  qualified by expiry, conservative date/expiry assumptions. An absent CSV
+  discretionary marker is unknown, not evidence of a non-discretionary price.
+- Sol completed adapter tests and the offline `examples/vix_expected_moves.py`.
+  Root implemented analysis/tests/documentation; Astra independently reviewed
+  both passes. Review corrected weekly-symbol rejection, decade-colliding IDs,
+  intermediate gamma underflow/overflow, and asynchronous spread disclosure.
+  CLI tests use `sys.executable`, preserving Windows-compatible invocation.
+- [VIX scenario documentation](strategies/vix-expected-moves.md) is registered
+  in the GUI library with research/mixed status and linked from the roadmap
+  and Nasdaq specification. No interactive form, strategy registration or
+  broker execution is claimed. Existing GUI process was not restarted.
+- Default example is entirely synthetic. Saved Cboe mode is explicitly mixed:
+  actual VX file plus synthetic NQ candles/gamma. The analyzer has no automatic
+  network I/O, auto-roll, option pricing or dealer-inventory inference.
+
+### V1 verification (repository root, November 5)
+
+```sh
+command -v g++
+# /usr/bin/g++; no compiler or package installed
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev -j2
+# build/local-dev: no work to do
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# 16/16 passed
+.venv/bin/python -m pytest tests/python/test_cboe_vix.py -q --maxfail=1 --tb=short
+# 34 passed
+.venv/bin/python -m pytest tests/python/test_vix_example.py -q --maxfail=1 --tb=short
+# 15 passed after cross-platform/default-gamma review fixes
+.venv/bin/python -m pytest tests/python/test_volatility.py tests/python/test_cboe_vix.py -q --maxfail=1 --tb=short --basetemp=build/test-vix-focused-20261105
+# 112 passed
+.venv/bin/python -m pytest tests/python/test_volatility.py tests/python/test_cboe_vix.py tests/python/test_vix_example.py tests/python/test_gui_documents.py -q --maxfail=1 --tb=short --basetemp=build/test-vix-integration-20261105
+# 138 passed
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-vix-full-20261105
+# 1963 passed, 8 skipped, 122.84s
+.venv/bin/python -m pytest tests/python/test_gui_documents.py -q --maxfail=1 --tb=short --basetemp=build/test-vix-docs-20261105
+# 11 passed after final checkpoint update
+git diff --check
+# passed
+```
+
+Full regression uses scoped execution permission for local loopback/subprocess
+tests, not broker/external-service connectivity. Python runs in the repository
+`.venv`; test artifacts stay in ignored `build/`. No dependency installs.
+The 127 dedicated adapter/analyzer/CLI tests are included in the full count.
+Astra's final read-only review found no blocking defects or documentation
+mismatches. The synthetic CLI smoke also confirmed gamma 0.02, seven horizons,
+and a daily one-sigma move of 209.788308 points from its artificial inputs.
+
+### Public-data smoke and next boundary
+
+One unauthenticated, public Cboe CSV GET was performed, with scoped network
+permission and no redirects, credentials or account operations:
+
+```sh
+mktemp -d build/vix-cboe-20261105.XXXXXX
+# build/vix-cboe-20261105.jHHM20
+curl --fail --silent --show-error --max-time 20 --max-filesize 1048576 'https://www-api.cboe.com/us/futures/market_statistics/settlement/csv/?dt=2026-11-03' --output build/vix-cboe-20261105.jHHM20/settlement.csv
+.venv/bin/python examples/vix_expected_moves.py --vx-csv build/vix-cboe-20261105.jHHM20/settlement.csv --settlement-date 2026-11-03 --retrieved-at-ns 1793940954542200349 --contract-id 'VX/X6@2026-11-18' --volatility-scale 1.0
+```
+
+The exact retrieved bytes (1728) have SHA-256
+`a0b5c5279cacce9b34d8525a54adad9bf693be68679f2c441b4451400dfa0ca5`.
+`retrieval.json` alongside the file records a conservative local timestamp
+after download completion; this is not historical publication time.
+Parsing yields 14 VX rows, 13 unexpired as of that timestamp. Selected monthly
+VX/X6@2026-11-18 is 19.8993. With synthetic NQ anchor 20040 and scenario scale
+1.0, the 24-hour one-sigma move is 208.732024 points across seven horizons/eight
+OHLC levels each. This validates mechanics, **not** historical NQ forecasting,
+option pricing, dealer activity or profitability. Full JSON was checked via
+a stdout JSON parser; no report was represented as a historical strategy run.
+
+Next research boundary: qualified causal Nasdaq/options data, matched-horizon
+calibration and chronological out-of-sample endpoint coverage tests. No licensed
+data or calibrated probability exists yet. Derivative implementation next remains
+**D2 settlement/margin**, then D3 quote execution and D4/D5 lifecycle/GUI. Windows
+work remains paused. No Git history/remote operations, GUI restart, system
+installation or outside-repository write was performed. Account connections,
+paid datasets and broker trading need separate authorization.
+
+Previous checkpoint, November 4: **D1 derivative foundation implemented and
+reviewed — 1835 Python passed / 8 native-Windows tests skipped; 16/16 CTest passed**. The user selected
+both Nasdaq options gamma scalping and futures-only dealer-gamma research on
+November 3. Canonical contract metadata, existing-ledger multiplier/accounting
+support, and both pure causal decision policies are implemented. Windows work
+below remains paused/preserved. Derivative backtests and GUI/CLI execution remain
+blocked until settlement, margin, quote execution and lifecycle gates pass.
+
+### D1 changes and review
+
+- Existing InstrumentSpec/Fill/Position/Portfolio now handle explicit contract
+  multipliers and premium-paid options versus unsettled futures carrying value.
+  Futures notional is exposure, not an equity purchase cashflow. Zero option
+  marks are supported; zero-priced fills, settlement and exercise are not.
+- ResearchProfile, dataset preflight, open-only execution and equity risk reject
+  derivatives, including flat mixed portfolios. The binding exposes read-only
+  fill multiplier without exposing a second mutable Python ledger.
+- `python/qte/strategies/nasdaq_gamma.py` provides GammaHedgePolicy and
+  DealerGammaPolicy. Pure target decisions only; no broker calls, orders or
+  fabricated fills. There are 69 dedicated policy tests.
+- Regressions cover reference-time Greek freshness, visible revision selection,
+  future-source isolation, lagged price revision cutoff, no hedge removal on
+  missing Greeks, exact half-away rounding, overflow and true range breakout.
+  Initial draft tests incorrectly rejected rounding 1.1 and expected a reversal
+  reason after an earlier mean-cross exit. Corrected those test specifications;
+  retained strict quantity checks and asserted the actual flatten/no-reversal rule.
+- Sol implemented C++ accounting; Terra drafted policies before a usage limit;
+  root completed/reviewed the policy fixes. Independent Astra reviews passed
+  the execution guards, core accounting and final policy layer.
+- Added [ADR 0013](adr/0013-derivative-research-foundation.md), updated the
+  [strategy specification](strategies/nasdaq-gamma-scalping.md), and registered
+  both documents in the GUI library as mixed/incomplete capability. Added
+  `examples/nasdaq_gamma_policy.py`, a clearly synthetic offline smoke example.
+
+### Exact final verification (repository root, November 4)
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" cmake --preset dev
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev -j2
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# build/local-dev, native /usr/bin/g++; 16/16 passed
+PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 TMPDIR="$PWD/build" .venv/bin/python -m pip install --no-index --no-build-isolation --no-deps -e .
+# Existing QTE rebuilt/installed into .venv; no dependencies downloaded/installed
+.venv/bin/python -m pytest tests/python/test_nasdaq_gamma.py -q --maxfail=1 --tb=short --basetemp=build/test-gamma-policy-20261104
+# 69 passed
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-gamma-full-20261104
+# 1835 passed, 8 skipped, 126.75s
+.venv/bin/python examples/nasdaq_gamma_policy.py
+# synthetic-policy-only targets: hedge -3, dealer breakout +1
+.venv/bin/python -m pytest tests/python/test_gui_documents.py -q --maxfail=1 --tb=short --basetemp=build/test-gamma-docs-20261104
+# 10 passed after final documentation updates
+git diff --check
+# passed
+```
+
+Full Python regression used scoped execution permission for local
+loopback/subprocess tests; no external services. No JS logic changed. A November
+3 editable build was interrupted at the tool-output level by usage exhaustion;
+November 4 rebuild completed explicitly. The earlier doc/config test first
+failed because its fixture omitted required `symbol`; fixing the fixture tested
+the intended unsupported-strategy rejection (42 passed). No production guard
+or existing assertion was weakened.
+
+### Resume here
+
+Next is **D2**, split into reviewable increments: explicit idempotent futures
+variation-settlement events/basis conservation, then contract-aware margin and
+pending-order reservations/per-contract costs. Test settlement-then-close,
+duplicate/conflicting settlements, reversals, option/hedge combined equity and
+rollback before removing any gate. D3 supplies causal quote/Greek events and
+execution; D4a/D4b wire the two full strategy lifecycles; D5 adds normal research
+and GUI execution. Keep the current cash-equity path unchanged.
+
+No licensed historical quotes/dealer data or profitability evidence exists.
+Public CME research only was consulted November 3, as requested. Account access,
+paid data acquisition and live/paper broker execution require separate authority.
+No Git history/remote operations, GUI server restart, system installs or
+outside-repository writes were performed. All prior Windows changes are preserved.
+
+October 28 priority change: the user requested Nasdaq futures gamma-scalping
+research and implementation. Windows work is paused, with all changes below
+preserved. See [research specification and implementation gates](strategies/nasdaq-gamma-scalping.md):
+the prior scope question was resolved November 3 (both). No derivative strategy
+is executable yet.
+
+Latest checkpoint, October 27: **W2c.1–.3 persistence foundation implemented
+and reviewed**. Combined regression: **1763 Python / 15 CTest**, eight native
+Windows tests skipped. SQLite ownership/URI fixes, hardened Linux journal
+publication and bounded Windows disclosure reads are complete for this slice.
+Native durable writes, SQLite containment and W2d integration still remain.
+No Windows GUI routes or job capabilities were enabled. The worktree was clean
+at the start; preserve all new changes. Commands and remaining gates follow below.
+
+Prior checkpoint: **W2b private Windows artifact reader implemented** on 2026-10-25:
 **1709 Python / 15 CTest**, seven native Windows tests skipped; independent Astra
 review passed. The storage facade and GUI remain Windows-blocked. W1/W2b native
 acceptance and W2c persistence/W2d integration remain; do not enable routes yet.
@@ -58,6 +448,88 @@ time. It fired, resumed this work, and was deleted after use; it is not a
 nightly schedule or usage-reset guarantee.
 
 ## Baseline / environment
+
+### October 27 W2c persistence foundation
+
+W2c.1 centralizes GUI SQLite connection ownership: escaped lexical absolute
+read-only URIs, existing transaction semantics, explicit closure on every
+post-open path, unchanged timeouts and materialized query results. Catalog,
+job manager, dataset and comparison call sites use the owned scope; existing
+test/benchmark scopes inherit it. No `immutable=1`, schema migration or new
+dependency. Regressions cover escaped checkout names, missing/read-only DBs,
+commit/rollback/deferred commit errors, closure, historical finalized-job schemas
+and preserved job-kind/idempotency gates.
+
+W2c.2 retains independent immutable schema-v1 JSON evidence. Records are bounded
+before storage creation; collisions validate through the pinned publication
+directory and fail closed without overwriting evidence. Cleanup only removes
+temporaries created by this operation; primary errors and published evidence
+are preserved. Tests cover corrupt/wrong-identity records, deep JSON, symlinks,
+FIFO nonblocking rejection, root replacement, owned descriptors and injected
+write/flush/link/cleanup failures. A failed post-publication flush can leave a
+valid record; this is not batch rollback or a power-loss certification.
+
+Sol implemented SQLite changes; Terra implemented journal fixes; root added
+catalog/finalized-job integration tests and reviewed both; Astra approved the
+Linux foundation. Review fixed an unowned-temp cleanup risk and a FIFO-blocking
+collision reader. The job test fixture now loads its real inline-input dependency
+before installing its narrow legacy stub, fixing isolated-test import ordering
+without changing production snapshot acceptance. The proposed extra recursion
+catch was unnecessary: `strict_json` already translates parser recursion into
+validation failure; new regressions verify that behavior.
+
+Root verification commands from the repository root:
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" cmake --build --preset dev
+PATH="$PWD/.venv/bin:$PATH" ctest --preset dev --output-on-failure
+# build/local-dev: no work; 15/15 passed in 0.08s
+.venv/bin/python -m pytest tests/python/test_gui_sqlite.py tests/python/test_gui_disclosures.py tests/python/test_gui_disclosure_integration.py tests/python/test_gui_catalog.py tests/python/test_gui_job_protection.py tests/python/test_gui_jobs.py -q --maxfail=1 --tb=short --basetemp=build/test-w2c-final-focused-20261027
+# 95 passed in 1.98s, before three additional nested-JSON regressions
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-w2c-full-20261027
+# 1749 passed, 7 native-only skipped in 113.86s
+.venv/bin/python -m pytest tests/python/test_gui_sqlite.py tests/python/test_gui_disclosures.py tests/python/test_gui_disclosure_integration.py -q --maxfail=1 --tb=short --basetemp=build/test-w2c-review-regressions-20261027
+# 43 passed in 0.55s, including the additional regressions
+git diff --check
+# passed
+```
+
+Full regression uses the existing scoped local subprocess/loopback permissions.
+No external network, package installation, Git mutation or user GUI restart.
+Native GCC exists; PowerShell/Wine/MinGW were not found by read-only inspection.
+
+The user then requested continued work. W2c.3 reuses the private Windows stable
+reader for deterministic disclosure/protection record names, a 4096-byte limit
+and the shared strict schema. Linux keeps its existing reader; unsupported hosts
+return unavailable without I/O. Non-Linux mutators explicitly reject even empty
+requests before filesystem access. A native-only fixture covers valid, oversized,
+wrong-identity and malformed records; mock tests verify routing and write guards.
+Astra approved the product boundary. Its required Linux-only test skip was fixed
+before the final run; platform mocks do not mutate global `sys.platform`.
+
+```sh
+.venv/bin/python -m pytest tests/python -q --maxfail=1 --tb=short --basetemp=build/test-w2c-full-final-20261027
+# 1763 passed, 8 native-only skipped in 113.67s
+git diff --check
+# passed
+```
+
+Changed files: GUI `sqlite.py` (new), `catalog.py`, `jobs.py`,
+`comparison_inputs.py`, `dataset_views.py`, `disclosures.py`; tests
+`test_gui_sqlite.py`, `test_gui_disclosures.py`,
+`test_gui_disclosure_integration.py`, `test_gui_disclosure_platform.py` (new),
+and `test_gui_jobs.py`; this log, `windows-gui.md` and `roadmap.md`.
+JavaScript/browser checks were not rerun: no UI code or capabilities changed.
+
+Next: implement and natively validate the Windows durable journal writer and
+SQLite connection-lifetime database/sidecar containment, then W2d integration.
+Do not substitute path prechecks for containment, migrate disclosure history
+into the rebuildable catalog, or enable Windows artifact routes early. The
+[Windows acceptance command](windows-gui.md#native-acceptance-and-remaining-work)
+now includes the new disclosure read test. A Windows host is required for native
+verification; installing any runtime/toolchain or enabling network access still
+requires separate approval. No such installation or access is needed to use the
+existing Linux GUI.
 
 ### October 24–25 W2b private Windows artifact reader
 

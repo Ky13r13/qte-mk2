@@ -49,6 +49,41 @@ fills, OHLC-touch execution, split/dividend ledger events, fractional instrument
 advanced risk, walk-forward robustness, benchmarks, then paper-trading adapters.
 Do not describe the first backtester as ready for live execution.
 
+## Nasdaq derivative research (both hypotheses requested 2026-11-03)
+
+Windows work remains paused and preserved. See the
+[strategy specification](strategies/nasdaq-gamma-scalping.md) and
+[accounting ADR](adr/0013-derivative-research-foundation.md).
+
+| Milestone | Scope | Acceptance gate |
+|---|---|---|
+| D1 — shared foundation (implemented) | Canonical contracts, multiplier-aware existing ledger, pure hedge/dealer decision policies | Exact accounting/causality fixtures; unchanged equities; derivative replay/risk fails closed |
+| D2a — variation settlement (implemented) | Explicit idempotent cash settlement, separate cash/economic bases, causal event journal | Basis/PnL conservation, unchanged equity/episodes, close/reversal/duplicate/cutoff/overflow regressions; no engine wiring |
+| D2b.1 — margin budgets (implemented) | Declared per-contract initial/maintenance/fee schedule, no-offset pending budget, conservative available collateral; runnable synthetic C++ demo | Current/pending quantities, qualified metadata, causal/fresh inputs, quantity overflow; report only, no order approval |
+| D2b.2a — submission admission (implemented) | Read-only candidate + pending margin decision, bounded nonreversing reductions under breaches, fresh target marks/cutoff, runnable accept/reject/cancel demo | Exact budget denials, competing reservations, long/short reduction and causal/lifecycle checks; no engine wiring |
+| D2b.2b — fill-time admission and execution costs (next) | Recheck inventory/reservations at execution, authoritative per-contract fees, pending lifecycle integration | Gap/cost stress, partial fills, reduction remains nonreversing, rejection/cancel recovery and reservation release; no equity-notional cash assumptions |
+| D3 — executable market observations | Quote/Greek availability, contract/session mapping, subsequent-quote execution | No look-ahead, stale/missing data rejection, realistic size/latency/cost handling |
+| D4a — dealer-gamma futures strategy | Wire qualified dealer policy through normal lifecycle/config/reports | Rejection/cancel recovery, out-of-sample synthetic integrity checks, explicit flatten failures |
+| D4b — option gamma scalping | Straddle selection, hedge cadence, partial legs and liquidation | Combined option/hedge accounting, late fills and entry timeout, no implicit exercise/delivery |
+| D5 — research/GUI integration | Normal configuration, report provenance, comparison and library | Runnable paths only after D2–D4; all candidates retained; licensed historical-data validation separately required |
+
+These milestones are implementation gates, not permission to trade or acquire
+paid data. Neither synthetic paths nor a positive single backtest establish an edge.
+
+V1 sidecar — **implemented offline**: [VIX expected-move analysis](strategies/vix-expected-moves.md)
+adds saved Cboe VX settlement adaptation, explicit Nasdaq proxy assumptions,
+calendar-time sigma bands, completed-candle OHLC endpoint distances and optional
+external dollar-gamma scenarios. Deterministic math/availability tests and a
+public settlement smoke check pass; the example target data remains synthetic.
+Not a calibrated forecast, interactive GUI form or derivative strategy. D2b.2b–D5
+remain gated; no futures/options execution is enabled by this analysis module.
+
+GL1 — **implemented model calculator**: [Gamma Lab](gamma-lab.md) adds an
+authenticated GUI surface, chosen-expiry slice and numerical curvature check
+from manual Black-76 inputs. Recalculates on edit; no market feed, dealer
+inventory, automatic VX-to-Nasdaq IV conversion or derivative execution.
+Market-live surfaces require a separately qualified options-chain source.
+
 ## Analytics defaults to settle before M9
 
 Use mark-to-market equity returns, including transaction costs; no deposits or
@@ -123,7 +158,7 @@ or trade placement is authorized by this research request.
 | R2b — session-aware replay bridge (implemented; offline synthetic tests) | Opt-in explicit-availability envelope, callback clock, stale-mark protection, session adapter; [ADR 0012](adr/0012-explicit-availability.md) | Mixed durations and delayed publication cannot expose data early or fill at an already-passed open; legacy hash/tests retained; Python API only |
 | R2c — session ingestion and research surface (queued) | Versioned local session/bar files and bounded config/GUI integration; explicit sampling/export/comparison semantics | Preserve timing/calendar provenance and physical-vs-replay bounds; reject guessed calendar/frequency; online acquisition and actions remain separate gates |
 | W1 — native Windows Library/Connections (implemented; native acceptance pending) | Platform-gated routes, pinned handle-based document reads, PowerShell launcher | Linux regressions plus Windows build/handle/browser checks; no artifact/job fallback; [Windows plan](windows-gui.md) |
-| W2 — Windows artifact/Data parity (W2a complete; W2b private reader implemented, native acceptance pending) | W2c durable disclosures/SQLite and W2d integration remain | Reparse/race protections and holdout invariants before enabling historical results; routes remain blocked |
+| W2 — Windows artifact/Data parity (W2a/W2b and W2c.1–.3 foundations implemented; native acceptance pending) | Native durable journal writes/SQLite containment and W2d integration remain | Reparse/race protections and holdout invariants before enabling historical results; routes remain blocked |
 | W3 — Windows job parity (queued) | Job Objects, locks, owner-death cleanup, timeouts/cancellation/recovery and environment checks | Whole-process-tree cleanup, restart/double-owner tests; then research/test/benchmark launch |
 | R3 — real-data research gate (queued) | Pre-register compact strategy slate; compare against cash and risk-matched buy-and-hold across disjoint regimes at base/stressed costs | Untouched chronological holdout; rejected candidates retained; sufficient trades/regime coverage; selection may return no winner |
 | R4 — robustness (queued) | Rolling walk-forward, neighboring-parameter/cost sensitivity, block-resampled uncertainty, multiple-testing accounting | Training only in past folds; dependent returns not IID; disclose all search trials; no holdout reuse after tuning |

@@ -11,14 +11,16 @@ ResearchProfile::ResearchProfile(core::Currency valuation_currency)
     : valuation_currency_(std::move(valuation_currency)) {}
 
 bool ResearchProfile::supports(const market_data::InstrumentSpec& instrument) const noexcept {
-    return instrument.quote_currency() == valuation_currency_;
+    return instrument.kind() == market_data::InstrumentKind::cash_equity &&
+        instrument.quote_currency() == valuation_currency_;
 }
 
 void ResearchProfile::require_supported(
     const market_data::InstrumentSpec& instrument) const {
     if (!supports(instrument)) {
         throw std::invalid_argument(
-            "instrument quote currency does not match the research valuation currency");
+            "research profile requires cash equities in the valuation currency; "
+            "derivative replay is not enabled");
     }
 }
 

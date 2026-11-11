@@ -140,3 +140,26 @@ def test_explicit_availability_contract_is_registered_and_linked():
     assert document["document"]["availability"] == "available"
     assert '/library/adr-0012' in library.render("architecture")["rendered_html"]
     assert '/library/adr-0011' in document["rendered_html"]
+
+
+def test_derivative_foundation_is_documented_but_not_advertised_as_executable():
+    library = DocumentLibrary(Path(__file__).parents[2])
+    for doc_id in ("nasdaq-gamma-scalping", "adr-0013"):
+        document = library.render(doc_id)
+        assert document["document"]["availability"] == "available"
+        assert document["document"]["implementation_status"] == "mixed"
+    roadmap = library.render("roadmap")["rendered_html"]
+    assert "/library/adr-0013" in roadmap
+    assert "/library/nasdaq-gamma-scalping" in roadmap
+
+
+def test_vix_analysis_is_registered_as_research_without_claiming_strategy_execution():
+    library = DocumentLibrary(Path(__file__).parents[2])
+    document = library.render("vix-expected-moves")
+    assert document["document"]["availability"] == "available"
+    assert document["document"]["implementation_status"] == "mixed"
+    assert document["document"]["category"] == "research"
+    assert "not a calibrated" in document["rendered_html"]
+    assert "/library/nasdaq-gamma-scalping" in document["rendered_html"]
+    assert "/library/vix-expected-moves" in library.render("roadmap")["rendered_html"]
+    assert "/library/vix-expected-moves" in library.render("nasdaq-gamma-scalping")["rendered_html"]

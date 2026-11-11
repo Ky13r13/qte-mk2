@@ -26,10 +26,12 @@ private:
 
 struct OrderIdTag final {};
 struct FillIdTag final {};
+struct SettlementIdTag final {};
 struct EventSequenceTag final {};
 
 using OrderId = Identifier<OrderIdTag>;
 using FillId = Identifier<FillIdTag>;
+using SettlementId = Identifier<SettlementIdTag>;
 using EventSequence = Identifier<EventSequenceTag>;
 
 template <typename Id, std::uint64_t Maximum = std::numeric_limits<std::uint64_t>::max()>

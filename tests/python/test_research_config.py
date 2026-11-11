@@ -51,6 +51,14 @@ def test_cli_fields_remains_the_shared_compatible_symbol():
     assert fields({"required": 1}, {"required"}, {"required"}) == {"required": 1}
 
 
+@pytest.mark.parametrize("strategy_type", ("nasdaq_gamma_scalping", "dealer_gamma_futures"))
+def test_derivative_policies_cannot_run_through_cash_equity_research(strategy_type):
+    config = sma_config()
+    config["strategy"] = {"type": strategy_type, "symbol": "SPY"}
+    with pytest.raises(ValueError, match="unsupported strategy type"):
+        prepare_research(config, DATA, build_identity="derivative-gate-test")
+
+
 @pytest.mark.parametrize("strategy_type", ("moving_average_regime", *FAMILIES))
 def test_prepare_constructs_every_registered_strategy_without_running_engine(monkeypatch, strategy_type):
     class ForbiddenEngine:

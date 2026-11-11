@@ -18,9 +18,10 @@ let jobViews = null;
 let systemTests = null;
 let systemBenchmarks = null;
 let systemConnections = null;
-const runViews = new Set(["overview", "metrics", "orders", "fills", "equity", "sampled_equity", "equity_table", "sampled_equity_table", "positions", "closed_trades", "open_trades", "order_events", "route_events", "provenance", "files", "catalog"]);
+let gammaLab = null;
+const runViews = new Set(["overview", "market", "metrics", "orders", "fills", "equity", "sampled_equity", "equity_table", "sampled_equity_table", "positions", "closed_trades", "open_trades", "order_events", "route_events", "provenance", "files", "catalog"]);
 
-function beginView() { jobViews?.dispose(); systemTests?.dispose(); systemBenchmarks?.dispose(); systemConnections?.dispose(); activeView += 1; return activeView; }
+function beginView() { jobViews?.dispose(); systemTests?.dispose(); systemBenchmarks?.dispose(); systemConnections?.dispose(); gammaLab?.dispose(); activeView += 1; return activeView; }
 function isCurrentView(request) { return request === activeView; }
 
 function navigate(href) {
@@ -524,7 +525,7 @@ function runHeader(id, run, selected) {
   const breadcrumb = element("p", { class: "muted" }, [textLink("/research", "Research"), globalThis.document.createTextNode(" / "), globalThis.document.createTextNode(run.name || "Single run")]);
   const status = element("p", { class: "lede", text: `Status: ${artifactStatus(run)}. Evidence: ${humanize(artifactValue(run, "evidence"))}.` });
   const nav = element("nav", { class: "run-nav", "aria-label": "Single-run views" });
-  const views = [["overview", "Overview"], ["metrics", "Metrics"], ["orders", "Orders"], ["fills", "Fills"], ["equity", "Event equity"], ["sampled_equity", "Sampled equity"], ["equity_table", "Equity records"], ["sampled_equity_table", "Sampled records"]];
+  const views = [["overview", "Overview"], ["market", "Candles & regimes"], ["metrics", "Metrics"], ["orders", "Orders"], ["fills", "Fills"], ["equity", "Event equity"], ["sampled_equity", "Sampled equity"], ["equity_table", "Equity records"], ["sampled_equity_table", "Sampled records"]];
   const ownedViews = [["positions", "positions", "Positions"], ["closed_trades", "closed_trades", "Closed trades"], ["open_trades", "open_trades", "Open trades"], ["order_events", "order_events", "Order events"], ["route_events", "route_events", "Macro routing"]];
   for (const [view, capability, label] of ownedViews) {
     if (run.capabilities?.[capability] === "recorded") views.push([view, label]);
@@ -741,7 +742,7 @@ function runFiles(id, run, filesPayload, fileOffset, filesError) {
     (nextOffset) => loadRun(id, "files", "event", nextOffset)));
 }
 
-async function loadRun(id, view = "overview", sampling = "event", offset = 0, range = {}) {
+async function loadRun(id, view = "overview", sampling = "event", offset = 0, range = {}, symbol = "") {
   const request = beginView();
   setNavigation("research");
   setStatus("Loading single run.");
@@ -749,7 +750,22 @@ async function loadRun(id, view = "overview", sampling = "event", offset = 0, ra
     const payload = await api(`/api/v1/runs/${encodeURIComponent(id)}`);
     if (!isCurrentView(request)) return;
     const run = payload.run || payload;
-    if (view === "overview" || view === "equity" || view === "sampled_equity") {
+    if (view === "market") {
+      const params = new URLSearchParams();
+      if (symbol) params.set("symbol", symbol);
+      const marketPayload = await api(`/api/v1/runs/${encodeURIComponent(id)}/market${params.size ? `?${params}` : ""}`);
+      const { renderMarketChart } = await import("./market_chart.js");
+      if (!isCurrentView(request)) return;
+      const market = marketPayload.market;
+      const selector = element("label", { class: "field-label" }, [element("span", { text: "Recorded instrument" })]);
+      const select = element("select", { "aria-label": "Recorded instrument" });
+      for (const value of market.symbols || []) select.append(element("option", { value, text: value }));
+      select.value = market.symbol || "";
+      select.addEventListener("change", () => loadRun(id, "market", "event", 0, {}, select.value));
+      selector.append(select);
+      replaceView(...runHeader(id, run, view), ...(market.symbols?.length > 1 ? [selector] : []),
+        renderMarketChart({ element }, market));
+    } else if (view === "overview" || view === "equity" || view === "sampled_equity") {
       const requestedSampling = view === "sampled_equity" ? "sampled" : sampling;
       const params = new URLSearchParams({ sampling: requestedSampling, max_points: "2000" });
       for (const key of ["start_ns", "end_ns"]) if (range[key]) params.set(key, range[key]);
@@ -879,6 +895,21 @@ systemConnections = createSystemConnections({
   api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation,
   textLink, displayValue, humanize,
 });
+async function loadGammaLab() {
+  const request = beginView();
+  try {
+    // Older running servers cannot serve newly registered assets until restart.
+    // Load on demand so their existing Library/Research views keep working.
+    const { createGammaLab } = await import("./gamma.js");
+    if (!isCurrentView(request)) return;
+    gammaLab = createGammaLab({
+      api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation, textLink,
+    });
+    gammaLab.load();
+  } catch (error) {
+    if (isCurrentView(request)) renderError(error.message, "Restart the GUI process to load the updated calculator.");
+  }
+}
 
 function renderLogin(errorMessage = "") {
   logoutButton.hidden = true;
@@ -920,6 +951,9 @@ async function bootstrap() {
       if (["research", "data"].includes(link.dataset.nav)) {
         link.hidden = !capabilityAvailable(state.capabilities, link.dataset.nav);
       }
+      if (link.dataset.nav === "gamma") {
+        link.hidden = !capabilityAvailable(state.capabilities, "gamma_calculator");
+      }
       if (link.dataset.nav === "system" && !capabilityAvailable(state.capabilities, "test_execution")) {
         link.setAttribute("href", "/system/connections");
       }
@@ -936,6 +970,7 @@ function route() {
   systemTests.dispose();
   systemBenchmarks.dispose();
   systemConnections.dispose();
+  gammaLab?.dispose();
   const path = window.location.pathname;
   const required = routeCapability(path);
   if (required && !capabilityAvailable(state.capabilities, required)) {
@@ -943,6 +978,7 @@ function route() {
     return;
   }
   if (path === "/library" || path === "/") loadLibrary();
+  else if (path === "/gamma") loadGammaLab();
   else if (path.startsWith("/library/")) {
     const id = decodeRouteSegment(path, "/library/");
     if (id !== null) loadDocument(id);
@@ -1028,7 +1064,7 @@ document.addEventListener("click", (event) => {
   // Native fragment navigation is required for the skip link and in-page anchors.
   if (!rawHref || rawHref.startsWith("#")) return;
   const href = new URL(link.href);
-  if (!["/library", "/research", "/data", "/system"].some((prefix) => href.pathname === prefix || href.pathname.startsWith(`${prefix}/`))) return;
+  if (!["/library", "/gamma", "/research", "/data", "/system"].some((prefix) => href.pathname === prefix || href.pathname.startsWith(`${prefix}/`))) return;
   event.preventDefault();
   window.history.pushState({}, "", href.pathname + href.search + href.hash);
   route();

@@ -53,6 +53,9 @@ DOCUMENTS = (
     _spec("regime-framework", "Regime framework", "strategy", "docs/strategies/regime-framework.md", "mixed"),
     _spec("selection-protocol", "Selection protocol", "strategy", "docs/strategies/selection-protocol.md", "proposed"),
     _spec("strategy-lab", "Strategy lab", "strategy", "docs/strategies/strategy-lab.md", "implemented"),
+    _spec("nasdaq-gamma-scalping", "Nasdaq gamma research — gated foundation", "strategy", "docs/strategies/nasdaq-gamma-scalping.md", "mixed"),
+    _spec("vix-expected-moves", "VIX futures scenarios — analysis only", "research", "docs/strategies/vix-expected-moves.md", "mixed"),
+    _spec("gamma-lab", "Gamma Lab — interactive model calculator", "research", "docs/gamma-lab.md", "implemented"),
     *tuple(_spec(f"adr-{number:04d}", f"ADR {number:04d}", "adr", f"docs/adr/{number:04d}-{slug}.md", status)
            for number, slug, status in (
                (1, "orders-and-fills", "implemented"), (2, "time-and-events", "implemented"),
@@ -62,6 +65,7 @@ DOCUMENTS = (
                (9, "regime-research", "mixed"), (10, "local-research-ui", "proposed"),
                (11, "session-calendar", "mixed"),
                (12, "explicit-availability", "implemented"),
+               (13, "derivative-research-foundation", "mixed"),
            )),
 )
 

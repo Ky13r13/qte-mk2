@@ -1,6 +1,6 @@
 // Role-filtered strategy-lab views. This module never reads raw artifact files.
 export function createExperimentViews(ui) {
-  const views = new Set(["overview", "windows", "comparison", "macro", "regime_decisions", "catalog"]);
+  const views = new Set(["overview", "market", "windows", "comparison", "macro", "regime_decisions", "catalog"]);
   const defaultColumns = {
     candidates: ["candidate", "eligible", "validation_score", "exclusions"],
     windows: ["name", "role", "regime", "interval_ns"],
@@ -8,7 +8,7 @@ export function createExperimentViews(ui) {
     macro: ["feature", "value", "reference_ns", "available_ns"],
     regime_decisions: ["timestamp_ns", "macro_regime", "volatility_regime", "permitted_families"],
   };
-  const labels = { overview: "Candidates", windows: "Windows", comparison: "Comparison", macro: "Macro inputs", regime_decisions: "Regime decisions", catalog: "Catalog record" };
+  const labels = { overview: "Candidates", market: "Candles & regimes", windows: "Windows", comparison: "Comparison", macro: "Macro inputs", regime_decisions: "Regime decisions", catalog: "Catalog record" };
 
   function href(id, view, timeframe = "", windowName = "") {
     const query = new URLSearchParams({ lab_view: view });
@@ -154,6 +154,46 @@ export function createExperimentViews(ui) {
     ui.replaceView(...header(id, experiment, selected, timeframe, windowName), contextDetails(experiment), ...warnings(experiment), ...selector, section);
   }
 
+  async function loadMarket(id, experiment, timeframe, windowName, options, request) {
+    if (!windowName) {
+      ui.replaceView(...header(id, experiment, "market", timeframe, ""),
+        ui.element("p", { text: "Choose one train or validation window. For changing regimes, try a regime_switch window; independently initialized windows are never joined." }),
+        windowSelector(id, experiment, "market", timeframe, ""));
+      return;
+    }
+    const params = new URLSearchParams({ timeframe, window: windowName, cost: options.cost || "base" });
+    for (const key of ["candidate", "compare", "symbol"]) if (options[key]) params.set(key, options[key]);
+    const payload = await ui.api(`/api/v1/experiments/${encodeURIComponent(id)}/market?${params}`);
+    const { renderMarketChart } = await import("./market_chart.js");
+    if (!ui.isCurrentView(request)) return;
+    const market = payload.market;
+    const form = ui.element("form", { class: "market-controls" });
+    const selects = {};
+    function choice(key, label, choices, value) {
+      const wrapper = ui.element("label", { class: "field-label" }, [ui.element("span", { text: label })]);
+      const select = ui.element("select", { name: key });
+      for (const item of choices) select.append(ui.element("option", { value: item.value, text: item.text }));
+      select.value = value; wrapper.append(select); form.append(wrapper); selects[key] = select;
+    }
+    const candidates = (market.candidates || []).map(item => ({ value: item.candidate,
+      text: `${item.candidate}${item.status !== "ok" ? ` (${item.status})` : ""}` }));
+    choice("candidate", "Strategy", candidates, market.runs?.[0]?.candidate || options.candidate || "");
+    choice("compare", "Compare on the same window", [{ value: "", text: "No comparison" }, ...candidates], options.compare || "");
+    choice("cost", "Cost assumptions", [{ value: "base", text: "Base" }, { value: "stress", text: "Stressed" }], options.cost || "base");
+    choice("symbol", "Instrument", (market.symbols || []).map(value => ({ value, text: value })), market.symbol || "");
+    form.append(ui.element("button", { type: "submit", text: "Show comparison" }));
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      const values = Object.fromEntries(Object.entries(selects).map(([key, node]) => [key, node.value]));
+      if (values.compare === values.candidate) values.compare = "";
+      load(id, { view: "market", timeframe, windowName, ...values });
+    });
+    ui.replaceView(...header(id, experiment, "market", timeframe, windowName),
+      windowSelector(id, experiment, "market", timeframe, windowName), form,
+      ui.element("p", { class: "muted", text: "Synthetic mechanics only. Regime bands show recorded as-of filter context, not observed dealer flow or proof that a strategy used that filter. Each window starts fresh." }),
+      renderMarketChart(ui, market));
+  }
+
   async function load(id, options = {}) {
     const selected = views.has(options.view) ? options.view : "overview";
     const timeframe = typeof options.timeframe === "string" ? options.timeframe : "";
@@ -169,6 +209,11 @@ export function createExperimentViews(ui) {
       const experiment = detail.experiment || detail;
       const recordedTimeframe = typeof experiment.timeframe === "string" ? experiment.timeframe : timeframe;
       if (selected === "catalog") { await ui.loadArtifact(id, 0, true); return; }
+      if (selected === "market") {
+        await loadMarket(id, experiment, recordedTimeframe, windowName, options, request);
+        if (ui.isCurrentView(request)) ui.setStatus("");
+        return;
+      }
       const table = selected === "overview" ? "candidates" : selected;
       const needsWindow = ["comparison", "macro", "regime_decisions"].includes(table);
       if (needsWindow && !windowName) {

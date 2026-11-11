@@ -158,6 +158,16 @@ export function createResearchForms(ui) {
       register(path, input);
       label.append(input);
 
+      const notes = [];
+      if (descriptor?.unit) notes.push(`Unit: ${descriptor.unit}.`);
+      if (descriptor?.minimum !== undefined || descriptor?.maximum !== undefined) {
+        const lower = descriptor.minimum !== undefined ? descriptor.minimum : "unbounded";
+        const upper = descriptor.maximum !== undefined ? descriptor.maximum : "unbounded";
+        notes.push(`Supported range: ${lower} through ${upper}.`);
+      }
+      if (descriptor?.guidance) notes.push(descriptor.guidance);
+      if (notes.length) wrapper.append(ui.element("p", { class: "muted research-form-guidance", text: notes.join(" ") }));
+
       let include = null;
       let mode = null;
       if (!required && nullable) {
@@ -173,7 +183,8 @@ export function createResearchForms(ui) {
       } else if (!required) {
         const includeLabel = ui.element("label", { class: "research-form-include" });
         include = ui.element("input", { type: "checkbox" });
-        includeLabel.append(include, globalThis.document.createTextNode(" Include override"));
+        const effective = Object.hasOwn(descriptor || {}, "default") ? ` (default: ${String(descriptor.default)})` : "";
+        includeLabel.append(include, globalThis.document.createTextNode(` Include override${effective}`));
         include.addEventListener("change", () => { input.disabled = !include.checked; });
         input.disabled = true;
         wrapper.append(includeLabel);
@@ -192,6 +203,11 @@ export function createResearchForms(ui) {
         if (descriptor?.type === "integer_string") {
           const pattern = settings.signed ? /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/ : /^(?:0|[1-9][0-9]*)$/;
           if (!pattern.test(value)) throw new DraftError(path, "Use a canonical decimal string.");
+          const integer = BigInt(value);
+          if (descriptor.minimum !== undefined && integer < BigInt(descriptor.minimum)
+              || descriptor.maximum !== undefined && integer > BigInt(descriptor.maximum)) {
+            throw new DraftError(path, `Use a value from ${descriptor.minimum ?? "the supported minimum"} through ${descriptor.maximum ?? "the supported maximum"}.`);
+          }
           return { present: true, value };
         }
         if (descriptor?.type === "number") {
@@ -202,7 +218,17 @@ export function createResearchForms(ui) {
         }
         return { present: true, value };
       }
-      return { wrapper, input, read, include, mode };
+      function resetOptional() {
+        if (mode) {
+          mode.value = "omit";
+          input.disabled = true;
+        }
+        if (include) {
+          include.checked = false;
+          input.disabled = true;
+        }
+      }
+      return { wrapper, input, read, include, mode, resetOptional };
     }
 
     function addScalars(parent, fields) {
@@ -248,7 +274,13 @@ export function createResearchForms(ui) {
       });
       register(path, wrapper);
       return {
+        inputs, include,
         wrapper,
+        resetOptional() {
+          if (!include) return;
+          include.checked = false;
+          for (const input of inputs) input.disabled = true;
+        },
         read() {
           if (include && !include.checked) return { present: false };
           const value = inputs.filter((input) => input.checked).map((input) => input.value);
@@ -300,6 +332,12 @@ export function createResearchForms(ui) {
       update();
       return {
         wrapper,
+        resetOptional() {
+          enabled.checked = false;
+          grid.value = "interval";
+          riskFree.resetOptional();
+          update();
+        },
         read() {
           if (!enabled.checked) return null;
           const result = {
@@ -441,7 +479,38 @@ export function createResearchForms(ui) {
         riskSection.append(risk[name].wrapper);
       }
       const sample = sampling(fields);
+      const exampleButton = ui.element("button", { type: "button", text: "Load working SMA example" });
+      exampleButton.addEventListener("click", () => {
+        const example = metadata.example;
+        for (const name of ["tick_size", "currency"]) dataCore[name].resetOptional();
+        for (const field of Object.values(schemaFields)) field.resetOptional();
+        for (const field of Object.values(engineAdvanced)) field.resetOptional();
+        for (const field of Object.values(execution)) field.resetOptional();
+        for (const field of Object.values(risk)) field.resetOptional();
+        sample.resetOptional();
+        for (const [name, value] of Object.entries(example.data)) {
+          if (name === "action_free") actionFree.input.checked = value;
+          else if (dataCore[name]) dataCore[name].input.value = String(value);
+        }
+        updateAdapter();
+        strategyType.input.value = example.strategy.type;
+        symbol.input.value = example.strategy.symbol;
+        updateStrategy();
+        const examplePanel = strategyPanels.get(example.strategy.type);
+        for (const [name, value] of Object.entries(example.strategy)) {
+          if (examplePanel?.values[name]) examplePanel.values[name].input.value = String(value);
+        }
+        engineCore.initial_cash.input.value = String(example.engine.initial_cash);
+        for (const [name, value] of Object.entries(example.execution)) {
+          execution[name].include.checked = true;
+          execution[name].input.disabled = false;
+          execution[name].input.value = String(value);
+        }
+        invalidateDraft();
+      });
       draft.append(dataSection, csvOnly, strategySection, engineSection,
+                   ...(!selectedData ? [ui.element("p", { class: "research-form-preset" }, [exampleButton,
+                     globalThis.document.createTextNode(" Replaces this draft with the known repository fixture; sampling stays disabled.")])] : []),
                    ui.element("details", {}, [ui.element("summary", { text: "Advanced engine" }), engineAdvancedSection]),
                    ui.element("details", {}, [ui.element("summary", { text: "Advanced execution" }), executionSection]),
                    ui.element("details", {}, [ui.element("summary", { text: "Advanced risk" }), riskSection]),
@@ -515,7 +584,27 @@ export function createResearchForms(ui) {
         }
         groups[name] = { group, values };
       }
+      const labExample = ui.element("button", { type: "button", text: "Load reproducible lab example" });
+      labExample.addEventListener("click", () => {
+        const example = metadata.example;
+        regimes.resetOptional();
+        for (const field of Object.values(strategy)) field.resetOptional();
+        for (const group of Object.values(groups)) {
+          for (const field of Object.values(group.values)) field.resetOptional();
+        }
+        core.seed.input.value = example.seed;
+        core.bars_per_window.input.value = example.bars_per_window;
+        for (const input of timeframes.inputs) input.checked = example.timeframes.includes(input.value);
+        for (const [name, value] of Object.entries(example.strategy_parameters)) {
+          strategy[name].include.checked = true;
+          strategy[name].input.disabled = false;
+          strategy[name].input.value = value;
+        }
+        invalidateDraft();
+      });
       draft.append(coreSection, timeframes.wrapper, regimes.wrapper,
+        ui.element("p", { class: "research-form-preset" }, [labExample,
+          globalThis.document.createTextNode(" Replaces this draft. Daily 24h is a continuous synthetic clock, not an exchange session.")]),
         ui.element("details", {}, [ui.element("summary", { text: "Shared strategy overrides" }), strategySection]),
         ...Object.entries(groups).map(([name, value]) => ui.element("details", {}, [
           ui.element("summary", { text: labelFor(name) }), value.group,

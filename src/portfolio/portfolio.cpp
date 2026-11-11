@@ -41,9 +41,23 @@ Portfolio::Portfolio(
         if (instruments_.contains(key)) {
             throw InvalidPortfolioInput("portfolio instrument symbols must be unique");
         }
-        positions_.emplace(key, Position{instrument.symbol()});
+        positions_.emplace(key, Position{instrument});
         open_trades_.emplace(key, std::nullopt);
         instruments_.emplace(key, std::move(instrument));
+    }
+    for (const auto& [key, instrument] : instruments_) {
+        static_cast<void>(key);
+        if (instrument.kind() != market_data::InstrumentKind::futures_option) continue;
+        const auto underlying = instruments_.find(instrument.underlying()->value());
+        if (underlying == instruments_.end() ||
+            underlying->second.kind() != market_data::InstrumentKind::future ||
+            underlying->second.quote_currency() != instrument.quote_currency() ||
+            underlying->second.contract_multiplier() != instrument.contract_multiplier() ||
+            *instrument.expiry() > *underlying->second.expiry() ||
+            *instrument.last_trade() > *underlying->second.last_trade()) {
+            throw InvalidPortfolioInput(
+                "futures option underlying metadata is incompatible with portfolio universe");
+        }
     }
 }
 
@@ -51,9 +65,19 @@ bool Portfolio::contains_fill(const core::FillId id) const noexcept {
     return id.value() <= fills_.size();
 }
 
+bool Portfolio::contains_settlement(const core::SettlementId id) const noexcept {
+    return id.value() <= settlements_.size();
+}
+
 const Position* Portfolio::position(const market_data::Symbol& symbol) const noexcept {
     const auto found = positions_.find(symbol.value());
     return found == positions_.end() ? nullptr : &found->second;
+}
+
+const market_data::InstrumentSpec* Portfolio::instrument(
+    const market_data::Symbol& symbol) const noexcept {
+    const auto found = instruments_.find(symbol.value());
+    return found == instruments_.end() ? nullptr : &found->second;
 }
 
 PortfolioSnapshot Portfolio::snapshot() const {
@@ -73,6 +97,7 @@ PortfolioSnapshot Portfolio::snapshot() const {
             position.valuation_mark().has_value()
                 ? std::optional{position.valuation_mark()->sequence()}
                 : std::nullopt,
+            position.kind(),
         });
     }
     return PortfolioSnapshot{cash_sum_, equity(), std::move(snapshots)};
@@ -116,7 +141,7 @@ std::optional<double> Portfolio::gross_exposure() const {
 }
 
 std::optional<double> Portfolio::net_exposure() const {
-    return market_value();
+    return aggregates().net_exposure;
 }
 
 std::optional<double> Portfolio::net_pnl() const {
@@ -146,6 +171,10 @@ void Portfolio::apply_fill(const orders::Fill& fill) {
     if (instrument == instruments_.end() || current_position == positions_.end()) {
         throw InvalidPortfolioInput("fill symbol is outside the portfolio universe");
     }
+    if (fill.contract_multiplier() != instrument->second.contract_multiplier()) {
+        throw InvalidPortfolioInput(
+            "fill contract multiplier does not match instrument metadata");
+    }
     try {
         static_cast<void>(instrument->second.price_grid().canonicalize(
             fill.executed_price().value()));
@@ -171,11 +200,17 @@ void Portfolio::apply_fill(const orders::Fill& fill) {
 
     double prospective_cash = cash_sum_;
     double prospective_cash_compensation = cash_compensation_;
-    const double signed_notional = fill.side() == orders::OrderSide::buy
-                                       ? -fill.gross_notional()
-                                       : fill.gross_notional();
-    add_compensated(
-        signed_notional, prospective_cash, prospective_cash_compensation);
+    if (instrument->second.kind() == market_data::InstrumentKind::future) {
+        add_compensated(
+            transition.realized_cash_pnl(), prospective_cash,
+            prospective_cash_compensation);
+    } else {
+        const double signed_notional = fill.side() == orders::OrderSide::buy
+                                           ? -fill.gross_notional()
+                                           : fill.gross_notional();
+        add_compensated(
+            signed_notional, prospective_cash, prospective_cash_compensation);
+    }
     add_compensated(
         -fill.commission(), prospective_cash, prospective_cash_compensation);
 
@@ -195,6 +230,77 @@ void Portfolio::apply_fill(const orders::Fill& fill) {
     cash_sum_ = prospective_cash;
     cash_compensation_ = prospective_cash_compensation;
     record_event(fill.effective_at(), fill.effective_sequence());
+}
+
+SettlementApplyResult Portfolio::apply_settlement(const VariationSettlement& settlement) {
+    const auto committed = static_cast<std::uint64_t>(settlements_.size());
+    // Identity is checked before clocks so a retry remains harmless even after
+    // fills, marks and later settlements. An altered retry is never a correction.
+    if (settlement.id().value() <= committed) {
+        if (settlements_[static_cast<std::size_t>(settlement.id().value() - 1)].event == settlement) {
+            return SettlementApplyResult::already_applied;
+        }
+        throw ConflictingPortfolioSettlement("settlement ID was committed with different content");
+    }
+    if (committed == std::numeric_limits<std::uint64_t>::max() ||
+        settlement.id().value() != committed + 1) {
+        throw OutOfSequencePortfolioSettlement("settlement ID is not the next ledger sequence");
+    }
+    require_event_order(settlement.effective_at(), settlement.sequence());
+    const auto& key = settlement.symbol().value();
+    const auto instrument = instruments_.find(key);
+    const auto current = positions_.find(key);
+    if (instrument == instruments_.end() || current == positions_.end() ||
+        instrument->second.kind() != market_data::InstrumentKind::future) {
+        throw InvalidPortfolioInput("variation settlement requires a known futures instrument");
+    }
+    if (settlement.contract_multiplier() != instrument->second.contract_multiplier()) {
+        throw InvalidPortfolioInput("settlement multiplier does not match instrument metadata");
+    }
+    if (settlement.reference_at() >= *instrument->second.expiry()) {
+        throw InvalidPortfolioInput("expiry/final settlement is not supported");
+    }
+    // This increment uses current inventory, not a reconstructed cutoff ledger.
+    // All earlier processed fills exactly at reference_at are explicitly included.
+    const auto latest_fill = std::find_if(fills_.rbegin(), fills_.rend(), [&](const auto& fill) {
+        return fill.symbol() == settlement.symbol();
+    });
+    if (latest_fill != fills_.rend() && latest_fill->effective_at() > settlement.reference_at()) {
+        throw InvalidPortfolioInput("late settlement would require historical inventory reconstruction");
+    }
+    const auto latest_settlement = std::find_if(
+        settlements_.rbegin(), settlements_.rend(), [&](const auto& record) {
+            return record.event.symbol() == settlement.symbol();
+        });
+    if (latest_settlement != settlements_.rend() &&
+        settlement.reference_at() <= latest_settlement->event.reference_at()) {
+        throw ConflictingPortfolioSettlement("settlement reference must increase for each symbol; corrections unsupported");
+    }
+
+    Position prospective = current->second;
+    const double previous_basis = *prospective.settlement_basis_price();
+    double cash_delta;
+    try {
+        cash_delta = prospective.settle_variation(settlement.price());
+    } catch (const PositionAccountingError& error) {
+        throw PortfolioAccountingError(error.what());
+    }
+    double prospective_cash = cash_sum_;
+    double prospective_compensation = cash_compensation_;
+    add_compensated(cash_delta, prospective_cash, prospective_compensation);
+    require_valid_state(prospective_cash, &key, &prospective);
+
+    // Only potentially throwing publication comes before noexcept state commits.
+    // Latest fill/reference are derived from journals, avoiding a second cache
+    // that could diverge on an allocation or invariant failure.
+    settlements_.push_back(SettlementRecord{
+        settlement, cash_delta, prospective.quantity(), previous_basis,
+        *prospective.settlement_basis_price()});
+    current->second = std::move(prospective);
+    cash_sum_ = prospective_cash;
+    cash_compensation_ = prospective_compensation;
+    record_event(settlement.effective_at(), settlement.sequence());
+    return SettlementApplyResult::applied;
 }
 
 void Portfolio::mark(const market_data::Symbol& symbol, ValuationMark mark) {
@@ -245,6 +351,8 @@ Portfolio::Aggregates Portfolio::aggregates(
     double unrealized_compensation = 0.0;
     double gross_exposure_sum = 0.0;
     double gross_exposure_compensation = 0.0;
+    double net_exposure_sum = 0.0;
+    double net_exposure_compensation = 0.0;
     bool valuation_available = true;
 
     for (const auto& [key, stored_position] : positions_) {
@@ -259,6 +367,8 @@ Portfolio::Aggregates Portfolio::aggregates(
 
         const auto current_market_value = current.market_value();
         const auto current_unrealized = current.unrealized_pnl();
+        const auto current_gross_exposure = current.gross_exposure();
+        const auto current_net_exposure = current.net_exposure();
         if (!current_market_value.has_value() || !current_unrealized.has_value()) {
             valuation_available = false;
             continue;
@@ -271,10 +381,14 @@ Portfolio::Aggregates Portfolio::aggregates(
             *current_unrealized,
             unrealized_sum,
             unrealized_compensation);
-        add_compensated(
-            std::abs(*current_market_value),
-            gross_exposure_sum,
-            gross_exposure_compensation);
+        if (!current_gross_exposure.has_value() || !current_net_exposure.has_value()) {
+            valuation_available = false;
+            continue;
+        }
+        add_compensated(*current_gross_exposure, gross_exposure_sum,
+                        gross_exposure_compensation);
+        add_compensated(*current_net_exposure, net_exposure_sum,
+                        net_exposure_compensation);
     }
 
     return Aggregates{
@@ -283,6 +397,7 @@ Portfolio::Aggregates Portfolio::aggregates(
         valuation_available ? std::optional{market_value_sum} : std::nullopt,
         valuation_available ? std::optional{unrealized_sum} : std::nullopt,
         valuation_available ? std::optional{gross_exposure_sum} : std::nullopt,
+        valuation_available ? std::optional{net_exposure_sum} : std::nullopt,
     };
 }
 

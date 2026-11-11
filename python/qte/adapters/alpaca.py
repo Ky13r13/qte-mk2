@@ -115,4 +115,4 @@ def _load_alpaca_bytes(
             "complete_page_set=true",
         ),
     )
-    return AdapterResult(data, provenance)
+    return AdapterResult(data, provenance, tuple(bars))

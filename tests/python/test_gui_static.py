@@ -8,6 +8,36 @@ STATIC = Path(__file__).parents[2] / "python" / "qte" / "gui" / "static"
 
 
 class GuiStaticContentTests(unittest.TestCase):
+    def test_gamma_3d_uses_the_same_grid_and_cleans_up_rotation(self) -> None:
+        gamma = (STATIC / "gamma.js").read_text(encoding="utf-8")
+        self.assertIn('let surfaceMode = "3d"', gamma)
+        self.assertIn('drawSurface3D(surface, result.surface, camera)', gamma)
+        self.assertIn('faces.sort((a, b) => a.depth - b.depth)', gamma)
+        self.assertIn('denominator = peak || 1', gamma)
+        self.assertIn('Math.log(day / days[0])', gamma)
+        self.assertIn('canvas.setPointerCapture(pointer)', gamma)
+        self.assertIn('canvas.addEventListener("pointercancel", stopDrag)', gamma)
+        self.assertIn('cancelAnimationFrame(frame)', gamma)
+        self.assertIn('surfaceCleanup?.(); surfaceCleanup = null', gamma)
+        self.assertIn('"ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home"', gamma)
+        self.assertIn('changeMode("heatmap")', gamma)
+
+    def test_gamma_view_lazy_loads_and_invalidates_stale_calculations(self) -> None:
+        script = (STATIC / "app.js").read_text(encoding="utf-8")
+        gamma = (STATIC / "gamma.js").read_text(encoding="utf-8")
+        self.assertIn('await import("./gamma.js")', script)
+        self.assertIn('path === "/gamma") loadGammaLab()', script)
+        self.assertIn('gammaLab?.dispose()', script)
+        self.assertLess(gamma.index('const request = ui.beginView()'), gamma.index('disposed = false'))
+        self.assertIn('ticket !== generation', gamma)
+        self.assertIn('controller?.abort()', gamma)
+        self.assertIn('observer?.disconnect()', gamma)
+        self.assertIn('if (!raw.trim()', gamma)
+        self.assertIn('surface.replaceChildren(); slice.replaceChildren()', gamma)
+        self.assertIn('details.querySelector("dl").replaceChildren()', gamma)
+        self.assertIn('Premium (points)', gamma)
+        self.assertNotIn('innerHTML', gamma)
+
     def test_connection_view_uses_offline_module_and_disposes_on_navigation(self) -> None:
         script = (STATIC / "app.js").read_text(encoding="utf-8")
         self.assertIn('import { createSystemConnections } from "./system_connections.js"', script)

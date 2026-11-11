@@ -147,4 +147,4 @@ def _load_csv_bytes(
             f"volume_unit={volume_unit}",
         ),
     )
-    return AdapterResult(data, provenance)
+    return AdapterResult(data, provenance, tuple(bars))

@@ -28,7 +28,8 @@ public:
         core::EventSequence effective_sequence,
         double reference_open,
         core::TickPrice executed_price,
-        double commission);
+        double commission,
+        std::int64_t contract_multiplier = 1);
 
     [[nodiscard]] core::FillId id() const noexcept { return id_; }
     [[nodiscard]] core::OrderId order_id() const noexcept { return order_id_; }
@@ -47,6 +48,9 @@ public:
     }
     [[nodiscard]] double gross_notional() const noexcept { return gross_notional_; }
     [[nodiscard]] double commission() const noexcept { return commission_; }
+    [[nodiscard]] std::int64_t contract_multiplier() const noexcept {
+        return contract_multiplier_;
+    }
 
 private:
     Fill(
@@ -60,7 +64,8 @@ private:
         double reference_open,
         core::TickPrice executed_price,
         double gross_notional,
-        double commission);
+        double commission,
+        std::int64_t contract_multiplier);
 
     core::FillId id_;
     core::OrderId order_id_;
@@ -73,6 +78,7 @@ private:
     core::TickPrice executed_price_;
     double gross_notional_;
     double commission_;
+    std::int64_t contract_multiplier_;
 };
 
 enum class FillValidationCode {
@@ -81,6 +87,7 @@ enum class FillValidationCode {
     symbol_mismatch,
     side_mismatch,
     instrument_symbol_mismatch,
+    contract_multiplier_mismatch,
     execution_price_not_on_instrument_grid,
     effective_sequence_not_after_eligibility,
     effective_timestamp_before_submission,

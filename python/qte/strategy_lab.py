@@ -17,6 +17,9 @@ from qte.strategies.router import MacroRouterStrategy, RouterConfig
 from qte.synthetic import DAY_NS, HOUR_NS, REGIMES, SyntheticConfig, generate_case, regime_at
 
 
+LAB_MIN_BARS = 128
+LAB_MAX_BARS = 4096
+LAB_MAX_SEED = 2**62 - 1
 _CLOCKS = {"hourly": HOUR_NS, "daily_24h": DAY_NS}
 
 
@@ -107,9 +110,10 @@ def prepare_lab(spec: dict) -> PreparedLab:
            ("schema_version", "seed", "bars_per_window", "timeframes"))
     if type(spec["schema_version"]) is not int or spec["schema_version"] != 1:
         raise ValueError("lab schema_version must be 1")
-    if type(spec["seed"]) is not int or not 0 <= spec["seed"] < 2**62:
+    if type(spec["seed"]) is not int or not 0 <= spec["seed"] <= LAB_MAX_SEED:
         raise ValueError("lab seed must be a nonnegative 62-bit integer")
-    if type(spec["bars_per_window"]) is not int or not 128 <= spec["bars_per_window"] <= 4096:
+    if (type(spec["bars_per_window"]) is not int
+            or not LAB_MIN_BARS <= spec["bars_per_window"] <= LAB_MAX_BARS):
         raise ValueError("bars_per_window must be an integer in [128, 4096]")
     timeframes = spec["timeframes"]
     if (not isinstance(timeframes, list) or not timeframes or any(t not in _CLOCKS for t in timeframes)

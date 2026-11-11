@@ -23,6 +23,9 @@ using qte::core::OrderId;
 using qte::core::PriceGrid;
 using qte::core::ShareAmount;
 using qte::market_data::InstrumentSpec;
+using qte::market_data::InstrumentKind;
+using qte::market_data::OptionRight;
+using qte::market_data::OptionSettlement;
 using qte::market_data::Symbol;
 using qte::market_data::Timestamp;
 using qte::orders::Fill;
@@ -106,7 +109,8 @@ void check_optional_near(
     const std::uint64_t event_sequence,
     const std::uint64_t timestamp,
     const char* const symbol = "SPY",
-    const std::optional<double> fill_tick = std::nullopt) {
+    const std::optional<double> fill_tick = std::nullopt,
+    const std::int64_t multiplier = 1) {
     const auto grid = PriceGrid::from_tick_size(fill_tick.value_or(price));
     return Fill::create(
         FillId{fill_id},
@@ -118,7 +122,8 @@ void check_optional_near(
         EventSequence{event_sequence},
         price,
         grid.canonicalize(price),
-        commission);
+        commission,
+        multiplier);
 }
 
 [[nodiscard]] ValuationMark mark(
@@ -143,6 +148,15 @@ void construction_defines_a_fixed_single_currency_universe() {
     CHECK(actual.position(Symbol{"SPY"}) != nullptr);
     CHECK(actual.position(Symbol{"QQQ"}) != nullptr);
     CHECK(actual.position(Symbol{"IWM"}) == nullptr);
+    const auto* owned_instrument = actual.instrument(Symbol{"QQQ"});
+    CHECK(owned_instrument != nullptr);
+    if (owned_instrument != nullptr) {
+        CHECK(owned_instrument->symbol() == Symbol{"QQQ"});
+        CHECK(owned_instrument->quote_currency() == Currency::usd());
+        CHECK_NEAR(owned_instrument->price_grid().canonicalize(10.05).value(), 10.05);
+        CHECK_THROWS_AS(owned_instrument->price_grid().canonicalize(10.01), std::invalid_argument);
+    }
+    CHECK(actual.instrument(Symbol{"IWM"}) == nullptr);
     CHECK_OPTIONAL_NEAR(actual.market_value(), 0.0);
     CHECK_OPTIONAL_NEAR(actual.unrealized_pnl(), 0.0);
     CHECK_OPTIONAL_NEAR(actual.equity(), 1000.0);
@@ -167,6 +181,118 @@ void construction_defines_a_fixed_single_currency_universe() {
         portfolio(1000.0, {instrument(
             "BMW", 0.01, Currency::from_code("EUR"))}),
         InvalidPortfolioInput);
+}
+
+void derivative_universe_and_cashflows_are_explicit() {
+    const auto grid = PriceGrid::from_tick_size(0.25);
+    const auto last = Timestamp{200ns};
+    const auto expiry = Timestamp{300ns};
+    const auto future = InstrumentSpec::future(
+        Symbol{"NQ"}, Currency::usd(), grid, 20, last, expiry);
+    const auto option_expiry = Timestamp{250ns};
+    const auto option = InstrumentSpec::european_futures_option(
+        Symbol{"NQC"}, Currency::usd(), grid, 20, last, option_expiry, Symbol{"NQ"},
+        OptionRight::call, grid.canonicalize(100.0),
+        OptionSettlement::futures_delivery);
+
+    auto futures = portfolio(10000.0, {future});
+    futures.apply_fill(fill(
+        1, OrderSide::buy, 2, 100.0, 2.0, 1, 100, "NQ", std::nullopt, 20));
+    CHECK_NEAR(futures.cash(), 9998.0);
+    futures.mark(Symbol{"NQ"}, mark(2, 110.0, 101));
+    CHECK_OPTIONAL_NEAR(futures.market_value(), 400.0);
+    CHECK_OPTIONAL_NEAR(futures.net_exposure(), 4400.0);
+    CHECK_OPTIONAL_NEAR(futures.gross_exposure(), 4400.0);
+    futures.apply_fill(fill(
+        2, OrderSide::sell, 3, 115.0, 3.0, 3, 102, "NQ", std::nullopt, 20));
+    CHECK_NEAR(futures.cash(), 10595.0);
+    CHECK_NEAR(futures.realized_gross_pnl(), 600.0);
+    CHECK_OPTIONAL_NEAR(futures.market_value(), 100.0);
+    CHECK_OPTIONAL_NEAR(futures.net_exposure(), -2200.0);
+    CHECK_OPTIONAL_NEAR(futures.equity(), 10695.0);
+    CHECK(futures.closed_trades().size() == 1);
+    if (futures.closed_trades().size() == 1) {
+        CHECK_NEAR(futures.closed_trades()[0].allocated_commissions(), 4.0);
+    }
+    const auto* reversed_trade = futures.open_trade(Symbol{"NQ"});
+    CHECK(reversed_trade != nullptr);
+    if (reversed_trade != nullptr) {
+        CHECK_NEAR(reversed_trade->allocated_commissions(), 1.0);
+    }
+    const auto cash_before_rejection = futures.cash();
+    CHECK_THROWS_AS(futures.apply_fill(fill(
+        3, OrderSide::buy, 1, 115.0, 0.0, 4, 103, "NQ")),
+        InvalidPortfolioInput);
+    CHECK(futures.fill_count() == 2);
+    CHECK_NEAR(futures.cash(), cash_before_rejection);
+    const auto* rejected_position = futures.position(Symbol{"NQ"});
+    CHECK(rejected_position != nullptr);
+    if (rejected_position != nullptr) {
+        CHECK(rejected_position->quantity().value() == -1);
+    }
+
+    auto options = portfolio(10000.0, {future, option});
+    options.apply_fill(fill(
+        1, OrderSide::buy, 1, 10.0, 1.0, 1, 100, "NQC", std::nullopt, 20));
+    options.mark(Symbol{"NQC"}, ValuationMark::option_value(
+        Timestamp{101ns}, EventSequence{2}, 0.0));
+    CHECK_NEAR(options.cash(), 9799.0);
+    CHECK_OPTIONAL_NEAR(options.equity(), 9799.0);
+    const auto snapshot = options.snapshot();
+    CHECK(snapshot.positions().size() == 2);
+    if (snapshot.positions().size() == 2) {
+        CHECK(snapshot.positions()[1].instrument_kind ==
+              InstrumentKind::futures_option);
+    }
+
+    const auto wrong_multiplier = InstrumentSpec::european_futures_option(
+        Symbol{"BAD"}, Currency::usd(), grid, 2, last, option_expiry, Symbol{"NQ"},
+        OptionRight::put, grid.canonicalize(100.0), OptionSettlement::cash);
+    CHECK_THROWS_AS(portfolio(10000.0, {future, wrong_multiplier}),
+                    InvalidPortfolioInput);
+    CHECK_THROWS_AS(portfolio(10000.0, {option}), InvalidPortfolioInput);
+
+    auto overflow = portfolio(10000.0, {future});
+    overflow.apply_fill(fill(
+        1, OrderSide::buy, std::numeric_limits<std::int64_t>::max(), 1.0, 0.0,
+        1, 100, "NQ", std::nullopt, 20));
+    CHECK_THROWS_AS(
+        overflow.mark(Symbol{"NQ"}, mark(2, 1.0e300, 101)),
+        PortfolioAccountingError);
+    const auto* overflow_position = overflow.position(Symbol{"NQ"});
+    CHECK(overflow_position != nullptr);
+    if (overflow_position != nullptr) {
+        CHECK(!overflow_position->valuation_mark().has_value());
+    }
+}
+
+void option_and_micro_future_combined_equity_identity_is_preserved() {
+    const auto grid = PriceGrid::from_tick_size(0.25);
+    const auto last = Timestamp{200ns};
+    const auto nq = InstrumentSpec::future(
+        Symbol{"NQ"}, Currency::usd(), grid, 20, last, Timestamp{300ns});
+    const auto mnq = InstrumentSpec::future(
+        Symbol{"MNQ"}, Currency::usd(), grid, 2, last, Timestamp{300ns});
+    const auto option = InstrumentSpec::european_futures_option(
+        Symbol{"NQC"}, Currency::usd(), grid, 20, last, Timestamp{250ns},
+        Symbol{"NQ"}, OptionRight::call, grid.canonicalize(100.0),
+        OptionSettlement::futures_delivery);
+    auto actual = portfolio(10000.0, {nq, mnq, option});
+    actual.apply_fill(fill(
+        1, OrderSide::buy, 1, 10.0, 1.0, 1, 100, "NQC", std::nullopt, 20));
+    actual.apply_fill(fill(
+        2, OrderSide::buy, 5, 100.0, 2.0, 2, 100, "MNQ", std::nullopt, 2));
+    actual.mark(Symbol{"NQC"}, ValuationMark::option_value(
+        Timestamp{101ns}, EventSequence{3}, 12.0));
+    actual.mark(Symbol{"MNQ"}, mark(4, 110.0, 101));
+    CHECK_OPTIONAL_NEAR(actual.equity(), 10137.0);
+    CHECK_OPTIONAL_NEAR(actual.net_pnl(), 137.0);
+    CHECK_OPTIONAL_NEAR(actual.net_exposure(), 1340.0);
+    CHECK_OPTIONAL_NEAR(actual.gross_exposure(), 1340.0);
+    actual.apply_fill(fill(
+        3, OrderSide::sell, 1, 15.0, 1.0, 5, 102, "NQC", std::nullopt, 20));
+    CHECK_OPTIONAL_NEAR(actual.equity(), 10196.0);
+    CHECK_OPTIONAL_NEAR(actual.net_pnl(), 196.0);
 }
 
 void unmarked_open_positions_make_aggregate_valuation_unavailable() {
@@ -431,6 +557,8 @@ void partial_fill_fees_and_cash_are_conserved() {
 
 int main() {
     construction_defines_a_fixed_single_currency_universe();
+    derivative_universe_and_cashflows_are_explicit();
+    option_and_micro_future_combined_equity_identity_is_preserved();
     unmarked_open_positions_make_aggregate_valuation_unavailable();
     six_fill_cash_and_equity_fixture_matches_the_adr();
     multiple_symbols_aggregate_long_short_value_and_exposure();

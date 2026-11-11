@@ -32,13 +32,10 @@ def dataset_view(catalog, artifact_id: str) -> dict:
     match = re.fullmatch(r"build/gui/jobs/([0-9a-f]{32})/artifacts", relative)
     try:
         if match:
-            db = catalog._connect()
-            if db is None:
-                raise ValueError("missing job")
-            try:
+            with catalog._connect() as db:
+                if db is None:
+                    raise ValueError("missing job")
                 row = db.execute("SELECT kind,state,snapshot FROM gui_jobs WHERE id=?", (match[1],)).fetchone()
-            finally:
-                db.close()
             if row is None or row["kind"] != "dataset_validate" or row["state"] != "succeeded":
                 raise ValueError("invalid job")
             recorded = strict_json(row["snapshot"].encode())

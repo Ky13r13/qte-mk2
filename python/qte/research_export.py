@@ -83,7 +83,7 @@ def _trade_rows(trades):
                value.allocated_commissions, value.net_realized_pnl, value.is_closed, value.outcome)
 
 
-def write_owned_export(output: Path, result, manifest: dict, sampled_points=None, *, router_strategy=None) -> None:
+def write_owned_export(output: Path, result, manifest: dict, sampled_points=None, *, router_strategy=None, market_data=None) -> None:
     """Write only schema-v2 additive files into an existing fresh export directory."""
     output = Path(output)
     sampled_points = None if sampled_points is None else list(sampled_points)
@@ -116,6 +116,14 @@ def write_owned_export(output: Path, result, manifest: dict, sampled_points=None
         write_route_events(output / "route_events.json", router_strategy)
         capabilities["route_events"] = "recorded"
         files["route_events"] = "route_events.json"
+    if market_data is not None:
+        from qte.market_export import MARKET_FILE, validate_market_recording
+        validate_market_recording(market_data, manifest)
+        with (output / MARKET_FILE).open("x", encoding="utf-8") as stream:
+            json.dump(market_data, stream, sort_keys=True, allow_nan=False)
+            stream.write("\n")
+        capabilities["market_data"] = "recorded"
+        files["market_data"] = MARKET_FILE
     wrapper = {
         "schema_version": 2,
         "artifact_kind": "research_export",

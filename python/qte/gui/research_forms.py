@@ -20,7 +20,7 @@ from qte.data_validation import prepare_data
 from qte.download_artifact import compile_download_configuration as _compile_download_configuration
 from qte.experiments import ExperimentConfig
 from qte.research_config import prepare_research
-from qte.strategy_lab import _CLOCKS, prepare_lab
+from qte.strategy_lab import LAB_MAX_BARS, LAB_MAX_SEED, LAB_MIN_BARS, _CLOCKS, prepare_lab
 from qte.strategies import CandidateConfig
 from qte.strategies.candidates import FAMILIES
 from qte.synthetic import REGIMES
@@ -34,7 +34,6 @@ INLINE_CONFIG_ORIGIN = MappingProxyType({
 
 _INT64_MAX = 2**63 - 1
 _UINT64_MAX = 2**64 - 1
-_SEED62_MAX = 2**62 - 1
 _DECIMAL = re.compile(r"0|[1-9][0-9]*")
 _SIGNED_DECIMAL = re.compile(r"0|-[1-9][0-9]*|[1-9][0-9]*")
 _COST_FIELDS = ("commission_bps", "spread_bps", "slippage_bps")
@@ -290,10 +289,13 @@ def _compile_lab(wire: object) -> dict[str, Any]:
     _required(top, ("schema_version", "seed", "bars_per_window", "timeframes"), "configuration")
     if type(top["schema_version"]) is not int or top["schema_version"] != 1:
         raise _error("configuration.schema_version", "Must be the JSON integer 1.")
+    bars_per_window = _integer(top["bars_per_window"], "configuration.bars_per_window", minimum=1, maximum=_UINT64_MAX)
+    if not LAB_MIN_BARS <= bars_per_window <= LAB_MAX_BARS:
+        raise _error("configuration.bars_per_window", f"Use {LAB_MIN_BARS} through {LAB_MAX_BARS} bars per synthetic window.")
     result: dict[str, Any] = {
         "schema_version": 1,
-        "seed": _integer(top["seed"], "configuration.seed", minimum=0, maximum=_SEED62_MAX),
-        "bars_per_window": _integer(top["bars_per_window"], "configuration.bars_per_window", minimum=1, maximum=_UINT64_MAX),
+        "seed": _integer(top["seed"], "configuration.seed", minimum=0, maximum=LAB_MAX_SEED),
+        "bars_per_window": bars_per_window,
         "timeframes": _unique_choices(top["timeframes"], tuple(_CLOCKS), "configuration.timeframes", required=True),
     }
     if "regimes" in top:
@@ -341,12 +343,21 @@ def compile_configuration(kind: str, wire_config: object) -> dict[str, Any]:
 
 
 def _field(field_type: str, *, required: bool = False, nullable: bool = False, default: object = None,
-           choices: tuple[str, ...] | None = None) -> dict[str, Any]:
+           choices: tuple[str, ...] | None = None, minimum: object = None,
+           maximum: object = None, unit: str | None = None, guidance: str | None = None) -> dict[str, Any]:
     value: dict[str, Any] = {"type": field_type, "required": required, "nullable": nullable}
     if default is not None or nullable:
         value["default"] = default
     if choices is not None:
         value["choices"] = list(choices)
+    if minimum is not None:
+        value["minimum"] = minimum
+    if maximum is not None:
+        value["maximum"] = maximum
+    if unit is not None:
+        value["unit"] = unit
+    if guidance is not None:
+        value["guidance"] = guidance
     return value
 
 
@@ -367,9 +378,9 @@ def form_options() -> dict[str, Any]:
         "label": "Moving average regime",
         "exposed_fields": ["fast_period", "slow_period", "quantity"],
         "fields": {
-            "fast_period": _field("integer_string", required=True),
-            "slow_period": _field("integer_string", required=True),
-            "quantity": _field("integer_string", required=True),
+            "fast_period": _field("integer_string", required=True, minimum="1", maximum=str(_UINT64_MAX), unit="bars"),
+            "slow_period": _field("integer_string", required=True, minimum="2", maximum=str(_UINT64_MAX), unit="bars", guidance="Must be greater than the fast period."),
+            "quantity": _field("integer_string", required=True, minimum="1", maximum=str(_INT64_MAX), unit="shares"),
         },
     }]
     strategies.extend({
@@ -385,7 +396,7 @@ def form_options() -> dict[str, Any]:
     data_fields = {
         "data.adapter": _field("choice", required=True, choices=("csv", "alpaca")),
         "data.path": _field("string", required=True),
-        "data.interval_ns": _field("integer_string", required=True),
+        "data.interval_ns": _field("integer_string", required=True, minimum="1", maximum=str(_INT64_MAX), unit="nanoseconds", guidance="Declared fixed bar interval; one hour is 3600000000000 ns."),
         "data.tick_size": _field("number", default=0.01),
         "data.currency": _field("string", default="USD"),
         "data.action_free": _field("boolean"),
@@ -403,9 +414,9 @@ def form_options() -> dict[str, Any]:
                 "strategy.type": _field("choice", required=True, choices=("moving_average_regime", *FAMILIES, "macro_router")),
                 "strategy.symbol": _field("string", required=True),
                 "engine.initial_cash": _field("number", required=True),
-                "engine.history_capacity": _field("integer_string", default=256),
-                "engine.random_seed": _field("integer_string", default=0),
-                **{f"execution.{name}": _field("number", default=0.0) for name in _COST_FIELDS},
+                "engine.history_capacity": _field("integer_string", default=256, minimum="1", maximum=str(_UINT64_MAX), unit="bars", guidance="Must cover the strategy warmup (at least the slow period for SMA)."),
+                "engine.random_seed": _field("integer_string", default=0, minimum="0", maximum=str(_UINT64_MAX)),
+                **{f"execution.{name}": _field("number", default=0.0, unit="basis points") for name in _COST_FIELDS},
                 "risk.max_order_quantity": _field("integer_string", nullable=True, default=_INT64_MAX),
                 "risk.max_symbol_allocation": _field("number", nullable=True, default=1.0),
                 "risk.max_gross_leverage": _field("number", nullable=True, default=1.0),
@@ -424,6 +435,12 @@ def form_options() -> dict[str, Any]:
                 "risk": {"max_order_quantity": _INT64_MAX, "max_symbol_allocation": 1.0,
                          "max_gross_leverage": 1.0, "allow_short": False, "cash_floor": 0.0},
                 "sampling": {"annual_risk_free_rate": 0.0},
+            },
+            "example": {
+                "data": {"adapter": "csv", "path": "examples/research-bars.csv", "interval_ns": "3600000000000", "action_free": True},
+                "strategy": {"type": "moving_average_regime", "symbol": "SPY", "fast_period": "2", "slow_period": "3", "quantity": "10"},
+                "engine": {"initial_cash": 100000},
+                "execution": {"commission_bps": 1, "spread_bps": 2, "slippage_bps": 2},
             },
         },
         "dataset_validate": {
@@ -449,8 +466,8 @@ def form_options() -> dict[str, Any]:
             "strategy_parameter_fields": candidate_fields,
             "fields": {
                 "schema_version": _field("json_integer", required=True, default=1),
-                "seed": _field("integer_string", required=True),
-                "bars_per_window": _field("integer_string", required=True),
+                "seed": _field("integer_string", required=True, minimum="0", maximum=str(LAB_MAX_SEED), guidance="The same seed and configuration reproduce the same synthetic fixtures."),
+                "bars_per_window": _field("integer_string", required=True, minimum=str(LAB_MIN_BARS), maximum=str(LAB_MAX_BARS), unit="bars", guidance="Must also exceed every selected strategy's warmup."),
                 "timeframes": _field("choice_array", required=True, choices=tuple(_CLOCKS)),
                 "regimes": _field("choice_array", choices=tuple(REGIMES)),
                 "engine.initial_cash": _field("number", default=experiment.initial_cash),
@@ -476,6 +493,8 @@ def form_options() -> dict[str, Any]:
                     "min_closed_trades", "min_validation_windows", "min_stressed_return",
                     "worst_stressed_return", "max_drawdown")},
             },
+            "example": {"seed": "7", "bars_per_window": "128", "timeframes": ["daily_24h"],
+                        "strategy_parameters": {"fast_period": "10", "slow_period": "50"}},
         },
     }
 
@@ -598,7 +617,19 @@ def prepare_form(kind: str, wire_config: object, data_bytes: bytes | None) -> di
             ]
     except FormError:
         raise
-    except (ValueError, TypeError, OverflowError, UnicodeError, RecursionError, csv.Error):
+    except ValueError as problem:
+        safe = {
+            "strategy symbol not in dataset": ("configuration.strategy.symbol", "Symbol is case-sensitive and must exactly match a symbol in the captured dataset (for example, SPY rather than Spy)."),
+            "slow_period must be greater than fast_period": ("configuration.strategy.slow_period", "Slow period must be greater than fast period."),
+            "fast_period must be less than slow_period": (("configuration.strategy_parameters.slow_period" if kind == "strategy_lab" else "configuration.strategy.slow_period"), "Slow period must be greater than fast period."),
+            "bars_per_window must be an integer in [128, 4096]": ("configuration.bars_per_window", "Use 128 through 4096 bars per synthetic window."),
+            "windows must leave bars after every strategy's warmup": ("configuration.bars_per_window", "Bars per window must be greater than every strategy warmup; increase the window or reduce lookbacks."),
+            "history capacity is smaller than strategy requirement": ("configuration.engine.history_capacity", "History capacity must cover the strategy warmup; increase it or reduce the strategy lookback."),
+        }.get(str(problem))
+        if safe is not None:
+            raise _error(*safe) from None
+        raise _error("configuration", "Configuration or captured data is incompatible with this fixed form.") from None
+    except (TypeError, OverflowError, UnicodeError, RecursionError, csv.Error):
         raise _error("configuration", "Configuration or captured data is incompatible with this fixed form.") from None
     return {
         "kind": kind,

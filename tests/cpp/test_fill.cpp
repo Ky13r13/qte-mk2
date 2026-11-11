@@ -113,7 +113,8 @@ void check_throws(
     const double executed_price = 100.25,
     const double reference_open = 100.20,
     const double commission = 0.50,
-    const double price_tick = 0.01) {
+    const double price_tick = 0.01,
+    const std::int64_t contract_multiplier = 1) {
     return Fill::create(
         FillId{fill_id},
         OrderId{order_id},
@@ -124,7 +125,8 @@ void check_throws(
         EventSequence{sequence},
         reference_open,
         PriceGrid::from_tick_size(price_tick).canonicalize(executed_price),
-        commission);
+        commission,
+        contract_multiplier);
 }
 
 [[nodiscard]] bool has_code(
@@ -278,6 +280,32 @@ void metadata_and_instrument_mismatches_are_explicit() {
     }
 }
 
+void derivative_multiplier_is_owned_and_validated() {
+    const auto candidate = fill(
+        1, 1, "SPY", OrderSide::buy, 4, 11, Timestamp{101ns}, 100.25,
+        100.20, 0.50, 0.01, 20);
+    CHECK(candidate.contract_multiplier() == 20);
+    CHECK(candidate.gross_notional() == 8020.0);
+    auto order = open_order();
+    CHECK(has_code(qte::orders::validate(candidate, order, instrument()),
+                   FillValidationCode::contract_multiplier_mismatch));
+    CHECK_THROWS_AS(
+        Fill::create(FillId{1}, OrderId{1}, Symbol{"SPY"}, OrderSide::buy,
+                     ShareAmount::from_count(1), Timestamp{101ns}, EventSequence{11},
+                     1.0, PriceGrid::from_tick_size(1.0).canonicalize(1.0), 0.0, 0),
+        std::invalid_argument);
+    CHECK_THROWS_AS(
+        Fill::create(
+            FillId{1}, OrderId{1}, Symbol{"NQ"}, OrderSide::buy,
+            ShareAmount::from_count(std::numeric_limits<std::int64_t>::max()),
+            Timestamp{101ns}, EventSequence{11},
+            std::numeric_limits<double>::max(),
+            PriceGrid::from_tick_size(std::numeric_limits<double>::max()).canonicalize(
+                std::numeric_limits<double>::max()),
+            0.0, std::numeric_limits<std::int64_t>::max()),
+        std::out_of_range);
+}
+
 void time_quantity_and_terminal_failures_do_not_mutate() {
     struct Case final {
         Fill candidate;
@@ -374,6 +402,7 @@ int main() {
     intrinsic_numeric_boundaries_are_rejected();
     valid_commits_are_append_only_and_drive_order_state();
     metadata_and_instrument_mismatches_are_explicit();
+    derivative_multiplier_is_owned_and_validated();
     time_quantity_and_terminal_failures_do_not_mutate();
     equal_timestamp_is_allowed_when_sequence_is_later();
     duplicate_and_out_of_sequence_ids_are_rejected_first();

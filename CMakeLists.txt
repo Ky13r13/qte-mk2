@@ -4,6 +4,7 @@ project(qte VERSION 0.1.0 LANGUAGES CXX)
 
 option(QTE_BUILD_TESTS "Build qte unit tests" ON)
 option(QTE_BUILD_PYTHON "Build the qte Python extension" OFF)
+option(QTE_BUILD_EXAMPLES "Build standalone qte research examples" OFF)
 
 add_library(qte_core
     src/analytics/performance.cpp
@@ -20,8 +21,10 @@ add_library(qte_core
     src/orders/order.cpp
     src/portfolio/portfolio.cpp
     src/portfolio/position.cpp
+    src/portfolio/settlement.cpp
     src/portfolio/trade.cpp
     src/risk/risk.cpp
+    src/risk/futures_margin.cpp
     src/strategy/strategy.cpp
 )
 
@@ -44,6 +47,12 @@ endif()
 if(QTE_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests/cpp)
+endif()
+
+if(QTE_BUILD_EXAMPLES)
+    add_executable(qte_futures_accounting_demo examples/futures_accounting.cpp)
+    target_link_libraries(qte_futures_accounting_demo PRIVATE qte::core)
+    target_compile_features(qte_futures_accounting_demo PRIVATE cxx_std_20)
 endif()
 
 if(QTE_BUILD_PYTHON)

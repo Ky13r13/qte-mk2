@@ -74,6 +74,9 @@ std::optional<FillCandidate> OpenOnlyExecutionModel::evaluate(
     orders::OrderRecord& order,
     const market_data::InstrumentSpec& instrument,
     const MarketOpen& market_open) const {
+    if (instrument.kind() != market_data::InstrumentKind::cash_equity) {
+        throw InvalidExecutionInput("open_only_v1 does not support derivative instruments");
+    }
     if (!is_fillable(order.status())) {
         throw InvalidExecutionInput("order must be open or partially filled");
     }
@@ -186,6 +189,9 @@ ExecutionEstimate OpenOnlyExecutionModel::estimate(
     const core::ShareAmount quantity,
     const market_data::InstrumentSpec& instrument,
     const double reference_price) const {
+    if (instrument.kind() != market_data::InstrumentKind::cash_equity) {
+        throw InvalidExecutionInput("open_only_v1 does not support derivative instruments");
+    }
     if (!std::isfinite(reference_price) || reference_price <= 0.0) {
         throw InvalidExecutionInput("execution reference price must be finite and positive");
     }

@@ -218,6 +218,13 @@ ValidatedDataset preflight(DatasetInput input) {
     for (std::size_t index = 0; index < input.instruments.size(); ++index) {
         const auto& instrument = input.instruments[index];
         const auto& symbol = instrument.symbol().value();
+        if (instrument.kind() != InstrumentKind::cash_equity) {
+            add_error(
+                errors,
+                DatasetValidationCode::unsupported_instrument,
+                "bar replay supports cash equities only; derivative execution, "
+                "margin and lifecycle support are not enabled: " + symbol);
+        }
         if (!valid_core_symbol(symbol)) {
             add_error(
                 errors,

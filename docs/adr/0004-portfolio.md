@@ -4,6 +4,11 @@ Status: M4a per-symbol positions, M4b aggregate cash/position ledger, and M4c
 trade episodes implemented. Depends on [fill](0001-orders-and-fills.md) and
 [numeric](0005-numerics.md) contracts.
 
+The original cash-equity equations below remain unchanged. The gated derivative
+accounting extension is specified in [ADR 0013](0013-derivative-research-foundation.md);
+it adds explicit research variation-settlement accounting but does not enable
+derivative replay, margin or broker clearing.
+
 ## Decision and equations
 
 Portfolio alone applies committed fills. First profile uses one currency,
@@ -111,7 +116,8 @@ regression fixture. These ledger fixtures bypass risk intentionally.
 
 ## Consequences
 
-Average cost is compact and handles long/short reversals with one formula. It
-does not model FIFO tax lots, external deposits, corporate actions, futures
-variation margin or broker settlement. Add those as explicit ledger events and
-new invariants before accepting their datasets/instruments.
+Average cost is compact and handles long/short reversals with one formula. The
+cash-equity model above does not model FIFO tax lots, external deposits or
+corporate actions. ADR 0013 extends this same ledger for explicit futures
+variation events, keeping economic and cash bases separate. Broker settlement,
+margin and derivative replay remain gated.

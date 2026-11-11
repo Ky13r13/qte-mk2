@@ -64,6 +64,10 @@ def test_python_strategy_matches_reference_and_values_outlive_engine() -> None:
     strategy = RoundTrip()
     result = engine().run(dataset(), strategy)
     assert [fill.executed_price for fill in result.fills] == [110.0, 120.0]
+    assert [fill.contract_multiplier for fill in result.fills] == [1, 1]
+    assert [fill.gross_notional for fill in result.fills] == [550.0, 600.0]
+    with pytest.raises(AttributeError):
+        result.fills[0].contract_multiplier = 20
     assert result.equity_curve[-1].equity == 1_050.0
     assert strategy.history_sizes == [1, 2, 3]
     assert result.manifest.source_id == "python-fixture"

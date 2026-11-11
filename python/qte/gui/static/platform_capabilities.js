@@ -6,6 +6,7 @@ export function capabilityAvailable(payload, id) {
 }
 
 export function routeCapability(path) {
+  if (path === "/gamma") return "gamma_calculator";
   if (path === "/research" || path.startsWith("/research/")) return "research";
   if (path === "/data" || path.startsWith("/data/")) return "data";
   if (path === "/system") return "test_execution";

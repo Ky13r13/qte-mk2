@@ -440,6 +440,7 @@ PYBIND11_MODULE(_core, module) {
         .def_property_readonly("reference_open", &orders::Fill::reference_open)
         .def_property_readonly("executed_price", [](const orders::Fill& value) { return value.executed_price().value(); })
         .def_property_readonly("gross_notional", &orders::Fill::gross_notional)
+        .def_property_readonly("contract_multiplier", &orders::Fill::contract_multiplier)
         .def_property_readonly("commission", &orders::Fill::commission);
 
     py::class_<strategy::OrderUpdate>(module, "OrderUpdate")

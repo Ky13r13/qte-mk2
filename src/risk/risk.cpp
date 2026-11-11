@@ -20,6 +20,14 @@ struct SymbolRiskState final {
 
 using StateMap = std::map<std::string, SymbolRiskState>;
 
+[[nodiscard]] bool contains_derivatives(const portfolio::PortfolioSnapshot& portfolio) {
+    return std::any_of(
+        portfolio.positions().begin(), portfolio.positions().end(),
+        [](const auto& position) {
+            return position.instrument_kind != market_data::InstrumentKind::cash_equity;
+        });
+}
+
 void require_optional_non_negative(
     const std::optional<double> value,
     const char* const name) {
@@ -328,6 +336,12 @@ RiskDecision RiskManager::evaluate_submission(
     const std::span<const PendingOrderSnapshot> pending_orders,
     const double estimated_execution_price,
     const double estimated_commission) const {
+    if (instrument.kind() != market_data::InstrumentKind::cash_equity ||
+        contains_derivatives(portfolio)) {
+        return reject(
+            RiskRejectionCode::unsupported_instrument,
+            "cash-equity risk does not support derivative margin or reservations");
+    }
     try {
         orders::require_valid(request, instrument);
     } catch (const orders::InvalidOrderRequest& error) {
@@ -388,6 +402,11 @@ RiskDecision RiskManager::evaluate_execution(
     const execution::FillCandidate& candidate,
     const portfolio::PortfolioSnapshot& portfolio,
     const std::span<const PendingOrderSnapshot> pending_orders) const {
+    if (contains_derivatives(portfolio)) {
+        return reject(
+            RiskRejectionCode::unsupported_instrument,
+            "cash-equity risk does not support derivative margin or reservations");
+    }
     if (limits_.max_order_quantity().has_value() &&
         candidate.quantity() > *limits_.max_order_quantity()) {
         return reject(
@@ -492,6 +511,7 @@ std::string_view to_string(const RiskRejectionCode code) noexcept {
         case RiskRejectionCode::cash_floor: return "cash_floor";
         case RiskRejectionCode::max_symbol_allocation: return "max_symbol_allocation";
         case RiskRejectionCode::max_gross_leverage: return "max_gross_leverage";
+        case RiskRejectionCode::unsupported_instrument: return "unsupported_instrument";
     }
     return "unknown";
 }

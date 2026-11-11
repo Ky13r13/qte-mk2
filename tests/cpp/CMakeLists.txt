@@ -87,3 +87,23 @@ target_link_libraries(qte_analytics_tests PRIVATE qte::core)
 target_compile_features(qte_analytics_tests PRIVATE cxx_std_20)
 
 add_test(NAME qte.analytics COMMAND qte_analytics_tests)
+
+add_executable(qte_derivative_gates_tests test_derivative_gates.cpp)
+target_link_libraries(qte_derivative_gates_tests PRIVATE qte::core)
+target_compile_features(qte_derivative_gates_tests PRIVATE cxx_std_20)
+add_test(NAME qte.derivative_gates COMMAND qte_derivative_gates_tests)
+
+add_executable(qte_settlement_tests test_settlement.cpp)
+target_link_libraries(qte_settlement_tests PRIVATE qte::core)
+target_compile_features(qte_settlement_tests PRIVATE cxx_std_20)
+add_test(NAME qte.settlement COMMAND qte_settlement_tests)
+
+add_executable(qte_settlement_sequences_tests test_settlement_sequences.cpp)
+target_link_libraries(qte_settlement_sequences_tests PRIVATE qte::core)
+target_compile_features(qte_settlement_sequences_tests PRIVATE cxx_std_20)
+add_test(NAME qte.settlement_sequences COMMAND qte_settlement_sequences_tests)
+
+add_executable(qte_futures_margin_tests test_futures_margin.cpp)
+target_link_libraries(qte_futures_margin_tests PRIVATE qte::core)
+target_compile_features(qte_futures_margin_tests PRIVATE cxx_std_20)
+add_test(NAME qte.futures_margin COMMAND qte_futures_margin_tests)

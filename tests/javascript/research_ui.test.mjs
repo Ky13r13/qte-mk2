@@ -102,6 +102,78 @@ async function runForm(h) {
 async function preview(h) { await h.nodes().find(n => n.tagName === 'FORM').emit('submit'); await flush(); }
 afterEach(() => { delete globalThis.document; focused = null; });
 
+test('working SMA preset is explicit, complete, and leaves sampling disabled', async () => {
+  const h = harness(url => url.endsWith('form-options') ? metadata : previewResult);
+  await createResearchForms(h.ui).loadRun();
+  function includeOverride(name, value) {
+    const input = h.nodes().find(node => node.name === name);
+    const wrapper = input.parentElement.parentElement;
+    const include = wrapper.childNodes.find(node => node.tagName === 'LABEL' && node !== input.parentElement).childNodes[0];
+    include.checked = true; input.disabled = false; input.value = value;
+  }
+  includeOverride('configuration.data.tick_size', '999');
+  includeOverride('configuration.data.schema.close', 'bad_close');
+  includeOverride('configuration.engine.history_capacity', '1');
+  includeOverride('configuration.execution.commission_bps', '-99');
+  const sampling = h.nodes().find(node => node.tagName === 'INPUT'
+    && node.attrs['data-field-path'] === 'configuration.sampling');
+  sampling.checked = true;
+  await sampling.emit('change');
+  h.field('configuration.sampling.interval_ns').value = '1';
+  h.field('configuration.sampling.max_staleness_ns').value = '0';
+  h.field('configuration.sampling.periods_per_year').value = '1';
+  await h.button('Load working SMA example').emit('click');
+  await preview(h);
+  const sent = JSON.parse(h.calls.at(-1).options.body).configuration;
+  assert.deepEqual(sent.data, { adapter: 'csv', path: 'examples/research-bars.csv',
+    interval_ns: '3600000000000', action_free: true });
+  assert.deepEqual(sent.strategy, { type: 'moving_average_regime', symbol: 'SPY',
+    fast_period: '2', slow_period: '3', quantity: '10' });
+  assert.deepEqual(sent.engine, { initial_cash: 100000 });
+  assert.deepEqual(sent.execution, { commission_bps: 1, spread_bps: 2, slippage_bps: 2 });
+  assert.equal(Object.hasOwn(sent, 'sampling'), false);
+  assert.ok(h.nodes().some(node => node.textContent.includes('default: 0')));
+});
+
+test('synthetic preset uses reproducible seed, bounded bars, daily 24h, and only intended overrides', async () => {
+  const h = harness(url => url.endsWith('form-options') ? metadata : previewResult);
+  await createResearchForms(h.ui).loadLab();
+  function includeOverride(name, value) {
+    const input = h.nodes().find(node => node.name === name);
+    const wrapper = input.parentElement.parentElement;
+    const include = wrapper.childNodes.find(node => node.tagName === 'LABEL' && node !== input.parentElement).childNodes[0];
+    include.checked = true; input.disabled = false; input.value = value;
+  }
+  includeOverride('configuration.strategy_parameters.atr_period', '999');
+  includeOverride('configuration.engine.initial_cash', '-1');
+  includeOverride('configuration.stress_execution.spread_bps', '-2');
+  const regimes = h.nodes().find(node => node.attrs['data-field-path'] === 'configuration.regimes');
+  regimes.childNodes.find(node => node.className === 'research-form-include').childNodes[0].checked = true;
+  for (const input of regimes.querySelectorAll('input')) input.disabled = false;
+  await h.button('Load reproducible lab example').emit('click');
+  await preview(h);
+  const sent = JSON.parse(h.calls.at(-1).options.body).configuration;
+  assert.equal(sent.seed, '7');
+  assert.equal(sent.bars_per_window, '128');
+  assert.deepEqual(sent.timeframes, ['daily_24h']);
+  assert.deepEqual(sent.strategy_parameters, { fast_period: '10', slow_period: '50' });
+  assert.equal(Object.hasOwn(sent, 'regimes'), false);
+  assert.equal(Object.hasOwn(sent, 'engine'), false);
+  assert.equal(Object.hasOwn(sent, 'stress_execution'), false);
+  assert.ok(h.nodes().some(node => node.textContent.includes('continuous synthetic clock')));
+});
+
+test('lab bars enforce metadata bounds before any preview request', async () => {
+  const h = harness(() => metadata);
+  await createResearchForms(h.ui).loadLab();
+  h.field('configuration.seed').value = '7';
+  h.field('configuration.bars_per_window').value = '127';
+  h.nodes().find(node => node.name === 'configuration.timeframes' || node.value === 'hourly').checked = true;
+  await preview(h);
+  assert.equal(h.calls.length, 1);
+  assert.ok(h.nodes().some(node => node.textContent.includes('128 through 4096')));
+});
+
 test('download form stays offline on load and blocks launch without server permission', async () => {
   const h = harness(url => {
     if (url.endsWith('form-options')) return metadata;

@@ -24,10 +24,10 @@ def artifact_routes(catalog, authenticate):
     # avoids sharing SQLite handles across requests. Engine state is never held.
     lock = asyncio.Lock()
 
-    async def call(method, *args):
+    async def call(method, *args, **kwargs):
         async with lock:
             try:
-                return await run_in_threadpool(method, *args)
+                return await run_in_threadpool(method, *args, **kwargs)
             except ArtifactError as exc:
                 raise SecurityError(exc.code, exc.status, exc.message) from None
 
@@ -165,6 +165,35 @@ def artifact_routes(catalog, authenticate):
         paging = {key: result[key] for key in ('total', 'offset', 'limit')}
         return response(**{**artifact_value(result), **paging})
 
+    def market_query(request, *, experiment: bool):
+        query = request.query_params
+        allowed = ({'timeframe', 'window', 'candidate', 'compare', 'cost', 'symbol'} if experiment else {'symbol'})
+        if any(key not in allowed or len(query.getlist(key)) != 1 for key in query):
+            raise SecurityError('invalid_query', 400, 'Invalid market query.')
+        def text(name, required=False):
+            value = query.get(name)
+            if required and value is None or value is not None and (not 1 <= len(value) <= 128 or any(ord(c) < 32 for c in value)):
+                raise SecurityError('invalid_query', 400, 'Invalid market query.')
+            return value
+        if not experiment: return {'symbol': text('symbol')}
+        timeframe = text('timeframe', True)
+        if timeframe not in {'hourly', 'daily_24h'}: raise SecurityError('invalid_query', 400, 'Invalid market timeframe.')
+        values = {'timeframe': timeframe, 'window': text('window', True), 'candidate': text('candidate'),
+                  'compare': text('compare'), 'symbol': text('symbol'), 'cost': query.get('cost', 'base')}
+        if values['cost'] not in {'base', 'stress'}: raise SecurityError('invalid_query', 400, 'Invalid market cost scenario.')
+        return values
+
+    async def experiment_market(request):
+        authenticate(request, token=True)
+        result = await call(catalog.market_view, request.path_params['artifact_id'], **market_query(request, experiment=True))
+        return response(market=artifact_value(result))
+
+    async def run_market(request):
+        authenticate(request, token=True)
+        values = market_query(request, experiment=False)
+        result = await call(catalog.market_view, request.path_params['artifact_id'], symbol=values['symbol'])
+        return response(market=artifact_value(result))
+
     async def comparison_detail(request):
         authenticate(request, token=True)
         if request.query_params:
@@ -193,8 +222,10 @@ def artifact_routes(catalog, authenticate):
         Route('/api/v1/runs/{artifact_id:str}', run_detail, methods=['GET']),
         Route('/api/v1/runs/{artifact_id:str}/series', series, methods=['GET']),
         Route('/api/v1/runs/{artifact_id:str}/tables/{table_name:str}', run_table, methods=['GET']),
+        Route('/api/v1/runs/{artifact_id:str}/market', run_market, methods=['GET']),
         Route('/api/v1/experiments/{artifact_id:str}', experiment_detail, methods=['GET']),
         Route('/api/v1/experiments/{artifact_id:str}/tables/{table_name:str}', experiment_table, methods=['GET']),
+        Route('/api/v1/experiments/{artifact_id:str}/market', experiment_market, methods=['GET']),
         Route('/api/v1/comparisons/{artifact_id:str}', comparison_detail, methods=['GET']),
         Route('/api/v1/comparisons/{artifact_id:str}/tables/{table_name:str}', comparison_table, methods=['GET']),
     ]

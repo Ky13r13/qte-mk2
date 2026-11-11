@@ -30,6 +30,45 @@ class RunViews:
     def __init__(self, catalog: Catalog) -> None:
         self.catalog = catalog
 
+    def market(self, artifact_id: str, symbol: str | None = None) -> dict:
+        """Chart only captured, verified facts; legacy exports remain unavailable."""
+        artifact = self._single(artifact_id)
+        if artifact.kind != "research_export_v2" or "market_data.json" not in artifact.known:
+            return {"status": "not_recorded", "reason": "Candles were not recorded in this export. Create a new version-2 run.",
+                    "candles": [], "runs": [], "warnings": []}
+        manifest = self._json(artifact_id, "manifest.json")
+        observations = self._json(artifact_id, "market_data.json")["candles"]
+        symbols = sorted({row["symbol"] for row in observations})
+        selected = symbol if symbol is not None else manifest["strategy"]["symbol"]
+        if selected not in symbols:
+            raise ArtifactError("symbol_not_found", 404, "Recorded symbol unavailable.")
+        candles = [row for row in observations if row["symbol"] == selected]
+        if len(candles) > 4096:
+            return {"status": "not_recorded", "reason": "This chart supports up to 4096 candles per instrument. Use a smaller research window; the full recorded data remains in Files.",
+                    "symbols": symbols, "symbol": selected, "candles": [], "runs": [], "warnings": []}
+        orders = {row["order_id"]: row for row in self._csv(artifact_id, "order_snapshots.csv")}
+        fills = [{"timestamp_ns": int(row["timestamp_ns"]), "order_id": row["order_id"],
+                  "side": row["side"], "quantity": int(row["quantity"]), "price": float(row["price"]),
+                  "commission": float(row["commission"]), "signal_ns": int(orders[row["order_id"]]["submitted_ns"])}
+                 for row in self._csv(artifact_id, "fill_events.csv") if row["symbol"] == selected]
+        equity = [{"timestamp_ns": int(row["timestamp_ns"]), "sequence": int(row["sequence"]),
+                   "equity": float(row["equity"]), "gross_exposure": float(row["gross_exposure"])}
+                  for row in self._csv(artifact_id, "equity_events.csv")]
+        if len(fills) > 16384 or len(equity) > 16384:
+            raise ArtifactError("market_range_too_large", 422, "Too many recorded events for this chart. Use a smaller research window.")
+        regimes = self._json(artifact_id, "route_events.json")["events"] if "route_events.json" in artifact.known else []
+        self._unchanged(artifact_id, artifact)
+        return {"status": "recorded", "symbols": symbols, "symbol": selected,
+                "window": {"name": "single run", "role": "single_run", "start_ns": manifest["dataset_start_ns"], "end_ns": manifest["dataset_end_ns"]},
+                "cost_scenario": "configured", "costs": manifest["configuration"].get("execution", {}),
+                "regime_source": "recorded as-of macro-router transitions" if regimes else "not_recorded",
+                "candlestick_policy": "raw_no_aggregation", "candles": candles, "regimes": regimes,
+                "runs": [{"candidate": manifest["strategy"]["type"], "status": "ok",
+                          "signal_status": "order_submission_recorded_not_signal_generation", "fills": fills, "equity": equity}],
+                "warnings": ["Equity is the recorded whole portfolio, not instrument-isolated PnL.",
+                             "Order-submission timestamps are not inferred signal-generation times.",
+                             "No regime is inferred from candles; missing routing diagnostics remain unrecorded."]}
+
     def detail(self, artifact_id: str) -> dict:
         artifact = self._single(artifact_id)
         catalog_dto = self.catalog.get(artifact_id)

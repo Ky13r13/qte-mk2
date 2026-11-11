@@ -4,6 +4,7 @@
 #include "qte/market_data/instrument.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -17,7 +18,11 @@ using qte::config::ResearchProfile;
 using qte::core::Currency;
 using qte::core::PriceGrid;
 using qte::market_data::InstrumentSpec;
+using qte::market_data::InstrumentKind;
+using qte::market_data::OptionRight;
+using qte::market_data::OptionSettlement;
 using qte::market_data::Symbol;
+using qte::market_data::Timestamp;
 
 int failures = 0;
 
@@ -145,6 +150,58 @@ void instruments_are_bound_to_one_valuation_currency() {
     CHECK_THROWS_AS(default_profile.require_supported(dax), std::invalid_argument);
 }
 
+void derivative_metadata_is_explicit_and_checked() {
+    const auto grid = PriceGrid::from_tick_size(0.25);
+    const auto last = Timestamp{std::chrono::nanoseconds{100}};
+    const auto expiry = Timestamp{std::chrono::nanoseconds{200}};
+    const auto future = InstrumentSpec::future(
+        Symbol{"NQZ6"}, Currency::usd(), grid, 20, last, expiry);
+    const auto option = InstrumentSpec::european_futures_option(
+        Symbol{"NQW6C20000"}, Currency::usd(), grid, 20, last, expiry,
+        Symbol{"NQZ6"}, OptionRight::call, grid.canonicalize(20000.0),
+        OptionSettlement::futures_delivery);
+
+    CHECK(future.kind() == InstrumentKind::future);
+    CHECK(future.contract_multiplier() == 20);
+    CHECK(future.last_trade() == last);
+    CHECK(future.expiry() == expiry);
+    CHECK(option.kind() == InstrumentKind::futures_option);
+    CHECK(option.underlying().has_value());
+    if (option.underlying()) {
+        CHECK(option.underlying()->value() == "NQZ6");
+    }
+    CHECK(option.option_right() == OptionRight::call);
+    CHECK(option.strike().has_value());
+    if (option.strike()) {
+        CHECK(option.strike()->value() == 20000.0);
+    }
+    CHECK(option.option_settlement() == OptionSettlement::futures_delivery);
+    CHECK_THROWS_AS(
+        InstrumentSpec::future(Symbol{"BAD"}, Currency::usd(), grid, 0, last, expiry),
+        std::invalid_argument);
+    CHECK_THROWS_AS(
+        InstrumentSpec::future(Symbol{"BAD"}, Currency::usd(), grid, 1, expiry, last),
+        std::invalid_argument);
+    CHECK_THROWS_AS(
+        InstrumentSpec::european_futures_option(
+            Symbol{"SAME"}, Currency::usd(), grid, 20, last, expiry,
+            Symbol{"SAME"}, OptionRight::call, grid.canonicalize(100.0),
+            OptionSettlement::cash),
+        std::invalid_argument);
+    CHECK_THROWS_AS(
+        InstrumentSpec::european_futures_option(
+            Symbol{"BADRIGHT"}, Currency::usd(), grid, 20, last, expiry,
+            Symbol{"NQ"}, static_cast<OptionRight>(99), grid.canonicalize(100.0),
+            OptionSettlement::cash),
+        std::invalid_argument);
+    CHECK_THROWS_AS(
+        InstrumentSpec::european_futures_option(
+            Symbol{"BADSETTLE"}, Currency::usd(), grid, 20, last, expiry,
+            Symbol{"NQ"}, OptionRight::put, grid.canonicalize(100.0),
+            static_cast<OptionSettlement>(99)),
+        std::invalid_argument);
+}
+
 }  // namespace
 
 int main() {
@@ -154,6 +211,7 @@ int main() {
     invalid_order_prices_are_rejected();
     synthesized_prices_round_adversely();
     instruments_are_bound_to_one_valuation_currency();
+    derivative_metadata_is_explicit_and_checked();
 
     if (failures != 0) {
         std::cerr << failures << " test assertion(s) failed\n";

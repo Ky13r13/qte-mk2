@@ -115,6 +115,7 @@ enum class RiskRejectionCode {
     cash_floor,
     max_symbol_allocation,
     max_gross_leverage,
+    unsupported_instrument,
 };
 
 class RiskDecision final {

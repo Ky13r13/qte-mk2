@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import sqlite3
 from pathlib import Path
@@ -10,8 +11,9 @@ from uuid import uuid4
 
 from .artifact_io import (ArtifactIOError, checked_relative, inventory,
                           inventory_fingerprint, read_stable, validate_root)
-from .artifacts import Artifact, ArtifactError, inspect_artifact, invalid_artifact
+from .artifacts import Artifact, ArtifactError, inspect_artifact, invalid_artifact, strict_json
 from .disclosures import DisclosureJournal
+from .sqlite import owned_connection
 
 
 # Schema-v2 records the same engine facts in its legacy compatibility files and
@@ -50,19 +52,21 @@ class Catalog:
         except Exception:
             self._source_identity = None
 
+    @contextmanager
     def _connect(self, create: bool = False):
         self._validate_catalog_storage()
-        if not self.database.exists() and not create: return None
+        if not self.database.exists() and not create:
+            yield None
+            return
         if create: self._ensure_cache()
-        db = sqlite3.connect(self.database if create else f"file:{self.database}?mode=ro", uri=not create)
-        db.row_factory = sqlite3.Row
-        if create:
-            db.execute("CREATE TABLE IF NOT EXISTS artifacts (id TEXT PRIMARY KEY, path TEXT UNIQUE NOT NULL, registered_at TEXT NOT NULL)")
-        elif db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='artifacts'").fetchone() is None:
-            # The shared UI database may have been initialized by jobs first.
-            db.close()
-            return None
-        return db
+        with owned_connection(self.database, readonly=not create) as db:
+            if create:
+                db.execute("CREATE TABLE IF NOT EXISTS artifacts (id TEXT PRIMARY KEY, path TEXT UNIQUE NOT NULL, registered_at TEXT NOT NULL)")
+            elif db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='artifacts'").fetchone() is None:
+                # The shared UI database may have been initialized by jobs first.
+                yield None
+                return
+            yield db
 
     def _validate_catalog_storage(self) -> None:
         for path in (self.database.parent.parent, self.database.parent, self.database,
@@ -98,10 +102,9 @@ class Catalog:
         return self._dto(artifact_id, relative_path, now, artifact)
 
     def _row(self, artifact_id: str):
-        db = self._connect()
-        if db is None: raise ArtifactError("artifact_not_found", 404, "Artifact unavailable.")
-        try: row = db.execute("SELECT * FROM artifacts WHERE id=?", (artifact_id,)).fetchone()
-        finally: db.close()
+        with self._connect() as db:
+            if db is None: raise ArtifactError("artifact_not_found", 404, "Artifact unavailable.")
+            row = db.execute("SELECT * FROM artifacts WHERE id=?", (artifact_id,)).fetchone()
         if row is None: raise ArtifactError("artifact_not_found", 404, "Artifact unavailable.")
         return row
 
@@ -139,12 +142,10 @@ class Catalog:
 
     def list(self, offset: int = 0, limit: int = 25) -> tuple[list[dict], int]:
         if offset < 0 or not 1 <= limit <= 200: raise ArtifactError("invalid_query", 400, "Invalid catalog query.")
-        db = self._connect()
-        if db is None: return [], 0
-        try:
+        with self._connect() as db:
+            if db is None: return [], 0
             total = db.execute("SELECT count(*) FROM artifacts").fetchone()[0]
             rows = db.execute("SELECT * FROM artifacts ORDER BY registered_at,id LIMIT ? OFFSET ?", (limit, offset)).fetchall()
-        finally: db.close()
         values = []
         for row in rows:
             try: values.append(self._dto(row["id"], row["path"], row["registered_at"], self.inspect(row["id"]), False))
@@ -203,6 +204,47 @@ class Catalog:
         return {**projected, "id": artifact_id, "name": metadata["name"],
                 "kind": latest.kind, "status": status}
 
+    def market_view(self, artifact_id: str, *, timeframe: str | None = None,
+                    window: str | None = None, candidate: str | None = None,
+                    compare: str | None = None, cost: str = "base", symbol: str | None = None) -> dict:
+        """Return a bounded, role-authorized candle/run projection."""
+        from .market_views import project_lab_market
+        original = self.inspect(artifact_id)
+        # Catalog protection is authoritative even for a separate projection.
+        if original.kind == "strategy_lab_v1":
+            # The lab is intrinsically mixed because it contains test files.
+            # Its projector performs per-window authorization; treating that
+            # aggregate flag as inherited protection would hide train data too.
+            self._validate_job_disclosure_storage()
+            authorized: list[str] = []
+            def authorize(names):
+                for name in names:
+                    # Names originate from the validated lab model, never HTTP.
+                    if name not in original.known or name not in original.metadata.get("file_hashes", {}):
+                        raise ArtifactError("artifact_invalid", 422, "Recorded market files are inconsistent.")
+                    identity = f"file-sha256:{original.metadata['file_hashes'][name]}"
+                    if self.disclosures.protected(identity) and not self.disclosures.revealed([identity]):
+                        raise ArtifactError("holdout_protected", 403, "Holdout disclosure is required.")
+                authorized[:] = list(names)
+            result = project_lab_market(original, timeframe, window, candidate, compare, cost, symbol, authorize)
+        else:
+            protected = self._effective_protected(original)
+            if protected and not self.disclosures.revealed(protected):
+                raise ArtifactError("holdout_protected", 403, "Holdout disclosure is required.")
+            from .run_views import RunViews
+            result = RunViews(self).market(artifact_id, symbol)
+        latest = self.inspect(artifact_id)
+        if latest.snapshots != original.snapshots or latest.metadata != original.metadata:
+            raise ArtifactError("artifact_changed", 409, "Artifact changed while the view was being read.")
+        if original.kind == "strategy_lab_v1":
+            # Disclosure state may change concurrently; re-check the exact
+            # safe payload files after the final generation verification.
+            for name in authorized:
+                identity = f"file-sha256:{latest.metadata['file_hashes'][name]}"
+                if self.disclosures.protected(identity) and not self.disclosures.revealed([identity]):
+                    raise ArtifactError("holdout_protected", 403, "Holdout disclosure is required.")
+        return result
+
     def comparison_view(self, artifact_id: str, table: str | None = None,
                         window: str | None = None, offset: int = 0, limit: int = 25) -> dict:
         """Read fixed safe-role fields, without bypassing inherited input protection."""
@@ -248,10 +290,9 @@ class Catalog:
         """
         self._validate_job_disclosure_storage()
         paths, hashes, synthetic = self._job_input_sources(prepared)
-        db = self._connect()
-        if db is not None:
-            try: rows = db.execute("SELECT id,path FROM artifacts").fetchall()
-            finally: db.close()
+        with self._connect() as db:
+            rows = [] if db is None else db.execute("SELECT id,path FROM artifacts").fetchall()
+        if rows:
             for row in rows:
                 prefix = row["path"].rstrip("/") + "/"
                 if any(path.startswith(prefix) for path in paths):
@@ -371,12 +412,10 @@ class Catalog:
         if not self.database.is_file():
             raise ArtifactError("job_output_unavailable", 409, "Job output is not finalized.")
         try:
-            db = sqlite3.connect(f"file:{self.database}?mode=ro", uri=True)
-            try:
+            with owned_connection(self.database, readonly=True, row_factory=None) as db:
                 columns = {item[1] for item in db.execute("PRAGMA table_info(gui_jobs)")}
                 kind = "kind" if "kind" in columns else "NULL"  # historical minimal catalogs
                 row = db.execute(f"SELECT state,output_path,{kind} FROM gui_jobs WHERE id=?", (match[1],)).fetchone()
-            finally: db.close()
         except sqlite3.Error as exc:
             raise ArtifactError("job_output_unavailable", 409, "Job output is not finalized.") from exc
         if (row is None or row[:2] != ("succeeded", f"build/gui/jobs/{match[1]}/artifacts")
@@ -447,6 +486,26 @@ class Catalog:
     def _record_protection(self, artifact: Artifact) -> None:
         try:
             identities = set(artifact.protected_identities())
+            if artifact.kind == "strategy_lab_v1":
+                # Raw lab files remain mixed and require disclosure. Do not
+                # permanently taint validated train/validation-only files merely
+                # because their container also carries holdout data. Previously
+                # recorded protections are never erased or bypassed.
+                from .lab_views import _validated
+                first = _validated(artifact, None)
+                safe_names = set()
+                for timeframe in first["timeframes"]:
+                    model = _validated(artifact, timeframe)
+                    for window in model["safe_windows"]:
+                        name = window["name"]
+                        safe_names.add(f"{timeframe}/data/{name}.csv")
+                        for candidate in model["slate_names"]:
+                            for cost in ("base", "stress"):
+                                base = f"{timeframe}/runs/{name}--{candidate}--{cost}"
+                                safe_names.update(f"{base}/{table}.csv" for table in ("fills", "equity", "orders"))
+                hashes = artifact.metadata.get("file_hashes", {})
+                guarded_names = (artifact.protected | artifact.mixed | (set(artifact.snapshots) - artifact.known)) - safe_names
+                identities = {f"file-sha256:{hashes[name]}" for name in guarded_names if name in hashes}
             identities.update(self._projection_protection(artifact, identities))
             self.disclosures.mark_protected(sorted(identities))
         except OSError as exc:
@@ -482,6 +541,17 @@ class Catalog:
             return set()
         hashes = artifact.metadata.get("file_hashes", {})
         expanded: set[str] = set()
+        # Canonical market bars are derived directly from captured source bytes.
+        # A protected source therefore protects every projection in this export,
+        # including the sidecar that is not a legacy financial-table pair.
+        if "market_data.json" in artifact.known and "market_data.json" in hashes:
+            try:
+                manifest = strict_json(read_stable(artifact.root, "manifest.json", expected=artifact.snapshots["manifest.json"]))
+                source_hash = manifest.get("source", {}).get("source_sha256") if isinstance(manifest, dict) else None
+            except (ArtifactIOError, ValueError, UnicodeDecodeError):
+                raise ArtifactError("artifact_changed", 409, "Artifact changed while being read.") from None
+            if isinstance(source_hash, str) and self._job_input_protected(f"file-sha256:{source_hash}"):
+                expanded.update(f"file-sha256:{value}" for value in hashes.values())
         for names in V2_PROJECTION_GROUPS:
             identities = {f"file-sha256:{hashes[name]}" for name in names if name in hashes}
             if len(identities) != len(names):

@@ -16,7 +16,7 @@ from qte.research_export import CAPABILITIES, TABLE_COLUMNS, TABLE_FILES, write_
 ROOT = Path(__file__).parents[2]
 INTERVAL = 3_600_000_000_000
 START = 9_007_199_254_740_993
-ADDITIVE = set(TABLE_FILES.values()) | {"research_export.json"}
+ADDITIVE = set(TABLE_FILES.values()) | {"research_export.json", "market_data.json"}
 
 
 def _rows(path: Path):

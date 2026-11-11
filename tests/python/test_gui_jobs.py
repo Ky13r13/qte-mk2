@@ -78,6 +78,9 @@ class Catalog:
 
 @pytest.fixture
 def inputs_module(monkeypatch):
+    # Load the real v2 type before replacing job_inputs with this focused v1
+    # fixture; otherwise inline_inputs cannot import its own real dependencies.
+    import qte.gui.inline_inputs  # noqa: F401
     module = types.ModuleType("qte.gui.job_inputs")
 
     class SnapshotInputs:
@@ -274,7 +277,8 @@ def test_connect_revalidates_sqlite_sidecars_before_each_open(tmp_path, inputs_m
     target.write_text("not a database sidecar")
     os.symlink(target, f"{manager.database}-wal")
     with pytest.raises(JobError) as error:
-        manager._connect()
+        with manager._connect():
+            pass
     assert (error.value.code, error.value.status) == ("jobs_forbidden", 403)
 
 

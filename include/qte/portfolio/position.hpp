@@ -14,6 +14,10 @@ public:
         market_data::Timestamp effective_at,
         core::EventSequence sequence,
         double price);
+    [[nodiscard]] static ValuationMark option_value(
+        market_data::Timestamp effective_at,
+        core::EventSequence sequence,
+        double price);
 
     [[nodiscard]] market_data::Timestamp effective_at() const noexcept {
         return effective_at_;
@@ -60,6 +64,9 @@ public:
     [[nodiscard]] double realized_gross_pnl() const noexcept {
         return realized_gross_pnl_;
     }
+    [[nodiscard]] double realized_cash_pnl() const noexcept {
+        return realized_cash_pnl_;
+    }
     [[nodiscard]] bool is_reversal() const noexcept {
         return !previous_quantity_.is_zero() && !new_quantity_.is_zero() &&
             ((previous_quantity_.value() > 0) != (new_quantity_.value() > 0));
@@ -72,18 +79,21 @@ private:
         core::ShareQuantity new_quantity,
         core::ShareQuantity opened_quantity,
         core::ShareQuantity closed_quantity,
-        double realized_gross_pnl)
+        double realized_gross_pnl,
+        double realized_cash_pnl)
         : previous_quantity_(previous_quantity),
           new_quantity_(new_quantity),
           opened_quantity_(opened_quantity),
           closed_quantity_(closed_quantity),
-          realized_gross_pnl_(realized_gross_pnl) {}
+          realized_gross_pnl_(realized_gross_pnl),
+          realized_cash_pnl_(realized_cash_pnl) {}
 
     core::ShareQuantity previous_quantity_;
     core::ShareQuantity new_quantity_;
     core::ShareQuantity opened_quantity_;
     core::ShareQuantity closed_quantity_;
     double realized_gross_pnl_;
+    double realized_cash_pnl_;
 };
 
 // Average-cost inventory for one canonical symbol. This component deliberately
@@ -92,15 +102,27 @@ private:
 class Position final {
 public:
     explicit Position(market_data::Symbol symbol) : symbol_(std::move(symbol)) {}
+    explicit Position(const market_data::InstrumentSpec& instrument)
+        : symbol_(instrument.symbol()), kind_(instrument.kind()),
+          contract_multiplier_(instrument.contract_multiplier()) {}
     Position(const Position&) = default;
     Position& operator=(const Position&) = default;
     Position(Position&&) noexcept = default;
     Position& operator=(Position&&) noexcept = default;
 
     [[nodiscard]] const market_data::Symbol& symbol() const noexcept { return symbol_; }
+    [[nodiscard]] market_data::InstrumentKind kind() const noexcept { return kind_; }
+    [[nodiscard]] std::int64_t contract_multiplier() const noexcept {
+        return contract_multiplier_;
+    }
     [[nodiscard]] core::ShareQuantity quantity() const noexcept { return quantity_; }
     [[nodiscard]] double average_entry_price() const noexcept {
         return average_entry_price_;
+    }
+    [[nodiscard]] std::optional<double> settlement_basis_price() const noexcept {
+        return kind_ == market_data::InstrumentKind::future
+                   ? std::optional{settlement_basis_price_}
+                   : std::nullopt;
     }
     [[nodiscard]] double realized_gross_pnl() const noexcept {
         return realized_gross_sum_;
@@ -116,10 +138,15 @@ public:
     // Flat market value and unrealized PnL are known to be zero without a mark.
     // Open unmarked positions return nullopt rather than fabricating a valuation.
     [[nodiscard]] std::optional<double> market_value() const noexcept;
+    [[nodiscard]] std::optional<double> net_exposure() const noexcept;
+    [[nodiscard]] std::optional<double> gross_exposure() const noexcept;
     [[nodiscard]] std::optional<double> unrealized_pnl() const noexcept;
     [[nodiscard]] std::optional<double> net_pnl() const noexcept;
 
     PositionTransition apply_fill(const orders::Fill& fill);
+    // Low-level accounting only: no cash ownership, event ordering or dedup.
+    // Portfolio stages this operation on a copy before committing its journal.
+    double settle_variation(double settlement_price);
     void mark(ValuationMark mark);
 
 private:
@@ -127,16 +154,20 @@ private:
         double value,
         double& sum,
         double& compensation);
-    static void require_finite_state(
+    void require_finite_state(
         core::ShareQuantity quantity,
         double average_entry_price,
+        double settlement_basis_price,
         double realized_gross_pnl,
         double commissions_paid,
-        const std::optional<ValuationMark>& mark);
+        const std::optional<ValuationMark>& mark) const;
 
     market_data::Symbol symbol_;
+    market_data::InstrumentKind kind_{market_data::InstrumentKind::cash_equity};
+    std::int64_t contract_multiplier_{1};
     core::ShareQuantity quantity_{core::ShareQuantity::zero()};
     double average_entry_price_{0.0};
+    double settlement_basis_price_{0.0};
     double realized_gross_sum_{0.0};
     double realized_gross_compensation_{0.0};
     double commission_sum_{0.0};

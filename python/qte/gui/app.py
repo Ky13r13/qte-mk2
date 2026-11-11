@@ -18,6 +18,7 @@ from starlette.routing import Route
 
 from .documents import DocumentLibrary
 from .connection_routes import connection_routes
+from .gamma_routes import gamma_routes
 from .platform_support import full_gui_supported, LIMITED_REASON
 from .requests import json_request, pagination
 from .safeio import SafeReadError
@@ -25,7 +26,7 @@ from .security import IDLE_TIMEOUT_SECONDS, SecurityError, SessionController, un
 
 TOKEN_HEADER = "X-QTE-Token"
 COOKIE_NAME = "qte_session"
-STATIC_NAMES = {"index.html", "app.css", "app.js", "platform_capabilities.js", "experiments.js", "comparisons.js", "comparison_forms.js", "research_forms.js", "research_jobs.js", "datasets.js", "system_tests.js", "system_benchmarks.js", "system_connections.js"}
+STATIC_NAMES = {"index.html", "app.css", "app.js", "platform_capabilities.js", "experiments.js", "comparisons.js", "comparison_forms.js", "research_forms.js", "research_jobs.js", "datasets.js", "system_tests.js", "system_benchmarks.js", "system_connections.js", "gamma.js", "market_chart.js"}
 
 
 def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str], object] = print,
@@ -129,6 +130,7 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
             {"id": "test_execution", "state": "available", "reason": "Explicit fixed local test jobs; prerequisites checked on launch. Test evidence requires recorded disclosure."},
             {"id": "benchmarks", "state": "available", "reason": "Explicit bounded synthetic no-op/SMA timing jobs; not evidence of trading merit."},
             {"id": "connection_inspection", "state": "available", "reason": "Offline prerequisite status only; credential values are not inspected and no account authentication is checked."},
+            {"id": "gamma_calculator", "state": "available", "reason": "Offline Black-76 scenario surface from manual inputs; no live feed, dealer inventory or execution."},
             {"id": "broker_reads", "state": "blocked", "reason": "GUI broker transport is disabled; approved setup and private-response contracts remain unresolved."},
             {"id": "paper_execution", "state": "blocked", "reason": "Operational paper execution is not integrated."},
         ]
@@ -172,6 +174,7 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
         Route("/api/v1/library", library_api, methods=["GET"]),
         Route("/api/v1/documents/{document_id:str}", document_api, methods=["GET"]),
         Route("/library", shell, methods=["GET"]), Route("/library/{document_id:str}", shell, methods=["GET"]),
+        Route("/gamma", shell, methods=["GET"]),
         Route("/research", shell, methods=["GET"]),
         Route("/research/new/run", shell, methods=["GET"]),
         Route("/research/new/lab", shell, methods=["GET"]),
@@ -185,7 +188,7 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
         Route("/data/{artifact_id:str}", shell, methods=["GET"]), Route("/system", shell, methods=["GET"]),
         Route("/system/benchmarks", shell, methods=["GET"]),
         Route("/system/connections", shell, methods=["GET"]),
-    ] + connection_routes(session_for)
+    ] + connection_routes(session_for) + gamma_routes(session_for)
     if full_gui:
         routes += (benchmark_routes(jobs, session_for) + test_routes(jobs, session_for)
                    + comparison_routes(Catalog(Path(repository)), session_for)
@@ -234,7 +237,7 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
                 if origin is not None and origin != expected_origin:
                     raise SecurityError("same_origin_required", 403, "Same-origin request required.")
                 if fetch_site == "cross-site" or (fetch_site == "none" and request.url.path not in {
-                        "/", "/login", "/library", "/research", "/data", "/system",
+                        "/", "/login", "/library", "/gamma", "/research", "/data", "/system",
                         "/system/benchmarks", "/system/connections"} and
                         not request.url.path.startswith(("/library/", "/research/", "/data/"))):
                     raise SecurityError("same_origin_required", 403, "Same-origin request required.")

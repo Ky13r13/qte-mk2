@@ -42,7 +42,8 @@ Fill Fill::create(
     const core::EventSequence effective_sequence,
     const double reference_open,
     const core::TickPrice executed_price,
-    const double commission) {
+    const double commission,
+    const std::int64_t contract_multiplier) {
     if (!valid_side(side)) {
         throw std::invalid_argument("fill side is unsupported");
     }
@@ -52,9 +53,13 @@ Fill Fill::create(
     if (!std::isfinite(commission) || commission < 0.0) {
         throw std::invalid_argument("commission must be finite and non-negative");
     }
+    if (contract_multiplier <= 0) {
+        throw std::invalid_argument("contract multiplier must be positive");
+    }
 
     const double gross_notional =
-        static_cast<double>(quantity.value()) * executed_price.value();
+        static_cast<double>(quantity.value()) * executed_price.value() *
+        static_cast<double>(contract_multiplier);
     if (!std::isfinite(gross_notional) || gross_notional <= 0.0) {
         throw std::out_of_range("fill gross notional is outside the supported range");
     }
@@ -71,6 +76,7 @@ Fill Fill::create(
         executed_price,
         gross_notional,
         commission,
+        contract_multiplier,
     };
 }
 
@@ -85,7 +91,8 @@ Fill::Fill(
     const double reference_open,
     const core::TickPrice executed_price,
     const double gross_notional,
-    const double commission)
+    const double commission,
+    const std::int64_t contract_multiplier)
     : id_(id),
       order_id_(order_id),
       symbol_(std::move(symbol)),
@@ -96,7 +103,8 @@ Fill::Fill(
       reference_open_(reference_open),
       executed_price_(executed_price),
       gross_notional_(gross_notional),
-      commission_(commission) {}
+      commission_(commission),
+      contract_multiplier_(contract_multiplier) {}
 
 InvalidFill::InvalidFill(std::vector<FillValidationError> errors)
     : std::invalid_argument(validation_message(errors)), errors_(std::move(errors)) {}
@@ -136,6 +144,12 @@ std::vector<FillValidationError> validate(
         errors.push_back({
             FillValidationCode::instrument_symbol_mismatch,
             "fill symbol does not match instrument metadata",
+        });
+    }
+    if (fill.contract_multiplier() != instrument.contract_multiplier()) {
+        errors.push_back({
+            FillValidationCode::contract_multiplier_mismatch,
+            "fill contract multiplier does not match instrument metadata",
         });
     }
     try {

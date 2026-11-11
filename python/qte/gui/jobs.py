@@ -1,6 +1,7 @@
 """Durable, single-run local research job scheduler."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 import fcntl
@@ -18,6 +19,7 @@ from uuid import uuid4
 
 from .artifacts import ArtifactError
 from .fixed_jobs import KINDS as FIXED_KINDS, support as fixed_support
+from .sqlite import owned_connection
 
 
 _DOWNLOAD_ENVIRONMENT = ("APCA_API_KEY_ID", "APCA_API_SECRET_KEY")
@@ -248,11 +250,11 @@ class JobManager:
             if not stat.S_ISREG(info.st_mode):
                 raise JobError("jobs_forbidden", 403, "Job storage is unavailable.")
 
+    @contextmanager
     def _connect(self):
         self._ensure_storage()
-        db = sqlite3.connect(self.database, timeout=10)
-        db.row_factory = sqlite3.Row
-        return db
+        with owned_connection(self.database, timeout=10) as db:
+            yield db
 
     @staticmethod
     def _schema(db) -> None:

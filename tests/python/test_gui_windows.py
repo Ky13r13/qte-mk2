@@ -156,7 +156,7 @@ def test_limited_app_never_imports_linux_jobs_and_has_authenticated_fail_closed_
                 headers = {"X-QTE-Token": login.json()["request_token"]}
                 capabilities = (await client.get("/api/v1/capabilities", headers=headers)).json()
                 available = {item["id"] for item in capabilities["capabilities"] if item["state"] == "available"}
-                assert available == {"library", "connection_inspection"}
+                assert available == {"library", "connection_inspection", "gamma_calculator"}
                 doc = await client.get("/api/v1/documents/readme", headers=headers)
                 assert doc.status_code == 200 and "Windows fixture" in doc.text
                 assert (await client.get("/api/v1/connections", headers=headers)).status_code == 200

@@ -113,6 +113,60 @@ summary { cursor: pointer; font-weight: 600; }
 dt { font-weight: 700; margin-top: 0.75rem; }
 dd { margin: 0.15rem 0 0; }
 
+/* Research candles: raw facts only; no client-side accounting. */
+.market-chart { max-width: 76rem; font-variant-numeric: tabular-nums; }
+.market-chart svg { width: 100%; height: auto; display: block; }
+.market-controls { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: end; margin: 1rem 0; }
+.market-controls .field-label { min-width: 10rem; flex: 1; }
+.market-controls select { width: 100%; min-width: 0; }
+.market-chart input[type="range"] { width: 100%; }
+.market-axis, .market-wick { stroke: var(--ink); stroke-width: 1; }
+.market-axis-label { fill: var(--muted); font: 11px system-ui, sans-serif; }
+.market-up { fill: var(--background); stroke: var(--ink); stroke-width: 1; }
+.market-down, .market-fill { fill: var(--ink); stroke: var(--ink); }
+.market-candle { cursor: crosshair; }
+.market-candle:hover .market-wick { stroke-width: 2; }
+.market-regime-0 { fill: var(--rule); }
+.market-regime-1 { fill: var(--background); stroke: var(--rule); }
+.market-transition { stroke: var(--muted); stroke-width: 0.5; stroke-dasharray: 2 5; opacity: 0.5; }
+.market-equity { fill: none; stroke: var(--ink); stroke-width: 1.8; }
+.market-equity.market-run-1 { stroke-dasharray: 6 4; }
+.market-fill.market-run-1 { fill: var(--background); }
+.market-submission { fill: none; stroke: var(--ink); stroke-width: 1; }
+.market-cursor { stroke: var(--muted); stroke-width: 0.8; pointer-events: none; }
+.market-inspection, .market-legend { font-size: 0.8125rem; overflow-wrap: anywhere; }
+.market-chart pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8125rem; }
+
+/* Gamma Lab: manual model output only. */
+.gamma-lab { max-width: 76rem; font-variant-numeric: tabular-nums; }
+.gamma-form fieldset { border: 0; display: grid; gap: 0.7rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 1rem 0; padding: 0; min-width: 0; }
+.gamma-form legend { font-weight: 700; padding: 0 0.25rem; }
+.gamma-field { display: grid; gap: 0.2rem; font-weight: 600; }
+.gamma-field small { color: var(--muted); font-size: 0.75rem; font-weight: 400; }
+.gamma-field input, .gamma-field select { background: var(--background); border: 1px solid var(--rule); min-width: 0; padding: 0.45rem; width: 100%; }
+.gamma-validation { border-left: 3px solid var(--ink); padding-left: 0.75rem; }
+.gamma-headline { margin: 1rem 0; }
+.gamma-numbers { display: grid; gap: 0.3rem 1rem; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.gamma-numbers dt { margin: 0; }
+.gamma-numbers dd { overflow-wrap: anywhere; }
+.gamma-chart { max-width: 100%; }
+.gamma-chart svg { display: block; width: 100%; height: auto; }
+.gamma-surface-3d { display: block; width: 100%; height: auto; touch-action: none; cursor: grab; }
+.gamma-surface-3d:active { cursor: grabbing; }
+.gamma-view-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0; }
+.gamma-view-controls [aria-pressed="true"] { border-bottom: 2px solid var(--ink); }
+.gamma-axis { stroke: var(--ink); stroke-width: 1; }
+.gamma-cell { cursor: crosshair; }
+.gamma-cell:hover, .gamma-cell:focus { stroke: var(--ink); stroke-width: 2; }
+.gamma-slice-line { fill: none; stroke: var(--ink); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.gamma-selected { fill: var(--ink); }
+.gamma-label { fill: var(--muted); font-family: system-ui, sans-serif; font-size: 12px; }
+.gamma-inspection, .gamma-empty { color: var(--muted); font-size: 0.875rem; min-height: 1.5em; }
+.gamma-legend { color: var(--muted); font-size: 0.8125rem; margin: 0.25rem 0; }
+.gamma-selectors { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.5rem 1rem; align-items: center; margin-top: 0.75rem; }
+.gamma-selectors select { min-width: 0; width: 100%; }
+.gamma-details { margin-bottom: 2rem; }
+
 @media (max-width: 38rem) {
   .site-header { gap: 0.75rem 1rem; padding: 0.85rem 1rem; }
   .quiet-button { margin-left: 0; }
@@ -120,4 +174,7 @@ dd { margin: 0.15rem 0 0; }
   input[type="search"], input[type="text"], select { min-width: 0; width: 100%; }
   .field-label { width: 100%; }
   .job-actions button, .job-poll-controls button { width: 100%; }
+  .gamma-field span { font-size: 0.875rem; }
+  .gamma-numbers { grid-template-columns: 1fr; }
+  .gamma-numbers dd { margin-bottom: 0.5rem; }
 }

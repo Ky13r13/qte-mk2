@@ -133,6 +133,7 @@ enum class DatasetValidationCode {
     availability_count_mismatch,
     publication_before_bar_end,
     publication_out_of_order,
+    unsupported_instrument,
 };
 
 struct DatasetValidationError final {

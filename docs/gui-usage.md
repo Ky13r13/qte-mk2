@@ -12,6 +12,11 @@ is an error, not an automatic fallback; select `--port 8766` explicitly if neede
 The pinned optional GUI dependencies have already been installed in this checkout.
 The command never installs dependencies itself.
 
+**Gamma** opens the [interactive Gamma Lab](gamma-lab.md): a manual-input
+Black-76 surface and numerical calculation check. Changes recalculate locally;
+there is no live options feed or dealer-positioning inference. Restart an older
+GUI process after updating the code to register the new route.
+
 G1 provides searchable original documentation with source hashes and status.
 G2 provides explicit artifact registration, verification and guarded downloads;
 G3a single-run charts/tables and G3b owned-result bindings are reviewed.
@@ -82,7 +87,7 @@ outputs remain protected. Restarted jobs are interrupted, not silently retried.
 
 The current runner requires Linux process supervision. The initial
 [native Windows GUI slice](windows-gui.md) provides Library/offline Connections
-only, with native acceptance pending; Research/Data/jobs stay blocked there.
+and the pure Gamma calculator, with native acceptance pending; Research/Data/jobs stay blocked there.
 No job launches merely
 by browsing a page. Research now offers **New run** and **New synthetic lab**.
 Preview assumptions before launch; edits invalidate the preview. Recent jobs
@@ -228,3 +233,46 @@ G3c browser checks additionally cover v2 overview/sequence labels, positions wit
 mark sequence, complete closed-trade details, empty open-trade tables, lifecycle
 history, and sampled source-event labeling. All browser checks use a separate
 QA catalog, not user research artifacts.
+# Candles, regimes and research form examples
+
+Open a registered research run or synthetic strategy lab, then **Candles &
+regimes**. In a lab, select a train/validation window (try `regime_switch`),
+choose a candidate and optional comparison, and use the same base/stress costs.
+The chart aligns raw OHLC candles, recorded buy/sell fills, regime transitions
+and portfolio equity. Hollow candles close at/above open; filled candles close
+below open. Comparison equity is dashed. Pan with Earlier/Later candles and
+inspect with the slider or arrow keys; expand exact facts for nanosecond times.
+
+Regime bands start when their decisions became available, not at candle open.
+Lab regimes are recorded synthetic context, not proof of dealer positioning or
+of every candidate using the filter. Synthetic outcomes test mechanics, not
+profitability. Structured charts continue to withhold test windows.
+Previously cataloged labs may retain blanket durable protection from the older
+catalog. Those records are not erased: use a fresh dataset for a new mechanics
+demo, or deliberately follow the existing disclosure workflow. Identical bytes
+retain protection across copies. Raw mixed-file downloads remain guarded.
+
+New version-2 single runs capture canonical OHLC in `market_data.json` from the
+same loaded input as the engine. Old runs without that recording display an
+explicit unavailable message. No OHLC is invented from closes or fills. The
+current bounded view supports up to 4096 candles per instrument. A single-run
+regime overlay requires recorded macro-router diagnostics; SMA runs do not
+acquire an inferred regime label. Equity remains whole-portfolio equity.
+
+Research forms now explain units, bounds and optional overrides. **Load working
+SMA example** / **Load reproducible lab example** replace the draft with known
+inputs; review assumptions before launching. Useful starting values:
+
+| Field | Expected value / meaning |
+| --- | --- |
+| Symbol | Exact, case-sensitive dataset symbol, e.g. `SPY`, not `Spy` |
+| Interval ns | Hourly `3600000000000`; daily 24h `86400000000000` (not an exchange calendar) |
+| Tick size | Positive price increment; example ETF fixture `0.01` |
+| Fast / slow period | Positive bar counts; fast must be less than slow |
+| Lab bars per window | 128–4096; start at 128, with enough indicator warm-up |
+| Lab seed | Integer 0 through 4611686018427387903; same seed/config reproduces the fixture |
+| Costs | Basis points: 1 bp = 0.01%; an unchecked override uses the stated default |
+| Timeout seconds | Job runtime limit, not a strategy parameter or data interval |
+
+Data flow: captured input → canonical bars + engine events → checksummed export
+→ authorized read-only projection → candles / as-of regimes / fills / equity.

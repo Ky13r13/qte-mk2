@@ -85,6 +85,21 @@ def test_origin_and_options_are_fixed_registry_derived_metadata():
     assert options["strategy_lab"]["regimes"] == list(REGIMES)
     assert options["research_run"]["fields"]["engine.random_seed"]["type"] == "integer_string"
     assert options["strategy_lab"]["fields"]["engine.initial_cash"]["type"] == "number"
+    assert options["research_run"]["fields"]["data.interval_ns"]["unit"] == "nanoseconds"
+    assert options["research_run"]["fields"]["engine.history_capacity"]["guidance"].startswith("Must cover")
+    assert options["research_run"]["example"]["strategy"] == {
+        "type": "moving_average_regime", "symbol": "SPY", "fast_period": "2",
+        "slow_period": "3", "quantity": "10",
+    }
+    assert options["strategy_lab"]["fields"]["bars_per_window"]["minimum"] == "128"
+    assert options["strategy_lab"]["fields"]["bars_per_window"]["maximum"] == "4096"
+    assert options["strategy_lab"]["fields"]["bars_per_window"]["minimum"] == str(lab.LAB_MIN_BARS)
+    assert options["strategy_lab"]["fields"]["bars_per_window"]["maximum"] == str(lab.LAB_MAX_BARS)
+    assert options["strategy_lab"]["fields"]["seed"]["maximum"] == str(lab.LAB_MAX_SEED)
+    assert options["strategy_lab"]["example"] == {
+        "seed": "7", "bars_per_window": "128", "timeframes": ["daily_24h"],
+        "strategy_parameters": {"fast_period": "10", "slow_period": "50"},
+    }
 
 
 @pytest.mark.parametrize("kind", ["research_run", "strategy_lab"])
@@ -249,6 +264,41 @@ def test_invalid_adapter_content_is_sanitized_including_csv_field_limit(monkeypa
         assert caught.value.field == "configuration"
         assert "private" not in caught.value.message
         assert len(caught.value.message) <= 240
+
+
+@pytest.mark.parametrize(("mutate", "field", "message"), [
+    (lambda wire: wire["strategy"].update(symbol="Spy"), "configuration.strategy.symbol", "SPY rather than Spy"),
+    (lambda wire: wire["strategy"].update(fast_period="3", slow_period="3"),
+     "configuration.strategy.slow_period", "greater than fast"),
+    (lambda wire: wire["engine"].update(history_capacity="2"),
+     "configuration.engine.history_capacity", "strategy warmup"),
+])
+def test_known_research_validation_failures_have_safe_field_guidance(monkeypatch, mutate, field, message):
+    monkeypatch.setattr(shared, "source_identity", lambda: "forms-test")
+    wire = research_wire()
+    mutate(wire)
+    with pytest.raises(FormError) as caught:
+        prepare_form("research_run", wire, DATA)
+    assert caught.value.field == field
+    assert message in caught.value.message
+
+
+def test_candidate_period_error_uses_single_run_field_path(monkeypatch):
+    monkeypatch.setattr(shared, "source_identity", lambda: "forms-test")
+    wire = research_wire("trend")
+    wire["strategy"].update(fast_period="50", slow_period="50")
+    with pytest.raises(FormError) as caught:
+        prepare_form("research_run", wire, DATA)
+    assert caught.value.field == "configuration.strategy.slow_period"
+
+
+def test_lab_window_bounds_and_warmup_errors_are_field_specific():
+    for wire, fragment in (({**lab_wire(), "bars_per_window": "127"}, "128 through 4096"),
+                           ({**lab_wire(), "strategy_parameters": {"slow_period": "128"}}, "warmup")):
+        with pytest.raises(FormError) as caught:
+            prepare_form("strategy_lab", wire, None)
+        assert caught.value.field == "configuration.bars_per_window"
+        assert fragment in caught.value.message
 
 
 def test_sampling_preview_does_not_claim_result_dependent_runtime_success(monkeypatch):

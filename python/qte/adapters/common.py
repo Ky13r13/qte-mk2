@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 
-from qte import Dataset
+from qte import Bar, Dataset
 
 def interval_for_timeframe(value: str) -> int:
     match = re.fullmatch(r'([1-9][0-9]*)(Min|Hour)', value) if isinstance(value, str) else None
@@ -36,6 +36,9 @@ class SourceProvenance:
 class AdapterResult:
     dataset: Dataset
     provenance: SourceProvenance
+    # Owned canonical bars captured from the same bytes as dataset. Optional for
+    # older/custom adapters; never recovered by reopening a mutable source path.
+    bars: tuple[Bar, ...] = ()
 
 
 def parse_rfc3339_utc_ns(value: object) -> int:

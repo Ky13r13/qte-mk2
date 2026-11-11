@@ -103,13 +103,10 @@ def _resolve_validation(catalog, identifier: str) -> ComparisonSource:
     if job:
         from .inline_inputs import InlineSnapshotInputs
         from .job_inputs import verify_snapshot
-        db = catalog._connect()
-        if db is None:
-            raise _error()
-        try:
+        with catalog._connect() as db:
+            if db is None:
+                raise _error()
             row = db.execute("SELECT kind,state,snapshot FROM gui_jobs WHERE id=?", (job[1],)).fetchone()
-        finally:
-            db.close()
         if row is None or row["kind"] != "dataset_validate" or row["state"] != "succeeded":
             raise _error()
         recorded = strict_json(row["snapshot"].encode())
@@ -304,12 +301,9 @@ def authorize_comparison_inputs(catalog, prepared: PreparedComparisonInputs, *, 
         if type(reserve_test) is not bool:
             raise _error()
         catalog._validate_job_disclosure_storage()
-        db = catalog._connect()
-        if db is not None:
-            try:
-                rows = db.execute("SELECT id,path FROM artifacts").fetchall()
-            finally:
-                db.close()
+        with catalog._connect() as db:
+            rows = [] if db is None else db.execute("SELECT id,path FROM artifacts").fetchall()
+        if rows:
             for row in rows:
                 if any(source.source_path.startswith(row["path"].rstrip("/") + "/") for source in value.sources):
                     catalog.inspect(row["id"])

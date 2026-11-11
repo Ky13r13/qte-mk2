@@ -3,6 +3,7 @@
 #include "qte/core/currency.hpp"
 #include "qte/market_data/instrument.hpp"
 #include "qte/portfolio/position.hpp"
+#include "qte/portfolio/settlement.hpp"
 #include "qte/portfolio/trade.hpp"
 
 #include <cstddef>
@@ -21,6 +22,8 @@ struct PositionSnapshot final {
     std::optional<double> mark_price;
     std::optional<market_data::Timestamp> mark_timestamp;
     std::optional<core::EventSequence> mark_sequence;
+    market_data::InstrumentKind instrument_kind{
+        market_data::InstrumentKind::cash_equity};
 };
 
 class PortfolioSnapshot final {
@@ -64,6 +67,26 @@ public:
     using std::logic_error::logic_error;
 };
 
+class ConflictingPortfolioSettlement final : public std::logic_error {
+public:
+    using std::logic_error::logic_error;
+};
+
+class OutOfSequencePortfolioSettlement final : public std::logic_error {
+public:
+    using std::logic_error::logic_error;
+};
+
+enum class SettlementApplyResult { applied, already_applied };
+
+struct SettlementRecord final {
+    VariationSettlement event;
+    double cash_delta;
+    core::ShareQuantity quantity;
+    double previous_basis;
+    double new_basis;
+};
+
 // The first single-currency portfolio ledger. Its instrument universe is fixed
 // at construction so fill and mark validation never depends on provider data.
 class Portfolio final {
@@ -80,6 +103,11 @@ public:
 
     [[nodiscard]] double initial_cash() const noexcept { return initial_cash_; }
     [[nodiscard]] double cash() const noexcept { return cash_sum_; }
+    // Readers must not evaluate current mutable ledger state as if it were an
+    // earlier historical snapshot. This clock includes marks/fills/settlements.
+    [[nodiscard]] std::optional<market_data::Timestamp> last_event_at() const noexcept {
+        return last_event_at_;
+    }
     [[nodiscard]] const core::Currency& valuation_currency() const noexcept {
         return valuation_currency_;
     }
@@ -91,6 +119,11 @@ public:
     [[nodiscard]] const std::vector<orders::Fill>& fills() const noexcept {
         return fills_;
     }
+    [[nodiscard]] std::size_t settlement_count() const noexcept { return settlements_.size(); }
+    [[nodiscard]] bool contains_settlement(core::SettlementId id) const noexcept;
+    [[nodiscard]] const std::vector<SettlementRecord>& settlements() const noexcept {
+        return settlements_;
+    }
     [[nodiscard]] const std::vector<TradeEpisode>& closed_trades() const noexcept {
         return closed_trades_;
     }
@@ -98,6 +131,10 @@ public:
         const market_data::Symbol& symbol) const noexcept;
 
     [[nodiscard]] const Position* position(const market_data::Symbol& symbol) const noexcept;
+    // Fixed-universe metadata for risk validation. Borrowed, read-only, and
+    // valid until this ledger is moved or destroyed; never exposed as Python state.
+    [[nodiscard]] const market_data::InstrumentSpec* instrument(
+        const market_data::Symbol& symbol) const noexcept;
     [[nodiscard]] PortfolioSnapshot snapshot() const;
     [[nodiscard]] double realized_gross_pnl() const;
     [[nodiscard]] double commissions_paid() const;
@@ -109,6 +146,9 @@ public:
     [[nodiscard]] std::optional<double> net_pnl() const;
 
     void apply_fill(const orders::Fill& fill);
+    // Exact redeliveries are idempotent. New settlements share the ledger's
+    // global event ordering; they never fabricate marks or trade episodes.
+    SettlementApplyResult apply_settlement(const VariationSettlement& settlement);
     void mark(const market_data::Symbol& symbol, ValuationMark mark);
 
 private:
@@ -121,6 +161,7 @@ private:
         std::optional<double> market_value;
         std::optional<double> unrealized_pnl;
         std::optional<double> gross_exposure;
+        std::optional<double> net_exposure;
     };
 
     struct TradeUpdate final {
@@ -158,6 +199,7 @@ private:
     PositionMap positions_;
     std::map<std::string, std::optional<TradeEpisode>> open_trades_;
     std::vector<orders::Fill> fills_;
+    std::vector<SettlementRecord> settlements_;
     std::vector<TradeEpisode> closed_trades_;
     std::optional<market_data::Timestamp> last_event_at_;
     std::optional<core::EventSequence> last_event_sequence_;

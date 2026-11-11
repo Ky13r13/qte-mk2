@@ -216,6 +216,14 @@ def validate_v2(root, snapshots, manifest, report):
     if (has_router_events and advertised_router_events != ("recorded", "route_events.json")
             or not has_router_events and advertised_router_events != (None, None)):
         invalid("Router diagnostics capability and file map are inconsistent.")
+    has_market = "market_data.json" in snapshots
+    advertised_market = (wrapper["capabilities"].get("market_data"), wrapper["files"].get("market_data"))
+    if has_market:
+        capabilities["market_data"] = "recorded"
+        files["market_data"] = "market_data.json"
+    if (has_market and advertised_market != ("recorded", "market_data.json")
+            or not has_market and advertised_market != (None, None)):
+        invalid("Market recording capability and file map are inconsistent.")
     if wrapper["capabilities"] != capabilities or wrapper["files"] != files:
         invalid("Owned-result capabilities or file map is inconsistent.")
     if not set(files.values()) <= set(snapshots) or sampled != ("sampled_equity.csv" in snapshots):
@@ -224,6 +232,13 @@ def validate_v2(root, snapshots, manifest, report):
         invalid("Unconfigured owned-result sampling file is present.")
     if has_router_events:
         validate_router_events(root, snapshots, manifest)
+    if has_market:
+        from qte.market_export import validate_market_recording
+        try:
+            market = strict_json(read_stable(root, "market_data.json", FILE_LIMIT, snapshots["market_data.json"]))
+            validate_market_recording(market, manifest)
+        except (KeyError, ValueError, TypeError, OverflowError) as exc:
+            raise ArtifactError("artifact_invalid", 422, "Canonical market recording is inconsistent.") from exc
 
     orders = {}
     order_projection = {k: k for k in ("order_id", "symbol", "status", "detail")}
