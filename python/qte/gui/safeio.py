@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from qte._cleanup import close_fd
+
 import os
 import stat
 from pathlib import Path, PurePosixPath
@@ -76,7 +78,4 @@ def read_registered_file(root: Path, relative_path: str) -> bytes:
         raise SafeReadError("document_forbidden", 403, "Document unavailable.") from None
     finally:
         for fd in reversed(descriptors):
-            try:
-                os.close(fd)
-            except OSError:
-                pass
+            close_fd(fd)

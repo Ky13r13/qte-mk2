@@ -1,5 +1,625 @@
 # Active GUI implementation checkpoint
 
+## November 21 — trailing-year two-provider evidence
+
+Compiled 365 dates and 251 NYSE sessions, Nov 21, 2025–Nov 20, 2026. Robinhood
+covered all SPX daily and 30-minute sessions, 250 VIX daily sessions, and 205
+ETF 30-minute sessions. Schwab and Robinhood daily SPY/QQQ/IWM covered all 251.
+Schwab covered 181 ETF half-hour sessions; older-only probes did not fill the
+earliest 46 intraday ETF sessions. Six SPX 2-sigma dates, four with usable
+targeted minute captures. Causal prior labels and retrospective outcomes
+preserved separately. Raw captures, hashes, CSV, JSON and report:
+`build/daily-regimes/year-20261120/`. No refits or trades.
+
+## November 21 — completed November 20 regime evidence
+
+Robinhood supplied daily SPX/VIX and SPY/QQQ/IWM with weekday context through
+November 20, plus 390 observed regular-session minutes each for SPX/SPY/QQQ.
+SPX fell 3.70% on the provider daily bar; the minute low reached −2.28 prior
+expected moves. VIX rose 26.20% to 35.89. The prior-known high-volatility
+downtrend label was preserved. A completed-session tail event is retrospective.
+No verified catalyst, futures or options history obtained. Schwab supplied only
+the separate same-clock ETF volume cross-check from the previously saved panel.
+See `build/daily-regimes/2026-11-20/hood-20261121/summary.json` and hashed raw
+responses. No regime rules were refit.
+
+## November 21 — five-agent options master
+
+Added the Options master experiment to Five-agent research, plus the offline CLI
+`python -m qte.options_master`. Strategy roles may nominate registered rules
+from development results. QTE uses fixed costs, exposure and failure criteria
+for up to three revisions and freezes before replaying the selected rule only
+on the later sessions. Validated that changing later quotes cannot change the
+frozen master. The failure table attributes same-fill midpoint versus executable
+price and fee drag and preserves losing sessions, regime labels and misses.
+
+Final run `build/options-master-20261121-final/report.html` and adjacent JSON
+files contain the complete audit. Synthetic 1.5-sigma reentry with news/shock
+veto selected. Stressed evaluation earned $654.73 on 16 trades in eight
+sessions and failed sample size and uncertainty gates. Operational policy cash.
+The only local vendor quote sample spans one session. The GUI model path was
+verified using a test provider. See `docs/five-agent-research.md` for the
+workflow, replay assumptions, capture command and evidence limitations.
+
+## November 20 — fixed historical profitability screen
+
+Completed `examples/book151_historical.py`: 162-run comparison of four Book151
+families on cached SPY/QQQ/IWM adjusted daily proxies, three chronological windows,
+base/stress costs, ungated versus prior-session regime veto, plus buy-and-hold.
+Protocol written before outcomes, all results retained, independent fill cash and
+closed-trade reconciliation on every run. New data-contract/gate/next-open tests.
+Final artifacts: `build/book151-historical-20261120-final/report.html`, summary,
+protocol, fills/trades/equity and hash manifest including loaded C++ extension.
+
+No candidate passed the full screen. IWM channel reversal was positive in all
+three windows but only 15 recent trades; all candidates trailed recent 10% buy/hold.
+Universal bearish-regime veto reduced recent stressed PnL in 10/12 pairs. See
+`docs/strategies/book151-historical-results.md` for all assumptions, selected
+counterexamples and next bounded research decision. No option/futures/live claim.
+
+Commands: `.venv/bin/python examples/book151_historical.py --output
+build/book151-historical-20261120` failed before outcomes on naive/aware request
+timestamps; fixed explicit UTC interpretation. `--output
+build/book151-historical-20261120-v2` completed. After explicit adjustment/session
+metadata validation and binary provenance, `--output
+build/book151-historical-20261120-final` produced final artifacts. Initial output
+folders preserved. No parameter changes or outcome-driven retuning.
+
+Validation: `.venv/bin/python -m pytest -q tests/python/test_book151.py
+tests/python/test_book151_historical.py tests/python/test_regime_study.py
+--basetemp=build/test-book151-historical-final`: 36 passed.
+`.venv/bin/cmake --build build/local-dev -j2`: succeeded (existing Ninja truncated
+log recovery warning); `.venv/bin/ctest --test-dir build/local-dev
+--output-on-failure`: 19/19 passed. No installs, broker writes or Git operations.
+
+## November 19–20 — SPX/futures book strategies and daily evidence schedule
+
+User selected ETFs/options first, then emphasized SPX and futures. Reviewed the
+local SSRN PDF `151tradingstrategies.pdf`, extracted text to
+`build/strategy-151/source.txt` and visually checked futures momentum formulas.
+Cataloged 173 source TOC strategy headings including variants, with hash and
+implementation/deferred statuses in `docs/strategies/book151-catalog.json`.
+Publisher marks the published book retracted; reason not established; no claim
+that publication validates profitability or every supplied formula is defective.
+
+Implemented:
+- `strategies/book151.py`: four cash-equity/ETF strategy adapters, shared existing
+  lifecycle/accounting; pure causal futures momentum/contrarian target weights.
+  Registered research/comparison configurations and form metadata. Explicit
+  session grids handle calendar gaps; no futures-as-shares execution.
+- `option_structures.py`: ten SPX-style European cash-settled option recipes,
+  exact piecewise expiry payoff/risk, aggregate existing Black-76 gamma surfaces.
+  Model scenarios, not executable quote backtests or American assignment.
+- `examples/book151_research.py`: one reproducible command generating actual
+  QTE equity runs, fills/equity/v2 manifests, option payoff charts/gamma grids and
+  futures weight examples. Ran `--output build/book151-demo-20261119` successfully.
+  Four synthetic runs generated 46/32/28/71 fills. No market profitability claim.
+- Library guide `docs/strategies/book151.md` records exact rules, adaptations,
+  execution/sizing assumptions, missing data and remaining derivative gates.
+
+Validation: focused strategies/configuration/volume/Robinhood tests: 128 passed
+before adding one explicit calendar-grid regression. Earlier handoff/broker/paper
+suite: 179 passed. Native `.venv/bin/cmake --build build/local-dev -j2` succeeded;
+`.venv/bin/ctest --test-dir build/local-dev --output-on-failure`: 19/19 passed.
+Two old form registry expectations omitted the previously added volume families
+as well as the new families. Updated strict expected registries/defaults and
+expanded comparison round trips; 16 checks passed and remaining metadata check
+passed after fixing test-local defaults reuse. A broader form test run stalled
+in endpoint integration and was interrupted (exit 130); no full GUI acceptance
+claim. Initial new test fixture errors used wrong BacktestConfig keyword and CSV
+timestamp format; corrected fixtures to existing contracts, retained assertions.
+No dependency installation, Git operations or trades.
+
+Created app heartbeat `qte-daily-regime-evidence`, ACTIVE, daily 13:30 local
+America/Los_Angeles (after normal US cash close), then viewed its card. It records
+completed-session SPX/VIX/ETF observations, available intraday data, sigma/volume/
+drawdown evidence and timestamped catalysts; skips duplicate closed sessions,
+records gaps honestly, preserves original regime vintages and proposes rather
+than silently refits thresholds. Futures/option coverage only with verified
+sources. No trade calls. User's extreme-selloff description is a hypothesis to
+verify against observations. Schedule creation does not mean a daily collection
+has already completed; first scheduled run and runtime availability unverified.
+
+## November 19 — Robinhood MCP handoff connected
+
+Added `python/qte/brokers/robinhood_handoff.py` and focused tests. Fresh real
+`get_accounts` and `get_trade_approval_setting` reads bound the designated MCP
+account to `hood-mcp` in ignored `build/broker-drafts.sqlite`; no raw account
+number stored in the binding table, no tokens stored. Approval observed enabled.
+Use `connection hood-mcp` for the historical checkpoint; fresh reads required
+before review/placement. Assistant host executes returned tools, not Python.
+Review/placement receipts are durable, exact terms/account/review age are bound,
+submission uncertainty is committed before handoff, and retries are blocked.
+No broker review, placement, cancel or fill was executed. Fill accounting and
+autonomous execution remain unavailable. Full workflow in broker staging guide.
+
+`.venv/bin/python -m pytest -q tests/python/test_robinhood_handoff.py tests/python/test_broker_staging.py tests/python/test_paper.py tests/python/test_brokers.py --basetemp=build/test-robinhood-handoff` — 179 passed.
+Real connect command: `.venv/bin/python -m qte.brokers.robinhood_handoff connect hood-mcp`,
+fresh structured observations via stdin; returned masked connection checkpoint.
+
+User additionally requested the local `151tradingstrategies.pdf`; prioritized
+ETFs/options then SPX/futures. PDF found and extracted to ignored
+`build/strategy-151/source.txt`. Research/implementation continues below.
+
+## November 19 — Dual-broker execution setup: offline staging
+
+Added `qte.brokers.staging`: explicit broker/account alias, whole-share long
+equity or single-leg option limit/day/regular-session drafts, decimal tick
+validation and SQLite persistence. Reusing an ID with changed terms fails;
+restart preserves the draft and fingerprint. Robinhood MCP review arguments and
+placement ref_id are separate; Schwab produces a candidate payload pending
+official contract verification. No submit command, transport, account binding,
+strategy routing or paper-coordinator changes. No real order or broker preview
+was sent. No package installed. See `docs/broker-order-staging.md` and two
+`examples/broker-draft-*.json` dummy tickets.
+
+Validation:
+- `.venv/bin/python -m pytest -q tests/python/test_broker_staging.py tests/python/test_brokers.py tests/python/test_paper.py tests/python/test_schwab_auth.py -k 'not real_loopback_tls' --basetemp=build/test-broker-staging-final` — 194 passed; unchanged socket-based TLS test deliberately deselected, not revalidated in this milestone.
+- `cmake --build build/local-dev -j2` initially unavailable on PATH; discovered existing repository-local executable without installing anything.
+- `.venv/bin/cmake --build build/local-dev -j2` — passed (39 targets; Ninja recovered a pre-existing incomplete log).
+- `.venv/bin/ctest --test-dir build/local-dev --output-on-failure` — 19/19 passed.
+- `.venv/bin/python -m qte.brokers.staging --journal build/broker-staging-smoke/drafts.sqlite stage examples/broker-draft-schwab.json --client-id qte-11111111111111111111111111111111` — passed, offline only.
+- `.venv/bin/python -m qte.brokers.staging --journal build/broker-staging-smoke/drafts.sqlite stage examples/broker-draft-robinhood.json --client-id qte-22222222222222222222222222222222` — passed, offline only.
+
+Next: authenticated account mapping/reconciliation and official Schwab trading
+contract; fresh quote/risk/review binding; then durable live submission/cancel
+and accounting recovery. User authorized execution setup, not a particular trade.
+
+## November 19 — Read-only monitoring priority captured
+
+User requested assistant-supported monitoring. Added concrete scope and runtime
+boundaries to the terminal workstream in `docs/roadmap.md`: verified quote
+recording, regime/expected-move alerts, account exposure and a decision journal.
+Existing Robinhood tools do not push alerts to this chat; standalone QTE does
+not inherit MCP tools. No service, schedule, external alert or order started.
+Documentation only; no code or dependency changes and no test rerun.
+
+## November 19 — Execution speed and broker routing research
+
+Recorded sourced findings and a staged measurement plan in
+`docs/execution-feasibility.md`. Both brokers accept PFOF generally; Robinhood's
+latest Q3 report excludes index-option orders. Schwab's advertised 50 ms measures
+stock routing-to-execution, not QTE-to-options-fill time. Direct Schwab integration
+is a candidate architecture, not measured superiority. No orders, settings,
+dependencies or production code changed. Documentation-only work; no test rerun.
+Next: authenticated quote/stream timing and shadow decisions after official
+contracts are available; actual fill comparisons require live-order authorization.
+
+## November 19 — Frozen volume profitability screen completed
+
+Executed 264 QTE daily/hourly runs plus 400 independent minute-session runs.
+Original frozen protocol retained at `build/volume-profitability-20261117`;
+offline runners `run_study.py`, `run_intraday.py`, `summarize.py` live there.
+Results/fills/trades/event equity/manifests:
+`build/volume-profitability-results-20261119` and
+`build/volume-intraday-results-20261119`. Report in the former directory.
+
+Daily proxy screen passed SPY OBV, QQQ VWMA and QQQ OBV under original four gates.
+Recent stressed PnL: +$2,203.55 / +$3,123.89 / +$2,229.19 on $100k starting cash,
+10% sizing, Jan 2024–Nov 16 2026. All trail 10%-allocated buy/hold. Paired 20-day
+block-bootstrap 95% intervals include zero for all three; no incremental edge
+established. Daily regimes are entry attribution only, not fitted entry filters.
+All five minute variants lost at both cost settings over 20 selected sessions.
+QQQ hourly breakout positive but only 13 trades, no earlier validation coverage.
+
+Daily/hourly are constructed all-adjusted price proxies, not raw ETF shares or
+audited total returns. Hourly mapping independently verifies a common additive
+daily adjustment across OHLC; partial requested-range spillover excluded.
+Intraday uses reported split-adjusted SPY prices, no overnight exposure, capital
+reset independently each session. No options profitability or live promotion.
+
+Commands/results:
+- `.venv/bin/python build/volume-profitability-20261117/run_study.py --output build/volume-profitability-results-20261119` — 264 runs, all financial invariants passed.
+- `.venv/bin/python build/volume-profitability-20261117/run_intraday.py --output build/volume-intraday-results-20261119` — 400 runs, all session-terminal positions flat.
+- `.venv/bin/python build/volume-profitability-20261117/summarize.py` — all 15 daily candidate diagnostics; seed 20261117, 2000 circular 20-trading-day blocks, unadjusted descriptive intervals, no multiple-testing significance claim.
+- `.venv/bin/python -m pytest -q tests/python/test_volume_strategies.py --basetemp=build/test-volume-profitability-20261119` — 25 passed.
+- Independent `.venv/bin/python` ledger audit recomputed cash/quantity from every fill in all 664 runs; reconciled final PnL and verified output hashes. Compiled engine binary identity added to manifests.
+No production code changed in this research step; native build/19 C++ tests
+already passed earlier this session. No additional GUI tests, installs or trades.
+
+Next: independently validate corporate actions/feed/quotes and collect later
+uninspected sessions for the three daily candidates. Do not tune failed minute
+strategies on the same data or infer option profitability from equity results.
+Regime full-session capture and Schwab user authorization still remain pending.
+
+## November 19 — Robinhood capability exploration; profitability study resumed
+
+87 advertised MCP tools cataloged, 22 distinct reads/unsaved-preview tools
+exercised; public samples at `build/robinhood-capabilities-20261119` and summary in
+`docs/robinhood-mcp-capabilities.md`. Private account responses not persisted.
+Confirmed Level 2 snapshots, provider indicator calculations, scanner ATM-IV
+columns, and observed 15-second history on two sampled SPXW contracts. No writes,
+trading, approval requests, upgrades or private banking/credit reads. No production
+code changed or extra GUI tests run. User redirected work to profitable strategy
+research; resume the frozen volume study rather than tune today's inspected move.
+
+## November 19 — Schwab app ready; local OAuth command implemented
+
+User created the Schwab app with `https://127.0.0.1:8182` and confirmed Ready for
+Use. Added `python/qte/brokers/schwab_auth.py`: hidden app-key/secret prompts,
+temporary loopback HTTPS callback, random state validation, one-use callback,
+pinned OAuth code/refresh POST, bounded/redacted transport errors and explicit
+refresh. Repository-local tokens use POSIX 0700/0600 permissions, atomic writes,
+symlink rejection and a command lock; app secret is not persisted. Windows token
+ACL support remains pending and fails explicitly. Existing GUI unchanged.
+
+Commands: `.venv/bin/python -m qte.brokers.schwab_auth login`, `status`, `refresh`,
+and contract-verified market-data-only `read`. Actual authorization must be run
+by the user in their terminal; no real credentials/provider request used here.
+The official Market Data contract export remains required for GET operations.
+No new dependency, order capability, account read or background process added.
+Details and sources: `docs/broker-connections.md`.
+
+Validation:
+- `.venv/bin/python -m pytest -q tests/python/test_schwab_auth.py tests/python/test_brokers.py --basetemp=build/test-schwab-auth` — initially 142 passed, one real-loopback test blocked by sandbox socket permissions.
+- `.venv/bin/python -m pytest -q tests/python/test_schwab_auth.py -k real_loopback_tls --basetemp=build/test-schwab-loopback` — passed with scoped elevated loopback access; fake credentials, local certificate trusted explicitly, no external requests. The test uses `closing()` for HTTPConnection lifetime.
+- `.venv/bin/python -m pytest -q tests/python/test_schwab_auth.py tests/python/test_brokers.py -k 'not real_loopback_tls' --basetemp=build/test-schwab-auth-final` — 144 passed, already-verified loopback test deselected. Total 145 distinct checks passed.
+- Both module and `read --help` commands passed; `git diff --check` passed.
+- `.venv/bin/cmake --build build/local-dev -j 2` — passed (existing premature Ninja log recovered; no native code edits).
+- `.venv/bin/ctest --test-dir build/local-dev --output-on-failure` — 19/19 passed.
+
+Pending research remains as recorded below: complete-session regime capture and
+volume-strategy profitability validation. OAuth work does not establish a new
+data entitlement, historical option coverage, or profitable strategy.
+
+## November 19 — Selloff observations captured; Schwab portal account ready
+
+Read-only collection: `build/regime-observation-20261119-1725`. Three minute
+index series, ten equity series, daily warmup and 23 earlier five-minute ETF
+sessions (20 used for same-clock volume). Coverage ends 09:23 Pacific, not the
+requested 09:25 cutoff. Raw responses, retrieval times, hashes, normalized
+research rows, CSV/JSON feature timeline and catalyst journal retained; see README.
+Excluded unfinished/interpolated bars; anomalous QQQ high flagged, not repaired.
+Existing `trend_down` label and stress latch unchanged despite nearly 3% drawdown
+from the running high. This is an inspected case, not fresh holdout evidence.
+
+Next: separate completed-session capture, consecutive comparison days, and
+evaluation of path/volume/VIX features before modifying regime rules. No background
+collector installed. Volume profitability validation remains pending; frozen
+protocol/captures are in `build/volume-profitability-20261117`.
+
+User confirms Schwab **portal account only**. Product/app approval, verified
+contract and local OAuth integration remain outstanding. Existing GET-only client
+does not implement OAuth or GUI authorization. No private reads or trading.
+No production code changes, dependency installations or Git history operations.
+
+Verification (once, no GUI suite):
+- `.venv/bin/python build/regime-observation-20261119-1725/analyze.py` — completed;
+  172 aligned timeline rows, explicit availability and prior-session baselines.
+- Inline `.venv/bin/python` audit — verified five raw hashes, seven derived
+  hashes, ordered timestamps and completed-bar receipt cutoffs.
+- `.venv/bin/python -m pytest -q tests/python/test_regime_study.py tests/python/test_regimes.py tests/python/test_reversal_tail.py --basetemp=build/test-regime-observation-20261119` — 72 passed.
+- `.venv/bin/cmake --build build/local-dev -j 2` — passed; Ninja recovered its
+  existing premature log and rebuilt 39 targets without native source edits.
+- `.venv/bin/ctest --test-dir build/local-dev --output-on-failure` — 19/19 passed.
+- `git diff --check` — passed.
+
+## November 17 — Five common volume strategies implemented
+
+Added `VolumeConfig`/`VolumeStrategy`: volume breakout, VWMA trend, OBV
+confirmation, CMF trend and MFI reversal. Extracted the existing private
+long-only order lifecycle for reuse; CandidateStrategy's public constructor,
+signals and accounting/execution ownership remain unchanged. New strategies
+registered in research/config comparison factories and form metadata. No browser
+redesign. Rules, formulas and sources in `docs/strategies/volume-strategies.md`,
+registered in Library. Five JSON configurations share a 180-bar explicitly
+synthetic hourly fixture; no market-calendar or profitability claim.
+
+Engine demos at `build/volume-strategies-20261117` produced 2/11/7/7/4 fills for
+the five families respectively, with orders, equity, metrics, provenance and
+version-2 candle artifacts. Open positions/unfilled final orders remain explicit.
+Own-symbol volume is required; SPY/ES volume is not silently substituted for SPX.
+Fixed lab/router slate remains unchanged. Next research: representative observed
+ETF-volume windows, price-only baselines, cost stress and causal regime splits.
+
+Focused checks initially caught a real VWMA numerical defect: normalized
+weight rounding made equal-price fast/slow windows differ, causing a false
+entry. Centered accumulation fixes it; regression checks equal-price neutrality.
+Other initial failures were incorrect new test keys for the existing
+`research_run` form schema, corrected without loosening assertions.
+
+Commands/results:
+- `.venv/bin/python -m pytest -q tests/python/test_candidates.py tests/python/test_candidate_cli.py tests/python/test_router.py` — 117 passed; shared lifecycle compatibility.
+- `.venv/bin/python -m pytest -q tests/python/test_volume_strategies.py` — initially 7 failures diagnosed above; then 25 passed.
+- `.venv/bin/python -m pytest -q tests/python/test_volume_strategies.py tests/python/test_comparison_config.py --basetemp=build/test-volume-final` — 53 passed after comparison registry integration. Combined 170 distinct focused cases, not a full-suite rerun.
+- `.venv/bin/python` inline demo runner called `qte.cli.run_research(..., export_version=2)` for all five `examples/*-run.json` volume configurations into `build/volume-strategies-20261117/<family>`; all completed.
+- `.venv/bin/python -m qte run --config examples/volume-breakout-run.json --output build/volume-breakout-cli-20261117 --export-version 2` — CLI reproduction completed.
+- `.venv/bin/cmake --build build/local-dev -j 2` — successful; recovered existing premature Ninja log. `.venv/bin/ctest --test-dir build/local-dev --output-on-failure` — 19/19 passed in 0.19 seconds.
+- `git diff --check` — passed. No new dependencies, purchases, broker actions or Git history changes. No browser/layout test suites run; only config-to-strategy plumbing checked.
+
+## November 17 — Frozen reversal forward outcomes implemented
+
+Added `qte.forward_outcomes` and the offline `qte.forward_report` command. Reuses
+existing reversal rules and stress latch; no C++/GUI changes, price calibration,
+account actions or network acquisition. Four variants, four fixed horizons,
+next-completed-close anchor and explicit missing/cutoff statuses. Signal roster
+does not depend on subsequent data availability. Controls use only earlier
+captured sessions, matching regime/30-minute ET bucket, with equal session
+weights and a minimum of three prior sessions. Full per-event/control summaries
+and input/code/output hashes retained. Regression coverage targets causality,
+missing paths, anchor timing, control matching and session weighting.
+
+Actual run: `build/forward-outcomes-20261117`, 40 usable sessions / 15,600 bars.
+Guarded -1 sigma: four events on one day; insufficient earlier controls.
+Guarded -2 sigma: two events on two days; 1/5/15/30-minute session means
++2.45/+0.59/-28.58/-39.44 bp. Small rebound does not persist at longer horizons;
+no viable strategy or optimal horizon established. Event-selected samples remain
+previously inspected. Rules and reproduction command are in the registered
+`docs/strategies/reversal-tail-study.md` Library document.
+
+Next: qualify captured quote timestamps/conditions and obtain representative
+session coverage when access permits; do not rescue inspected results by tuning
+thresholds. Schwab approval is still pending. No GUI test/polish task added.
+
+Commands/results (repository root):
+- `.venv/bin/python -m pytest -q tests/python/test_forward_outcomes.py tests/python/test_reversal_tail.py tests/python/test_regime_study.py` — 19 passed.
+- `.venv/bin/python -m pytest -q tests/python/test_forward_outcomes.py -k unmatched_regime_or_time` — two additional matching regressions passed; four existing cases deselected. Total 21 distinct focused Python cases passed across these calls.
+- `.venv/bin/python -m qte.forward_report --captures build/robinhood-regimes-20261115 --output build/forward-outcomes-20261117` — completed, 40 usable sessions; four output hashes verified against the manifest.
+- `.venv/bin/cmake --build build/local-dev -j 2` — passed, recovering the existing premature Ninja log; no native source edits.
+- `.venv/bin/ctest --test-dir build/local-dev --output-on-failure` — 19/19 passed in 0.22 seconds.
+- `git diff --check` — passed. No GUI/browser suites or dependency installations. Plotting library is absent in the venv; table/JSON reports require no additional packages.
+
+## November 17 — Loose ends recorded; functional research triage
+
+User prioritizes functionality and strategy research over repeated GUI testing.
+Added a current loose-end register to `docs/roadmap.md`: derivative execution,
+quote admission, sampled/inspected historical coverage, scenario cohort mismatch,
+walk-forward accounting, broker access/reconciliation, Windows parity, sessions,
+macro vintages and local artifact durability. Old task-log checkpoints are not
+new work requests. Paused the obsolete immediate data-signup recommendation.
+
+Implemented `qte.research_triage`: separate saved-report analysis, no engine or
+GUI edits. Matches recorded intents across cost/IV scenarios, rejects duplicate
+or incompatible identities, retains all candidates, and reports concentration,
+year/regime breakdown and input/output/code hashes. Empty matched cohorts are
+unavailable, not profitable flat strategies. Matching is retrospective and not
+a replacement for actual portfolio replay.
+
+Existing minute variants all lose at modeled base/wide costs. SMA300-reclaim long
+options have 11 positive-aggregate recent observations but lose in both earlier
+slices; no strategy promoted. Full results in `build/research-triage-20261117`
+and the final report directory noted below. Next functional work: fixed-horizon
+conditional outcomes with matched regime/time baselines, then qualified quote
+replay. Do not tune thresholds to rescue these inspected historical results.
+
+Commands/results from repository root:
+- `.venv/bin/python -m pytest -q tests/python/test_research_triage.py tests/python/test_regime_study.py` — 11 passed (identity matching, cost cohorts, concentration and existing financial logic).
+- `.venv/bin/python -m qte.research_triage --study build/regime-study --output build/research-triage-20261117` — completed; initial report retained.
+- Same command with `--output build/research-triage-20261117-final` — final report after displaying empty cohorts as unavailable; this is the deliverable directory.
+- `.venv/bin/cmake --build build/local-dev -j 2` — passed; Ninja recovered a prematurely ended prior log. No C++ source changes.
+- `.venv/bin/ctest --test-dir build/local-dev --output-on-failure` — 19/19 passed in 0.20 seconds.
+- `git diff --check` — passed. No GUI/browser suites, dependencies, network requests, account actions or Git history operations.
+
+## November 15 — Personal terminal goals and source validation
+
+Recorded user-endorsed terminal goals as T1a–T7 in `docs/roadmap.md`, including
+instrument workspace, recorder/replay, source comparison, options analysis,
+alerts, macro context, risk and journal. Multiple-source validation retains
+upstream lineage, timestamp/contract comparability, disagreements and provenance;
+source agreement is separate from strategy evidence. Wait for Schwab approval
+rather than purchasing data. Next proposed implementation: T1a then T2a against
+existing captures. This supersedes the earlier signup recommendation below as
+the immediate next action. Documentation only; no runtime or dependencies changed.
+
+## November 15 — Real tick-data acquisition (no paid signup yet)
+
+Downloaded selected public ThetaData sample members for 2025-08-19 using
+bounded HTTP ranges from the 3.77 GB official ZIP. About 32 MB compressed,
+331.7 MB extracted, six files under `build/tick-data-evaluation/theta`:
+22,344 SPX index reports; 1,018,718 SPXW trades; 715,116 same-day-expiry quote
+rows and 1,878,395 seven-day-expiry quote rows, plus EOD context. Quote sample
+covers only 3 / 19 fully identified contracts, not complete chains.
+
+ZIP CRC and six SHA-256 hashes pass. Structural audit found one malformed final
+row in each quote CSV, one per-contract timestamp inversion in the 0DTE sample,
+and 933 unusable price/size rows in the 7DTE sample. Raw inputs preserved;
+`audit.json` records all counts. Naive timestamps and no collector receive time
+remain unresolved for replay. No backtest or executable-fill claim from samples.
+
+Official vendor comparison and bounded pilot scope saved in
+`docs/tick-data-acquisition.md`. Recommend free Databento signup for historical
+usage-based pilot, currently $125 new-team credits; no paid plan/data request
+approved. OPRA tick NBBO availability starts 2023-03-28 (earlier history only
+minute BBO). Futures require GLBX.MDP3 explicit contracts; index feed separately
+verified. ThetaData Options Standard alternative $80/mo, underlying entitlement
+extra. No provider credentials available in inspected environment variables.
+
+Commands: initial bounded curl stopped at archive size guard; HEAD and range
+requests used approved network access. `.venv/bin/python
+build/tick-data-evaluation/inspect_theta_archive.py`, `fetch_theta_sample.py`,
+`audit_theta_sample.py` (same directory). Audit first failed on actual malformed
+source rows; updated to count/quarantine malformed rows, then completed. No
+package/runtime installed, core/GUI code changed, or Git history modified.
+No engine tests rerun for this documentation/raw-data-only acquisition step.
+Next: user signup, locally configured data key, concrete cost estimate, then
+bounded historical purchase/download authorization if credits are insufficient.
+
+## November 15 — Expected-move reversals, futures snapshots and put tails
+
+Implemented `qte.reversal_tail` and offline `qte.reversal_tail_report`, with a
+new panel under Research → SPX regimes. Documentation:
+`docs/strategies/reversal-tail-study.md` (registered in Library). GUI adds
+`reversal_tail.js`, fixed authenticated tail-summary/day/manifest resources,
+trade markers, sigma/Bollinger overlays, causal stress shading, cost comparison,
+put payoff paths and IV sensitivity. No C++ execution functionality changed.
+
+Acquisition: 26 monthly 30-minute SPX captures, 20 selected full-minute days,
+two expired-option probes and two delayed CME futures snapshots, saved under
+`build/reversal-tail-captures`. Screen: 528 sessions, 2024-10-01–2026-11-13;
+20 worst final hours selected retrospectively, 17 complete for minute analysis;
+3,402 modeled put combinations retained. Nine days have base-model 10x peaks;
+**zero verified actual 10x returns**. The two targeted contracts each have
+59 interpolated and one observed bar, no observed entry/exit pair. CME MES/NQ
+snapshots are delayed, static, not a connected futures feed/history.
+
+Reversal universe remains the original 40 eligible sessions (event-selected
+new days are not added to its performance). Guarded -1 sigma: four trades,
+all on 2026-10-22, model call P&L -$40 base/-$640 wide. Guarded -2 sigma:
+two trades, -$75/-$390. No-veto -2 sigma: six trades, -$3,895/-$4,830.
+This does not establish positive expectancy. Extreme put multiples collapse
+under higher assumed IV; do not present model premiums as mispricing evidence.
+
+User clarified three years of options experience and wants data-driven edges,
+not chart interpretation. Next priority: conditional forward distributions,
+filter ablations, timestamped events and executable historical bid/ask; then
+sizing/target-hit/drawdown distributions. $10k→$50k/month is a scenario to test,
+not a promised result or optimization target for these samples.
+
+Commands/verification:
+- `.venv/bin/python -m qte.reversal_tail_report --captures build/robinhood-regimes-20261115 --tail-captures build/reversal-tail-captures --output build/reversal-tail-study`
+  (own report regenerated via `generate(...)` after refinements).
+- `.venv/bin/python -m pytest tests/python/test_reversal_tail.py tests/python/test_regime_study.py tests/python/test_gui_regime_study.py tests/python/test_gui_documents.py -q`
+  — 27 passed; includes causal entry, missing-exit loss, gap handling, fixed
+  strikes, losers, target execution delay, stress latch and screen filtering.
+- `.venv/bin/cmake --build build/local-dev -j 1` — successful native build;
+  Ninja recovered a prematurely ended log. `.venv/bin/ctest --test-dir
+  build/local-dev --output-on-failure` — 19/19 passed after build completion.
+- Bundled Node `--check` passed both research JS modules; `git diff --check`
+  passed. Verified 26 output hashes and five code hashes in report manifest.
+- Browser verified tables, tail selection and 2026-10-22 reversal entries/exits;
+  screenshot `build/reversal-tail-study-preview.jpg`.
+
+Local GUI command: `.venv/bin/python -u -m qte gui --repo-root
+/home/glsu6/Documents/qte --port 8769`. Sandbox loopback bind initially denied;
+approved normal-OS launch worked. A process ended during a user-turn change;
+restarted and reverified. Run this command in a persistent user terminal if the
+preview stops again. No packages installed, orders sent or Git history changed.
+
+## November 15 — Robinhood history, regime GUI and option model study
+
+Completed a reproducible offline research pass and **Research → SPX regimes**
+(`/research/regimes`). Raw read-only MCP captures are in
+`build/robinhood-regimes-20261115`; generated JSON/JSONL and hash manifest are
+in `build/regime-study`. Daily SPX: 9,042 observed bars since 1990-11-09;
+VIX: 6,159 since 2002-05-10; SPY: 6,833 since 1999-09-15. Minute SPX boundary
+probes are empty through 2024-09-30 and return data on 2024-10-01. Experiment
+captures April 2025 and latest 20 sessions: 40 eligible / 15,600 RTH bars.
+Active and expired option samples remain entirely interpolated, including
+April 2025. No observed option execution backtest is claimed.
+
+New adapter, causal research module, exporter, authenticated fixed-file routes
+and canvas GUI support regime starts/ends/reasons, daily/minute candles,
+sigma/Bollinger/SMA300 overlays, trade markers, strategy/scenario comparisons
+and prior-five-year walk-forward selection. Explicitly modeled European options
+reuse QTE Black-76; the C++ execution engine is not used for hypothetical
+contracts. Full rules, sources, result table and recommendations are in
+`docs/strategies/spx-regime-study.md`, registered in the Library.
+
+Main result: walk-forward base +$12,150, wide costs -$166,650, VIX repricing
++$41,620. Do not deploy. Investigate daily range and sparse SMA300 reclaim
+events with executable quotes. Minute reversal loses after costs. Matched
+volume coverage: EMA -$1,067.50 versus shifted EMA -$1,547.50, 95 trades each.
+All candidates and losses are preserved. News annotation is context only;
+price-driven stress latch guards intraday reversal entries. Interval end dates
+are retrospective display boundaries and are never consumed by the strategy.
+
+Validation: native GCC build and all 19 CTest targets passed. 49 distinct focused
+Python tests passed across research/adapter, routes, static GUI, existing SPX
+study, app integration and documents. The sandboxed app integration run stalled
+in AnyIO/asyncio; stopped it, diagnosed the stack, and the same app/document
+tests passed with normal OS primitives (17 tests, no weakened assertions).
+Final research/route/document check passed 20 tests. JavaScript syntax and
+`git diff --check` passed. Browser verified daily April chart, one-minute stress
+trades and comparison controls. Preview saved at `build/regime-study-preview.jpg`.
+Local preview started on 127.0.0.1:8769; session may need a new terminal login
+if the process is stopped or authentication expires.
+
+Commands (repository root, existing venv; no installs):
+
+```bash
+.venv/bin/python -m qte.regime_report --captures build/robinhood-regimes-20261115 --output build/regime-study
+.venv/bin/cmake --build build/local-dev -j 1
+.venv/bin/ctest --test-dir build/local-dev --output-on-failure
+.venv/bin/python -m pytest -q tests/python/test_regime_study.py tests/python/test_gui_regime_study.py tests/python/test_spx_single_study.py tests/python/test_gui_static.py --basetemp=build/test-regime-study --tb=short
+.venv/bin/python -m pytest -q tests/python/test_gui_app.py tests/python/test_gui_documents.py --basetemp=build/test-regime-gui-integration -o faulthandler_timeout=20 --tb=short
+.venv/bin/python -m pytest -q tests/python/test_regime_study.py tests/python/test_gui_regime_study.py tests/python/test_gui_documents.py --basetemp=build/test-regime-docs-final --tb=short
+/home/glsu6/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --check python/qte/gui/static/regime_study.js
+.venv/bin/python -u -m qte gui --repo-root /home/glsu6/Documents/qte --port 8769
+git diff --check
+```
+
+After incremental fixes, regenerated our generated report using
+`qte.regime_report.generate(Path('build/robinhood-regimes-20261115'), Path('build/regime-study'))`.
+CLI reproduction should use a fresh output directory. No trades, account reads,
+installs or Git history operations. Existing uncommitted work preserved.
+
+## November 15 — authenticated Robinhood SPX data check
+
+Read-only MCP access now works. Captured SPX/SPXW chains, November 20
+7600 call/put identifiers and quote snapshots (November 13 at 21:14:59 UTC),
+plus November 13 regular-session history in ignored
+`build/robinhood-spx-auth-20261115/capture.json`.
+SPX history returned 78 five-minute bars with no interpolated flags set.
+Each option returned 390 one-minute bars, **all explicitly interpolated**;
+exclude these from intraday strategy validation. Snapshot IV/Greeks are
+available, but cannot be backfilled into earlier signals. No historical
+bid/ask coverage or decade archive has been established. Next research step:
+establish non-interpolated option history and execution-price coverage before
+replacing modeled option replay with observed data. No trading, account reads,
+dependency installs, or application code changes. Capture JSON and counts
+verified locally; no build/test rerun needed for this data-only check.
+
+## November 14 — SPXW outright sizing on free SPX bars
+
+Replayed outright calls and puts at 1, 2 and 5 contracts and with 2%, 8% and
+16% cash budgets. FirstRate sample has 12 complete cash-SPX sessions and
+4,680 one-minute bars. Prior Cboe VIX1D and VIX9D closes drive the band and
+modeled Black-76 premiums. Three qualifying signals produced two calls and
+one put. The 2% budget could buy none. See [rules and replay command](strategies/spxw-outright-research.md)
+and `build/spx-public-data/spx-outright-firstrate-20261114.json`. The inputs
+are cached locally under `build/spx-public-data`. The 2025 INX evaluation shard
+query worked in Hugging Face Data Studio. Local ingestion awaits a Parquet
+reader or CSV export and timestamp validation. Decade minute data remains open.
+Verification passed 32 focused Python tests and all 19 C++ targets.
+
+## November 14 — SPXW vertical-spread replay
+
+Added provider-neutral paired execution for 5-, 10-, and 20-point SPXW debit
+verticals and a CLI with session-wise replay, observation/signal counts,
+year-by-regime breakout, stress costs, and unresolved exits. See
+[SPXW debit spread research](strategies/spxw-debit-spread-research.md) for
+contract semantics and the JSON Lines capture format. Readout shows modeled
+five-minute exits and separate hypothetical expiry payoffs. Results are
+synthetic. Ten-year historical results are pending quote, IV, and news
+coverage. The public Cboe Legacy MDR sample was OEX, so it was excluded.
+The synthetic report at `build/spx-spread-study-20261114.json` reproduced
+byte for byte. The capture importer checks source hash and missing-IV
+coverage. Verification passed 26 focused Python tests and 19 C++ targets.
+
+## November 14 — American weekly reversal and local model provider
+
+Implemented a fixed ten-rule five-minute replay using an opening same-day ATM
+IV expected-move band and separate 5–9 DTE American options. Added a CRR gamma
+scenario grid, news and excursion vetoes, bid/ask replay under two cost
+assumptions, and supplied-data CLI input. The Five-agent Research view has both
+the original straddle and the weekly reversal experiment. The new Ollama
+provider uses a fixed loopback endpoint and can run without the OpenAI key.
+
+Saved synthetic run `7d4f125dfc074c7f974d7c6f5dee0115` under
+`build/qte-agents/runs/`. Read [the weekly research note](strategies/weekly-reversal-research.md)
+for rules, results, papers and the capture contract. Browser verified the
+saved strategy comparison and gamma grid on a separate port 8772 preview.
+Tests: 85 focused Python, 20 research UI JavaScript, and 19 C++ targets passed.
+GCC failed on the parallel build inside libstdc++/cc1plus. The existing native
+build succeeded with `.venv/bin/cmake --build build/local-dev -j 1`.
+
+Ollama runtime and Qwen3 4B download await explicit approval. The provider
+contract was tested with a fake local response. Historical validation awaits
+timestamped underlying, options NBBO and news capture.
+
+## November 13 — five-agent options research
+
+Added the optional role workflow at `/research/agents`, a fixed synthetic
+option-quote replay, durable reports, and a prefilled Gamma Lab link. See
+[Five-agent options research](five-agent-research.md) for setup, the frozen
+rules, results, references, and data needed for chronological validation.
+The first saved report uses Codex collaborator notes. The OpenAI API returned
+`usage_limit_exceeded` before a live agent turn completed. The seven-day key
+is in the approved ignored location. Local backtests are available without it.
+Browser verified role defaults, the saved report, and Gamma Lab parameters.
+Native build and 19 C++ targets passed. Focused Python tests: 69 passed.
+Research UI JavaScript tests: 19 passed.
+
 ## November 11 — research candles and form guidance
 
 Implemented in the separate research visualization task. New Candles & regimes
@@ -2581,3 +3201,11 @@ Final style/static check: 31 passed in 0.06s using
 `.venv/bin/python -m pytest tests/python/test_gui_research_forms_static.py tests/python/test_gui_research_jobs_static.py tests/python/test_gui_static.py -q --basetemp=build/test-gui-test-build-layout-final-20261008`.
 `git diff --check` passed. Temporary browser tab closed and owned QA server
 stopped with Ctrl-C (exit 130). No background GUI server remains from this task.
+
+## November 23, 2026 — completed cash-session regime evidence
+
+The frozen pre-open regime moved to `stress_selloff` on Friday’s data. Monday opened +4.59% and finished +4.72% against Friday’s SPX daily bar, a +2.09-sigma rebound at the last regular-session observation. Robinhood supplied complete fifteen-second SPX/SPY/QQQ and minute IWM coverage, 389 observed VIX minutes, and a post-close SPXW contract pair. All five current daily bars were interpolated at capture time. Official daily-bar backfill remains pending. No ES/NQ coverage or label revision. [Session report](../build/daily-regimes/2026-11-23/hood-20261123213353/report.md) · [Chart](../build/daily-regimes/2026-11-23/hood-20261123213353/session.svg)
+
+## November 23, 2026 — daily agent publication
+
+The existing daily heartbeat now follows the repository-owned [daily brief workflow](daily-brief-agent.md) and publishes to Research → Daily brief. The November 20 and 23 captures are available. The XNYS backlog check returned no missing completed sessions. The authenticated read path, session/holiday handling and publication checks passed along with the app integration tests (21 Python tests total), JavaScript syntax checks and 20 native tests. First unattended publication with the updated prompt is pending the next scheduled run.

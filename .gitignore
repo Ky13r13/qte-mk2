@@ -9,3 +9,18 @@
 *.dylib
 *.dll
 compile_commands.json
+# Local databases (truth DB, journals); never commit market data or state
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
+# Python caches in any directory (the /__pycache__/ rule above only covers the root)
+__pycache__/
+# Local credentials
+.env
+.env.*
+.aws/
+# Reference book kept locally for research, not committed
+/151tradingstrategies.pdf
+# Truth database, raw market-data captures and contracts (large, local, never committed)
+/data/

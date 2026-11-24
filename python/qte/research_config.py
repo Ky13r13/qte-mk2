@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +12,8 @@ import qte
 from qte.adapters.common import AdapterResult
 from qte.adapters.csv_bars import CsvBarSchema, _load_csv_bytes, _validate_csv_options
 from qte.adapters.alpaca import _load_alpaca_bytes
+from qte.adapters.session_bundle import load_session_bundle
+from qte.json_input import strict_json
 from qte.provenance import source_identity
 from qte.strategies import (
     CandidateConfig,
@@ -21,6 +22,8 @@ from qte.strategies import (
     MovingAverageRegimeStrategy,
 )
 from qte.strategies.candidates import FAMILIES
+from qte.strategies.volume import VOLUME_FAMILIES, VolumeConfig, VolumeStrategy
+from qte.strategies.book151 import BOOK_FAMILIES, BookConfig, BookStrategy
 from qte.router_config import RouterProfile, build_macro_router, prepare_router_profile
 
 
@@ -50,7 +53,7 @@ class PreparedResearch:
     configuration: dict[str, Any]
     loaded: AdapterResult
     strategy: qte.Strategy
-    strategy_config: MovingAverageConfig | CandidateConfig | RouterProfile
+    strategy_config: MovingAverageConfig | CandidateConfig | VolumeConfig | BookConfig | RouterProfile
     strategy_type: str
     symbol: str
     engine_config: qte.BacktestConfig
@@ -66,8 +69,14 @@ def _sections(configuration: dict[str, Any]):
         ("data", "strategy", "engine", "execution", "risk", "sampling"),
         ("data", "strategy", "engine"),
     )
+    return data_fields(configuration["data"])
+
+
+def data_fields(data):
+    if isinstance(data, dict) and data.get("adapter") == "session_bundle":
+        return fields(data, ("adapter", "path", "tick_size", "expected_sha256"), ("adapter", "path"))
     return fields(
-        configuration["data"],
+        data,
         ("adapter", "path", "interval_ns", "tick_size", "currency", "action_free", "schema", "expected_sha256"),
         ("adapter", "path", "interval_ns"),
     )
@@ -76,7 +85,7 @@ def _sections(configuration: dict[str, Any]):
 def capture_research_inputs(config_path: Path) -> tuple[dict[str, Any], bytes]:
     """Read a CLI configuration and its referenced input exactly once each."""
     path = Path(config_path)
-    configuration = json.loads(path.read_text())
+    configuration = strict_json(path.read_text(encoding="utf-8"))
     data = _sections(configuration)
     source = path.parent / data["path"]
     _preflight_capture(data)
@@ -85,12 +94,14 @@ def capture_research_inputs(config_path: Path) -> tuple[dict[str, Any], bytes]:
 
 def _preflight_capture(data: dict[str, Any]) -> None:
     """Preserve adapter option failures that historically preceded source I/O."""
+    if data["adapter"] == "session_bundle":
+        return
     if data["adapter"] == "alpaca":
         if "schema" in data or "action_free" in data:
             raise ValueError("Alpaca assumptions must be in fixture envelope")
         return
     if data["adapter"] != "csv":
-        raise ValueError("adapter must be alpaca or csv")
+        raise ValueError("fixed-interval adapter must be alpaca or csv; session_bundle declares its own intervals")
     schema = CsvBarSchema(**data.get("schema", {}))
     _validate_csv_options(
         interval_ns=data["interval_ns"], schema=schema, action_free=data.get("action_free")
@@ -105,6 +116,8 @@ def _load_data(data: dict[str, Any], raw: bytes) -> AdapterResult:
             raise ValueError("expected_sha256 must be a lowercase SHA-256 hex digest")
         if hashlib.sha256(raw).hexdigest() != expected:
             raise ValueError("captured data does not match expected_sha256")
+    if data["adapter"] == "session_bundle":
+        return load_session_bundle(raw, tick_size=data.get("tick_size", 0.01))
     kwargs = {key: data[key] for key in ("interval_ns", "tick_size", "currency") if key in data}
     if data["adapter"] == "alpaca":
         if "schema" in data or "action_free" in data:
@@ -117,11 +130,26 @@ def _load_data(data: dict[str, Any], raw: bytes) -> AdapterResult:
             action_free=data.get("action_free"),
             schema=CsvBarSchema(**data.get("schema", {})),
         )
-    raise ValueError("adapter must be alpaca or csv")
+    raise ValueError("fixed-interval adapter must be alpaca or csv; session_bundle declares its own intervals")
 
 
 def _strategy(configuration: dict[str, Any], loaded: AdapterResult):
     original = configuration["strategy"]
+    if isinstance(original, dict) and original.get("type") in BOOK_FAMILIES:
+        spec = fields(original, {"type", "symbol"} | (set(BookConfig.__dataclass_fields__)-{"kind"}),
+                      ("type", "symbol"))
+        config = BookConfig(kind=spec["type"], **{k: v for k, v in spec.items() if k not in ("type", "symbol")})
+        if spec["symbol"] not in loaded.dataset.symbols:
+            raise ValueError("strategy symbol not in dataset")
+        return spec, config, BookStrategy(spec["symbol"], config), config.history_required
+    if isinstance(original, dict) and original.get("type") in VOLUME_FAMILIES:
+        spec = fields(original, {"type", "symbol"} | (set(VolumeConfig.__dataclass_fields__)-{"kind"}),
+                      ("type", "symbol"))
+        config = VolumeConfig(kind=spec["type"], **{k: v for k, v in spec.items() if k not in ("type", "symbol")})
+        strategy = VolumeStrategy(spec["symbol"], config)
+        if spec["symbol"] not in loaded.dataset.symbols:
+            raise ValueError("strategy symbol not in dataset")
+        return spec, config, strategy, config.history_required
     if isinstance(original, dict) and original.get("type") == "macro_router":
         spec = fields(original, ("type", "symbol", "profile"), ("type", "symbol", "profile"))
         strategy_config = prepare_router_profile(spec["profile"])

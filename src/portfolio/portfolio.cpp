@@ -81,10 +81,15 @@ const market_data::InstrumentSpec* Portfolio::instrument(
 }
 
 PortfolioSnapshot Portfolio::snapshot() const {
+    return make_snapshot(cash_sum_, nullptr, nullptr);
+}
+
+PortfolioSnapshot Portfolio::make_snapshot(
+    const double cash, const std::string* replacement_key, const Position* replacement) const {
     std::vector<PositionSnapshot> snapshots;
     snapshots.reserve(positions_.size());
-    for (const auto& [key, position] : positions_) {
-        static_cast<void>(key);
+    for (const auto& [key, current] : positions_) {
+        const auto& position = replacement_key && key == *replacement_key ? *replacement : current;
         snapshots.push_back(PositionSnapshot{
             position.symbol(),
             position.quantity(),
@@ -100,7 +105,9 @@ PortfolioSnapshot Portfolio::snapshot() const {
             position.kind(),
         });
     }
-    return PortfolioSnapshot{cash_sum_, equity(), std::move(snapshots)};
+    const auto value = aggregates(replacement_key, replacement).market_value;
+    return PortfolioSnapshot{cash, value ? std::optional{cash + *value} : std::nullopt,
+                             std::move(snapshots)};
 }
 
 const TradeEpisode* Portfolio::open_trade(
@@ -153,7 +160,7 @@ std::optional<double> Portfolio::net_pnl() const {
            totals.commissions_paid;
 }
 
-void Portfolio::apply_fill(const orders::Fill& fill) {
+Portfolio::StagedFill Portfolio::stage_fill(const orders::Fill& fill) const {
     const auto committed = static_cast<std::uint64_t>(fills_.size());
     if (fill.id().value() <= committed) {
         throw DuplicatePortfolioFill("fill ID has already been applied to portfolio");
@@ -216,19 +223,31 @@ void Portfolio::apply_fill(const orders::Fill& fill) {
 
     require_valid_state(prospective_cash, &key, &prospective_position);
 
+    return {std::move(prospective_position), std::move(trade_update),
+            prospective_cash, prospective_cash_compensation};
+}
+
+PortfolioSnapshot Portfolio::preview_fill(const orders::Fill& fill) const {
+    const auto staged = stage_fill(fill);
+    return make_snapshot(staged.cash, &fill.symbol().value(), &staged.position);
+}
+
+void Portfolio::apply_fill(const orders::Fill& fill) {
+    auto staged = stage_fill(fill);
+    const auto& key = fill.symbol().value();
     fills_.push_back(fill);
     try {
-        if (trade_update.closed_trade.has_value()) {
-            closed_trades_.push_back(*trade_update.closed_trade);
+        if (staged.trades.closed_trade.has_value()) {
+            closed_trades_.push_back(*staged.trades.closed_trade);
         }
     } catch (...) {
         fills_.pop_back();
         throw;
     }
-    current_position->second = std::move(prospective_position);
-    open_trades_.at(key) = std::move(trade_update.open_trade);
-    cash_sum_ = prospective_cash;
-    cash_compensation_ = prospective_cash_compensation;
+    positions_.at(key) = std::move(staged.position);
+    open_trades_.at(key) = std::move(staged.trades.open_trade);
+    cash_sum_ = staged.cash;
+    cash_compensation_ = staged.cash_compensation;
     record_event(fill.effective_at(), fill.effective_sequence());
 }
 

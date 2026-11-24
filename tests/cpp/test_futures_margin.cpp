@@ -52,6 +52,7 @@ void check_throws(Function&& function, const std::string_view expression, const 
         std::cerr << "line " << line << ": expected exception from: " << expression << '\n';
         ++failures;
     } catch (const Exception&) {
+        return;
     } catch (...) {
         std::cerr << "line " << line << ": wrong exception from: " << expression << '\n';
         ++failures;
@@ -523,6 +524,94 @@ void submission_reservations_release_exactly_on_cancel() {
     }
 }
 
+void fill_admission_prices_actual_debits_and_remaining_reservations() {
+    const auto nq = future();
+    Portfolio ledger{2050.0, Currency::usd(), {nq}};
+    ledger.mark(nq.symbol(), ValuationMark::create(Timestamp{130ns}, EventSequence{1}, 100.0));
+    const FuturesMarginEvaluator evaluator{schedule({nq}, {rate()}), 0.0, 20ns};
+    auto order = open_order(2, nq, OrderSide::buy, 2);
+    const auto fill = [&](double price, double commission) {
+        return Fill::create(FillId{1}, order.id(), nq.symbol(), OrderSide::buy,
+            ShareAmount::from_count(1), Timestamp{140ns}, EventSequence{3}, 100.0,
+            nq.price_grid().canonicalize(price), commission, nq.contract_multiplier());
+    };
+    // The prefill reservation fits (2050 - 2000 - 5), but a high execution fee
+    // or an adverse buy away from the still-visible valuation mark does not.
+    CHECK(evaluator.evaluate_fill(order, FuturesAdmissionCode::approved, fill(100, 50),
+                                  ledger, {}).code == FuturesAdmissionCode::initial_margin);
+    CHECK(evaluator.evaluate_fill(order, FuturesAdmissionCode::approved, fill(103, 1),
+                                  ledger, {}).code == FuturesAdmissionCode::initial_margin);
+    CHECK(ledger.fill_count() == 0);
+    CHECK_NEAR(ledger.cash(), 2050.0);
+    CHECK(order.remaining_quantity().value() == 2);
+    const auto proposed = fill(101, 3);
+    const auto result = evaluator.evaluate_fill(order, FuturesAdmissionCode::approved,
+                                                 proposed, ledger, {});
+    CHECK(result.code == FuturesAdmissionCode::approved);
+    const auto& projected = result.projected.value();
+    CHECK_NEAR(projected.current_initial, 1000);
+    CHECK_NEAR(projected.projected_initial, 2000);
+    CHECK_NEAR(projected.eligible_collateral, 2027);
+    CHECK_NEAR(projected.pending_fees, 2.5);
+    CHECK_NEAR(projected.available_after_projected, 24.5);
+    const std::vector duplicate{PendingFuturesOrder::capture(order)};
+    CHECK_THROWS_AS(evaluator.evaluate_fill(order, FuturesAdmissionCode::approved, proposed,
+                                            ledger, duplicate), InvalidFuturesMarginInput);
+    ledger.apply_fill(proposed);
+    order.record_fill_quantity(proposed.quantity());
+    CHECK(order.status() == qte::orders::OrderStatus::partially_filled);
+    const std::vector remaining{PendingFuturesOrder::capture(order)};
+    const auto actual = evaluator.evaluate(ledger, remaining, Timestamp{140ns});
+    CHECK_NEAR(actual.available_after_projected, projected.available_after_projected);
+    CHECK_NEAR(actual.eligible_collateral, projected.eligible_collateral);
+    CHECK_THROWS_AS(evaluator.evaluate_fill(order, FuturesAdmissionCode::approved, proposed,
+                                            ledger, {}), qte::portfolio::DuplicatePortfolioFill);
+    const auto finish = Fill::create(FillId{2}, order.id(), nq.symbol(), OrderSide::buy,
+        ShareAmount::from_count(1), Timestamp{150ns}, EventSequence{4}, 100.0,
+        nq.price_grid().canonicalize(100), 2.5, nq.contract_multiplier());
+    CHECK_NEAR(evaluator.evaluate_fill(order, FuturesAdmissionCode::approved, finish,
+                                       ledger, {}).projected.value().pending_fees, 0);
+    static_cast<void>(order.cancel(qte::orders::OrderCancellationReason::user_requested));
+    CHECK_THROWS_AS(evaluator.evaluate_fill(order, FuturesAdmissionCode::approved, finish,
+                                            ledger, {}), qte::orders::InvalidFill);
+}
+
+void fill_admission_rechecks_breaches_and_protected_reductions() {
+    const auto nq = future();
+    const FuturesMarginEvaluator evaluator{schedule({nq}, {rate()}), 0.0, 20ns};
+    Portfolio ledger{500, Currency::usd(), {nq}};
+    fill_and_mark(ledger, nq, 2, 100, 100);
+    auto close = open_order(10, nq, OrderSide::sell, 2);
+    const auto closing = Fill::create(FillId{2}, close.id(), nq.symbol(), OrderSide::sell,
+        ShareAmount::from_count(1), Timestamp{145ns}, EventSequence{11}, 100.0,
+        nq.price_grid().canonicalize(100), 3, nq.contract_multiplier());
+    CHECK(evaluator.evaluate_fill(close, FuturesAdmissionCode::reduction_only, closing,
+                                  ledger, {}).code == FuturesAdmissionCode::reduction_only);
+    auto another = open_order(7, nq, OrderSide::sell, 1);
+    const std::vector competing{PendingFuturesOrder::capture(another)};
+    CHECK(evaluator.evaluate_fill(close, FuturesAdmissionCode::reduction_only, closing,
+                                  ledger, competing).code == FuturesAdmissionCode::reduction_conflict);
+    // A different sell fills before this order. Its two-contract remainder
+    // could now reverse the book, even if an individual partial would fit.
+    ledger.apply_fill(Fill::create(FillId{2}, another.id(), nq.symbol(), OrderSide::sell,
+        ShareAmount::from_count(1), Timestamp{144ns}, EventSequence{8}, 100.0,
+        nq.price_grid().canonicalize(100), 3, nq.contract_multiplier()));
+    const auto proposal_at = [&](Timestamp now) {
+        return Fill::create(FillId{3}, close.id(), nq.symbol(), OrderSide::sell,
+            ShareAmount::from_count(1), now, EventSequence{11}, 100.0,
+            nq.price_grid().canonicalize(100), 3, nq.contract_multiplier());
+    };
+    CHECK(evaluator.evaluate_fill(close, FuturesAdmissionCode::reduction_only,
+                                  proposal_at(Timestamp{145ns}), ledger, {}).code ==
+          FuturesAdmissionCode::reduction_conflict);
+    CHECK(evaluator.evaluate_fill(close, FuturesAdmissionCode::approved,
+                                  proposal_at(Timestamp{145ns}), ledger, {}).code ==
+          FuturesAdmissionCode::maintenance_margin);
+    CHECK(evaluator.evaluate_fill(close, FuturesAdmissionCode::reduction_only,
+                                  proposal_at(Timestamp{151ns}), ledger, {}).code ==
+          FuturesAdmissionCode::missing_fresh_mark);
+    CHECK(ledger.fill_count() == 2);
+}
 }  // namespace
 
 int main() {
@@ -537,6 +626,8 @@ int main() {
     submission_mark_lifecycle_and_candidate_validation();
     submission_margin_codes_and_short_reductions();
     submission_reservations_release_exactly_on_cancel();
+    fill_admission_prices_actual_debits_and_remaining_reservations();
+    fill_admission_rechecks_breaches_and_protected_reductions();
     if (failures != 0) {
         std::cerr << failures << " test assertion(s) failed\n";
         return EXIT_FAILURE;

@@ -1,0 +1,1566 @@
+{
+  "source": "151tradingstrategies.pdf",
+  "sha256": "1bc54915eb2778b1b6a8eacfa0b07fb8c568f2cd5caa3ded45fa28f47c83c73e",
+  "edition": "SSRN August 17, 2018; pagination differs from published book",
+  "scope": "Table-of-contents Strategy headings including variants; not a claim all are executable",
+  "heading_count": 173,
+  "entries": [
+    {
+      "section": "2.2",
+      "title": "Covered call",
+      "printed_page": 18,
+      "pdf_page": 19,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.3",
+      "title": "Covered put",
+      "printed_page": 18,
+      "pdf_page": 19,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.4",
+      "title": "Protective put",
+      "printed_page": 19,
+      "pdf_page": 20,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.5",
+      "title": "Protective call",
+      "printed_page": 19,
+      "pdf_page": 20,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.6",
+      "title": "Bull call spread",
+      "printed_page": 19,
+      "pdf_page": 20,
+      "status": "option_payoff_model",
+      "implementation": "bull_call_spread",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.7",
+      "title": "Bull put spread",
+      "printed_page": 20,
+      "pdf_page": 21,
+      "status": "option_payoff_model",
+      "implementation": "bull_put_spread",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.8",
+      "title": "Bear call spread",
+      "printed_page": 20,
+      "pdf_page": 21,
+      "status": "option_payoff_model",
+      "implementation": "bear_call_spread",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.9",
+      "title": "Bear put spread",
+      "printed_page": 20,
+      "pdf_page": 21,
+      "status": "option_payoff_model",
+      "implementation": "bear_put_spread",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.10",
+      "title": "Long synthetic forward",
+      "printed_page": 21,
+      "pdf_page": 22,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.11",
+      "title": "Short synthetic forward",
+      "printed_page": 21,
+      "pdf_page": 22,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.12",
+      "title": "Long combo",
+      "printed_page": 21,
+      "pdf_page": 22,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.13",
+      "title": "Short combo",
+      "printed_page": 22,
+      "pdf_page": 23,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.14",
+      "title": "Bull call ladder",
+      "printed_page": 22,
+      "pdf_page": 23,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.15",
+      "title": "Bull put ladder",
+      "printed_page": 23,
+      "pdf_page": 24,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.16",
+      "title": "Bear call ladder",
+      "printed_page": 23,
+      "pdf_page": 24,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.17",
+      "title": "Bear put ladder",
+      "printed_page": 23,
+      "pdf_page": 24,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.18",
+      "title": "Calendar call spread",
+      "printed_page": 24,
+      "pdf_page": 25,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.19",
+      "title": "Calendar put spread",
+      "printed_page": 24,
+      "pdf_page": 25,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.20",
+      "title": "Diagonal call spread",
+      "printed_page": 25,
+      "pdf_page": 26,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.21",
+      "title": "Diagonal put spread",
+      "printed_page": 25,
+      "pdf_page": 26,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.22",
+      "title": "Long straddle",
+      "printed_page": 26,
+      "pdf_page": 27,
+      "status": "option_payoff_model",
+      "implementation": "long_straddle",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.23",
+      "title": "Long strangle",
+      "printed_page": 26,
+      "pdf_page": 27,
+      "status": "option_payoff_model",
+      "implementation": "long_strangle",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.24",
+      "title": "Long guts",
+      "printed_page": 26,
+      "pdf_page": 27,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.25",
+      "title": "Short straddle",
+      "printed_page": 27,
+      "pdf_page": 28,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.26",
+      "title": "Short strangle",
+      "printed_page": 27,
+      "pdf_page": 28,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.27",
+      "title": "Short guts",
+      "printed_page": 27,
+      "pdf_page": 28,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.28",
+      "title": "Long call synthetic straddle",
+      "printed_page": 28,
+      "pdf_page": 29,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.29",
+      "title": "Long put synthetic straddle",
+      "printed_page": 28,
+      "pdf_page": 29,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.30",
+      "title": "Short call synthetic straddle",
+      "printed_page": 28,
+      "pdf_page": 29,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.31",
+      "title": "Short put synthetic straddle",
+      "printed_page": 29,
+      "pdf_page": 30,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.32",
+      "title": "Covered short straddle",
+      "printed_page": 29,
+      "pdf_page": 30,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.33",
+      "title": "Covered short strangle",
+      "printed_page": 29,
+      "pdf_page": 30,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.34",
+      "title": "Strap",
+      "printed_page": 30,
+      "pdf_page": 31,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.35",
+      "title": "Strip",
+      "printed_page": 30,
+      "pdf_page": 31,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.36",
+      "title": "Call ratio backspread",
+      "printed_page": 30,
+      "pdf_page": 31,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.37",
+      "title": "Put ratio backspread",
+      "printed_page": 31,
+      "pdf_page": 32,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.38",
+      "title": "Ratio call spread",
+      "printed_page": 31,
+      "pdf_page": 32,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.39",
+      "title": "Ratio put spread",
+      "printed_page": 31,
+      "pdf_page": 32,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.40",
+      "title": "Long call butterfly",
+      "printed_page": 32,
+      "pdf_page": 33,
+      "status": "option_payoff_model",
+      "implementation": "long_call_butterfly",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.40.1",
+      "title": "Modified call butterfly",
+      "printed_page": 32,
+      "pdf_page": 33,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.41",
+      "title": "Long put butterfly",
+      "printed_page": 32,
+      "pdf_page": 33,
+      "status": "option_payoff_model",
+      "implementation": "long_put_butterfly",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.41.1",
+      "title": "Modified put butterfly",
+      "printed_page": 33,
+      "pdf_page": 34,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.42",
+      "title": "Short call butterfly",
+      "printed_page": 33,
+      "pdf_page": 34,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.43",
+      "title": "Short put butterfly",
+      "printed_page": 33,
+      "pdf_page": 34,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.44",
+      "title": "\u201cLong\u201d iron butterfly",
+      "printed_page": 34,
+      "pdf_page": 35,
+      "status": "option_payoff_model",
+      "implementation": "credit_iron_butterfly",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.45",
+      "title": "\u201cShort\u201d iron butterfly",
+      "printed_page": 34,
+      "pdf_page": 35,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.46",
+      "title": "Long call condor",
+      "printed_page": 34,
+      "pdf_page": 35,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.47",
+      "title": "Long put condor",
+      "printed_page": 35,
+      "pdf_page": 36,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.48",
+      "title": "Short call condor",
+      "printed_page": 35,
+      "pdf_page": 36,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.49",
+      "title": "Short put condor",
+      "printed_page": 35,
+      "pdf_page": 36,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.50",
+      "title": "Long iron condor",
+      "printed_page": 36,
+      "pdf_page": 37,
+      "status": "option_payoff_model",
+      "implementation": "credit_iron_condor",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.51",
+      "title": "Short iron condor",
+      "printed_page": 36,
+      "pdf_page": 37,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.52",
+      "title": "Long box",
+      "printed_page": 37,
+      "pdf_page": 38,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.53",
+      "title": "Collar",
+      "printed_page": 37,
+      "pdf_page": 38,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.54",
+      "title": "Bullish short seagull spread",
+      "printed_page": 37,
+      "pdf_page": 38,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.55",
+      "title": "Bearish long seagull spread",
+      "printed_page": 38,
+      "pdf_page": 39,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.56",
+      "title": "Bearish short seagull spread",
+      "printed_page": 38,
+      "pdf_page": 39,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "2.57",
+      "title": "Bullish long seagull spread",
+      "printed_page": 39,
+      "pdf_page": 40,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.1",
+      "title": "Price-momentum",
+      "printed_page": 40,
+      "pdf_page": 41,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.2",
+      "title": "Earnings-momentum",
+      "printed_page": 41,
+      "pdf_page": 42,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.3",
+      "title": "Value",
+      "printed_page": 42,
+      "pdf_page": 43,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.4",
+      "title": "Low-volatility anomaly",
+      "printed_page": 42,
+      "pdf_page": 43,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.5",
+      "title": "Implied volatility",
+      "printed_page": 43,
+      "pdf_page": 44,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.6",
+      "title": "Multifactor portfolio",
+      "printed_page": 43,
+      "pdf_page": 44,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.7",
+      "title": "Residual momentum",
+      "printed_page": 44,
+      "pdf_page": 45,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.8",
+      "title": "Pairs trading",
+      "printed_page": 45,
+      "pdf_page": 46,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.9",
+      "title": "Mean-reversion \u2013 single cluster",
+      "printed_page": 46,
+      "pdf_page": 47,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.9.1",
+      "title": "Mean-reversion \u2013 multiple clusters",
+      "printed_page": 47,
+      "pdf_page": 48,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.11",
+      "title": "Single moving average",
+      "printed_page": 49,
+      "pdf_page": 50,
+      "status": "registered_equity_adaptation",
+      "implementation": "book_single_ma",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.12",
+      "title": "Two moving averages",
+      "printed_page": 50,
+      "pdf_page": 51,
+      "status": "existing_moving_average_family",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.13",
+      "title": "Three moving averages",
+      "printed_page": 51,
+      "pdf_page": 52,
+      "status": "registered_equity_adaptation",
+      "implementation": "book_triple_ma",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.14",
+      "title": "Support and resistance",
+      "printed_page": 51,
+      "pdf_page": 52,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.15",
+      "title": "Channel",
+      "printed_page": 52,
+      "pdf_page": 53,
+      "status": "registered_equity_adaptation",
+      "implementation": "book_channel_reversal",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.16",
+      "title": "Event-driven \u2013 M&A",
+      "printed_page": 52,
+      "pdf_page": 53,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.17",
+      "title": "Machine learning \u2013 single-stock KNN",
+      "printed_page": 53,
+      "pdf_page": 54,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.18",
+      "title": "Statistical arbitrage \u2013 optimization",
+      "printed_page": 55,
+      "pdf_page": 56,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.19",
+      "title": "Market-making",
+      "printed_page": 58,
+      "pdf_page": 59,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "3.20",
+      "title": "Alpha combos",
+      "printed_page": 59,
+      "pdf_page": 60,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "4.1",
+      "title": "Sector momentum rotation",
+      "printed_page": 61,
+      "pdf_page": 62,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "4.1.1",
+      "title": "Sector momentum rotation with MA filter",
+      "printed_page": 62,
+      "pdf_page": 63,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "4.1.2",
+      "title": "Dual-momentum sector rotation",
+      "printed_page": 62,
+      "pdf_page": 63,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "4.2",
+      "title": "Alpha rotation",
+      "printed_page": 63,
+      "pdf_page": 64,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "4.3",
+      "title": "R-squared",
+      "printed_page": 63,
+      "pdf_page": 64,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "4.4",
+      "title": "Mean-reversion",
+      "printed_page": 64,
+      "pdf_page": 65,
+      "status": "registered_equity_adaptation",
+      "implementation": "book_ibs_reversal",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "4.5",
+      "title": "Leveraged ETFs (LETFs)",
+      "printed_page": 64,
+      "pdf_page": 65,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "4.6",
+      "title": "Multi-asset trend following",
+      "printed_page": 65,
+      "pdf_page": 66,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "5.2",
+      "title": "Bullets",
+      "printed_page": 69,
+      "pdf_page": 70,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.3",
+      "title": "Barbells",
+      "printed_page": 69,
+      "pdf_page": 70,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.4",
+      "title": "Ladders",
+      "printed_page": 70,
+      "pdf_page": 71,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.5",
+      "title": "Bond immunization",
+      "printed_page": 70,
+      "pdf_page": 71,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.6",
+      "title": "Dollar-duration-neutral butterfly",
+      "printed_page": 71,
+      "pdf_page": 72,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.7",
+      "title": "Fifty-fifty butterfly",
+      "printed_page": 72,
+      "pdf_page": 73,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.8",
+      "title": "Regression-weighted butterfly",
+      "printed_page": 72,
+      "pdf_page": 73,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.8.1",
+      "title": "Maturity-weighted butterfly",
+      "printed_page": 73,
+      "pdf_page": 74,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.9",
+      "title": "Low-risk factor",
+      "printed_page": 73,
+      "pdf_page": 74,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.10",
+      "title": "Value factor",
+      "printed_page": 73,
+      "pdf_page": 74,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.11",
+      "title": "Carry factor",
+      "printed_page": 74,
+      "pdf_page": 75,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.12",
+      "title": "Rolling down the yield curve",
+      "printed_page": 74,
+      "pdf_page": 75,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.13",
+      "title": "Yield curve spread (flatteners & steepeners)",
+      "printed_page": 75,
+      "pdf_page": 76,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.14",
+      "title": "CDS basis arbitrage",
+      "printed_page": 75,
+      "pdf_page": 76,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "5.15",
+      "title": "Swap-spread arbitrage",
+      "printed_page": 76,
+      "pdf_page": 77,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "6.2",
+      "title": "Cash-and-carry arbitrage",
+      "printed_page": 77,
+      "pdf_page": 78,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "6.3",
+      "title": "Dispersion trading in equity indexes",
+      "printed_page": 77,
+      "pdf_page": 78,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "6.3.1",
+      "title": "Dispersion trading \u2013 subset portfolio",
+      "printed_page": 78,
+      "pdf_page": 79,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "6.4",
+      "title": "Intraday arbitrage between index ETFs",
+      "printed_page": 79,
+      "pdf_page": 80,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "6.5",
+      "title": "Index volatility targeting with risk-free asset",
+      "printed_page": 80,
+      "pdf_page": 81,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "7.2",
+      "title": "VIX futures basis trading",
+      "printed_page": 81,
+      "pdf_page": 82,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "7.3",
+      "title": "Volatility carry with two ETNs",
+      "printed_page": 82,
+      "pdf_page": 83,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "7.3.1",
+      "title": "Hedging short VXX with VIX futures",
+      "printed_page": 82,
+      "pdf_page": 83,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "7.4",
+      "title": "Volatility risk premium",
+      "printed_page": 83,
+      "pdf_page": 84,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "7.4.1",
+      "title": "Volatility risk premium with Gamma hedging",
+      "printed_page": 83,
+      "pdf_page": 84,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "7.5",
+      "title": "Volatility skew \u2013 long risk reversal",
+      "printed_page": 84,
+      "pdf_page": 85,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "7.6",
+      "title": "Volatility trading with variance swaps",
+      "printed_page": 84,
+      "pdf_page": 85,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "8.1",
+      "title": "Moving averages with HP filter",
+      "printed_page": 85,
+      "pdf_page": 86,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "8.2",
+      "title": "Carry trade",
+      "printed_page": 86,
+      "pdf_page": 87,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "8.2.1",
+      "title": "High-minus-low carry",
+      "printed_page": 87,
+      "pdf_page": 88,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "8.3",
+      "title": "Dollar carry trade",
+      "printed_page": 88,
+      "pdf_page": 89,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "8.4",
+      "title": "Momentum & carry combo",
+      "printed_page": 88,
+      "pdf_page": 89,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "8.5",
+      "title": "FX triangular arbitrage",
+      "printed_page": 89,
+      "pdf_page": 90,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "9.1",
+      "title": "Roll yields",
+      "printed_page": 89,
+      "pdf_page": 90,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "9.2",
+      "title": "Trading based on hedging pressure",
+      "printed_page": 90,
+      "pdf_page": 91,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "9.3",
+      "title": "Portfolio diversification with commodities",
+      "printed_page": 90,
+      "pdf_page": 91,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "9.4",
+      "title": "Value",
+      "printed_page": 90,
+      "pdf_page": 91,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "9.5",
+      "title": "Skewness premium",
+      "printed_page": 91,
+      "pdf_page": 92,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "9.6",
+      "title": "Trading with pricing models",
+      "printed_page": 91,
+      "pdf_page": 92,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "10.1",
+      "title": "Hedging risk with futures",
+      "printed_page": 92,
+      "pdf_page": 93,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "10.1.1",
+      "title": "Cross-hedging",
+      "printed_page": 93,
+      "pdf_page": 94,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "10.1.2",
+      "title": "Interest rate risk hedging",
+      "printed_page": 93,
+      "pdf_page": 94,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "10.2",
+      "title": "Calendar spread",
+      "printed_page": 94,
+      "pdf_page": 95,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "10.3",
+      "title": "Contrarian trading (mean-reversion)",
+      "printed_page": 95,
+      "pdf_page": 96,
+      "status": "futures_policy_only",
+      "implementation": "cross_sectional_contrarian",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "10.3.1",
+      "title": "Contrarian trading \u2013 market activity",
+      "printed_page": 95,
+      "pdf_page": 96,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "10.4",
+      "title": "Trend following (momentum)",
+      "printed_page": 96,
+      "pdf_page": 97,
+      "status": "futures_policy_only",
+      "implementation": "time_series_momentum",
+      "priority": "spx_futures_related"
+    },
+    {
+      "section": "11.2",
+      "title": "Carry, equity tranche \u2013 index hedging",
+      "printed_page": 99,
+      "pdf_page": 100,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "11.3",
+      "title": "Carry, senior/mezzanine \u2013 index hedging",
+      "printed_page": 99,
+      "pdf_page": 100,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "11.4",
+      "title": "Carry \u2013 tranche hedging",
+      "printed_page": 99,
+      "pdf_page": 100,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "11.5",
+      "title": "Carry \u2013 CDS hedging",
+      "printed_page": 100,
+      "pdf_page": 101,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "11.6",
+      "title": "CDOs \u2013 curve trades",
+      "printed_page": 100,
+      "pdf_page": 101,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "11.7",
+      "title": "Mortgage-backed security (MBS) trading",
+      "printed_page": 100,
+      "pdf_page": 101,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "12.1",
+      "title": "Convertible arbitrage",
+      "printed_page": 101,
+      "pdf_page": 102,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "12.2",
+      "title": "Convertible option-adjusted spread",
+      "printed_page": 102,
+      "pdf_page": 103,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "13.1",
+      "title": "Municipal bond tax arbitrage",
+      "printed_page": 102,
+      "pdf_page": 103,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "13.2",
+      "title": "Cross-border tax arbitrage",
+      "printed_page": 103,
+      "pdf_page": 104,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "13.2.1",
+      "title": "Cross-border tax arbitrage with options",
+      "printed_page": 104,
+      "pdf_page": 105,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "14.1",
+      "title": "Inflation hedging \u2013 inflation swaps",
+      "printed_page": 104,
+      "pdf_page": 105,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "14.2",
+      "title": "TIPS-Treasury arbitrage",
+      "printed_page": 105,
+      "pdf_page": 106,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "14.3",
+      "title": "Weather risk \u2013 demand hedging",
+      "printed_page": 106,
+      "pdf_page": 107,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "14.4",
+      "title": "Energy \u2013 spark spread",
+      "printed_page": 108,
+      "pdf_page": 109,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "15.1",
+      "title": "Buying and holding distressed debt",
+      "printed_page": 108,
+      "pdf_page": 109,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "15.2",
+      "title": "Active distressed investing",
+      "printed_page": 109,
+      "pdf_page": 110,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "15.2.1",
+      "title": "Planning a reorganization",
+      "printed_page": 109,
+      "pdf_page": 110,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "15.2.2",
+      "title": "Buying outstanding debt",
+      "printed_page": 109,
+      "pdf_page": 110,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "15.2.3",
+      "title": "Loan-to-own",
+      "printed_page": 110,
+      "pdf_page": 111,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "15.3",
+      "title": "Distress risk puzzle",
+      "printed_page": 110,
+      "pdf_page": 111,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "15.3.1",
+      "title": "Distress risk puzzle \u2013 risk management",
+      "printed_page": 110,
+      "pdf_page": 111,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "16.2",
+      "title": "Mixed-asset diversification with real estate",
+      "printed_page": 111,
+      "pdf_page": 112,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "16.3",
+      "title": "Intra-asset diversification within real estate",
+      "printed_page": 112,
+      "pdf_page": 113,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "16.3.1",
+      "title": "Property type diversification",
+      "printed_page": 112,
+      "pdf_page": 113,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "16.3.2",
+      "title": "Economic diversification",
+      "printed_page": 112,
+      "pdf_page": 113,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "16.3.3",
+      "title": "Property type and geographic diversification",
+      "printed_page": 113,
+      "pdf_page": 114,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "16.4",
+      "title": "Real estate momentum \u2013 regional approach",
+      "printed_page": 113,
+      "pdf_page": 114,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "16.5",
+      "title": "Inflation hedging with real estate",
+      "printed_page": 113,
+      "pdf_page": 114,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "16.6",
+      "title": "Fix-and-flip",
+      "printed_page": 114,
+      "pdf_page": 115,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "17.2",
+      "title": "Money laundering \u2013 the dark side of cash",
+      "printed_page": 114,
+      "pdf_page": 115,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "17.3",
+      "title": "Liquidity management",
+      "printed_page": 115,
+      "pdf_page": 116,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "17.4",
+      "title": "Repurchase agreement (REPO)",
+      "printed_page": 115,
+      "pdf_page": 116,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "17.5",
+      "title": "Pawnbroking",
+      "printed_page": 115,
+      "pdf_page": 116,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "17.6",
+      "title": "Loan sharking",
+      "printed_page": 116,
+      "pdf_page": 117,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "18.2",
+      "title": "Artificial neural network (ANN)",
+      "printed_page": 116,
+      "pdf_page": 117,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "18.3",
+      "title": "Sentiment analysis \u2013 na\u0131\u0308ve Bayes Bernoulli",
+      "printed_page": 120,
+      "pdf_page": 121,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "19.2",
+      "title": "Fundamental macro momentum",
+      "printed_page": 122,
+      "pdf_page": 123,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "19.3",
+      "title": "Global macro inflation hedge",
+      "printed_page": 122,
+      "pdf_page": 123,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "19.4",
+      "title": "Global fixed-income strategy",
+      "printed_page": 123,
+      "pdf_page": 124,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    },
+    {
+      "section": "19.5",
+      "title": "Trading on economic announcements",
+      "printed_page": 123,
+      "pdf_page": 124,
+      "status": "deferred",
+      "implementation": null,
+      "priority": "outside_current_scope"
+    }
+  ]
+}

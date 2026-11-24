@@ -1,6 +1,8 @@
 """Immutable version-2 snapshots for already-authorized inline research forms."""
 from __future__ import annotations
 
+from qte._cleanup import close_fd
+
 import copy
 from dataclasses import dataclass
 from hashlib import sha256
@@ -15,6 +17,7 @@ from .form_inputs import CapturedFormInputs
 from .job_inputs import (
     CONFIG_LIMIT,
     DATA_LIMIT,
+    SOURCE_SUFFIXES,
     JobInputError,
     _JOB_ID,
     _allowed,
@@ -133,7 +136,7 @@ def _configuration(value: bytes) -> dict[str, Any]:
 
 def _research_identity(adapter: object, original_data_path: object, data_bytes: object,
                        data_sha256: object) -> tuple[str, str, bytes, str]:
-    if (not isinstance(adapter, str) or adapter not in {"csv", "alpaca"}
+    if (not isinstance(adapter, str) or adapter not in SOURCE_SUFFIXES
             or not isinstance(original_data_path, str) or type(data_bytes) is not bytes
             or len(data_bytes) > DATA_LIMIT):
         raise _error("invalid")
@@ -143,8 +146,7 @@ def _research_identity(adapter: object, original_data_path: object, data_bytes: 
     _allowed(parts)
     relative = _relative(parts)
     suffix = PurePosixPath(relative).suffix.casefold()
-    if relative != original_data_path or (adapter == "csv" and suffix != ".csv") or (
-            adapter == "alpaca" and suffix != ".json"):
+    if relative != original_data_path or suffix != SOURCE_SUFFIXES[adapter]:
         raise _error("invalid")
     digest = _hex(data_sha256)
     if _digest(data_bytes) != digest:
@@ -357,10 +359,7 @@ def write_inline_snapshot(repository: Path, job_id: str, prepared: PreparedInlin
         os.fchmod(inputs_fd, 0o500)
     finally:
         for descriptor in reversed(descriptors):
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
+            close_fd(descriptor)
     return _snapshot_result(Path(repository), job_id, checked, snapshot_hashes)
 
 
@@ -495,7 +494,4 @@ def verify_inline_snapshot(repository: Path, job_id: str,
         raise _error("snapshot") from None
     finally:
         for descriptor in reversed(descriptors):
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
+            close_fd(descriptor)

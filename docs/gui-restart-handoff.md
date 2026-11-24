@@ -1,5 +1,7 @@
 # GUI restart handoff — 2026-09-23
 
+> **Status:** Historical handoff (2026-09-23); superseded. For current capabilities see [docs/README.md](README.md).
+
 The user is rebooting. Work is saved in `/home/glsu6/Documents/qte`.
 Read `AGENTS.md` before resuming. Preserve all modified/untracked work; saving
 does not mean committing. No Git history or remote operations are authorized.

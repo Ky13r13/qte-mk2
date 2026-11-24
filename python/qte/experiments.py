@@ -276,8 +276,8 @@ def _candidate_record(candidate: Candidate) -> CandidateRecord:
         path = inspect.getsourcefile(factory)
         if path is not None and Path(path).is_file():
             identity = "sha256:" + hashlib.sha256(Path(path).read_bytes()).hexdigest()
-    except (TypeError, OSError):
-        pass
+    except TypeError:
+        identity = "unavailable"  # Built-in callables may have no source file.
     return CandidateRecord(candidate.name, candidate.parameters_json, candidate.history_capacity,
                            candidate.eligible, factory_name, identity)
 

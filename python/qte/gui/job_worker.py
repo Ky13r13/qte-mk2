@@ -1,6 +1,8 @@
 """Private per-job supervisor; never accepts browser-controlled command lines."""
 from __future__ import annotations
 
+from contextlib import suppress
+
 import hashlib
 import json
 import os
@@ -28,8 +30,10 @@ def _result(fd: int, **value) -> None:
     data = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("ascii")
     if len(data) > 4096:
         data = b'{"exit_code":null,"reason":"worker_setup_failed","state":"failed"}'
-    try: os.write(fd, data)
-    except OSError: pass
+    try:
+        os.write(fd, data)
+    except BrokenPipeError:
+        return  # The owner has closed the result channel.
 
 
 def _snapshot(repository: Path, job_id: str, expected: dict[str, str]):
@@ -165,8 +169,8 @@ def _terminate(process: subprocess.Popen) -> None:
             reap_adopted_group()
             time.sleep(0.02)
         if group_alive():
-            try: os.killpg(group, signal.SIGKILL)
-            except ProcessLookupError: pass
+            with suppress(ProcessLookupError):
+                os.killpg(group, signal.SIGKILL)
             # Retain the inherited owner lock until every adopted group member
             # is reaped. A D-state process may keep this private supervisor
             # alive, which is fail-closed rather than allowing a second owner.

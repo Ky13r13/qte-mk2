@@ -145,6 +145,7 @@ public:
     [[nodiscard]] std::optional<double> net_exposure() const;
     [[nodiscard]] std::optional<double> net_pnl() const;
 
+    [[nodiscard]] PortfolioSnapshot preview_fill(const orders::Fill& fill) const;
     void apply_fill(const orders::Fill& fill);
     // Exact redeliveries are idempotent. New settlements share the ledger's
     // global event ordering; they never fabricate marks or trade episodes.
@@ -168,6 +169,17 @@ private:
         std::optional<TradeEpisode> open_trade;
         std::optional<TradeEpisode> closed_trade;
     };
+
+    struct StagedFill final {
+        Position position;
+        TradeUpdate trades;
+        double cash;
+        double cash_compensation;
+    };
+
+    [[nodiscard]] StagedFill stage_fill(const orders::Fill& fill) const;
+    [[nodiscard]] PortfolioSnapshot make_snapshot(
+        double cash, const std::string* key, const Position* replacement) const;
 
     static void add_compensated(
         double value,

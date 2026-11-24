@@ -1,5 +1,9 @@
 # Read-only broker connection foundations
 
+Order execution setup now has a separate [offline staging command](broker-order-staging.md)
+for Schwab and Robinhood MCP tickets. These read-only clients remain unchanged;
+the staging command cannot submit orders.
+
 These Python adapters return **raw provider JSON**, outside the deterministic C++
 core. They do not create canonical datasets, submit/cancel orders, reconcile the
 portfolio, or connect a strategy to an account. No authenticated account request
@@ -52,15 +56,17 @@ whole-share instrument contract. There is **no Robinhood equities connector**,
 unofficial login automation, fractional-crypto accounting, or crypto strategy
 execution in this milestone.
 
-## Schwab: official contract export required
+## Schwab: explicit market-data endpoint definitions
 
 The public [Schwab Trader API product page](https://developer.schwab.com/products/trader-api--individual)
 identifies account/trading and market-data products. Its detailed production
-contracts were authentication-gated during inspection. QTE therefore does not
-claim independently verified endpoint paths or use a guessed fallback.
+specifications are available in the signed-in developer portal. The CLI takes
+an explicit OpenAPI-format endpoint definition. An official export can supply
+it where available. The first market-data pilot used a reviewed two-route file
+derived from public client source and verified both routes against Schwab.
 
-`SchwabReadOnlyClient(access_token, openapi=None, transport=None)` requires a
-user-supplied official OpenAPI export before requests can execute. Its
+`SchwabReadOnlyClient(access_token, openapi=None, transport=None)` requires an
+explicit OpenAPI-format file before requests can execute. Its
 `get(operation_id, path_parameters={}, query_parameters={})` resolves only a GET
 operation from that contract, restricted to the approved `api.schwabapi.com`
 server and trader/market-data namespaces. Missing contracts fail explicitly.
@@ -89,14 +95,90 @@ client = SchwabReadOnlyClient(
 # payload = client.get(operation_id_from_contract)
 ```
 
-The caller is responsible for obtaining and verifying that export through
-Schwab's official portal; accepting a supplied document does not authenticate
-its provenance. The example uses the already-ignored repository `.cache` directory.
+The caller is responsible for verifying the supplied endpoint definitions.
+Parsing a document does not authenticate its provenance. The example uses the
+already-ignored repository `.cache` directory.
 Keep the export and credentials local and out of shared reports.
-OAuth enrollment, consent, callback handling, refresh, token storage, and account
-permissions remain outside this implementation. An expired token requires the
-user's existing approved authentication workflow; QTE does not silently refresh
-it or persist credentials.
+The separate terminal command below now handles local OAuth, token storage and
+explicit refresh. The GET-only client itself still performs none of those steps.
+Schwab app configuration and the consent screen determine provider permissions.
+
+### Local Schwab authorization (Fedora/Linux)
+
+The app must show **Ready for Use**, with callback exactly
+`https://127.0.0.1:8182` (no trailing slash). From the repository root:
+
+```sh
+source .venv/bin/activate
+python -m qte.brokers.schwab_auth login
+```
+
+Enter **App Key** and **App Secret** in the hidden terminal prompts, never in
+chat, command-line arguments or tracked files. The app secret is not saved.
+Sign in on Schwab's website and review its consent page. QTE opens a temporary
+HTTPS listener bound only to 127.0.0.1:8182, checks a random OAuth state and
+accepts one callback. The browser may warn about the self-signed loopback
+certificate. The terminal prints its SHA-256 fingerprint; any exception must be
+limited to that exact local URL. Never bypass certificate checks on Schwab's
+website. No certificate is installed into the OS trust store.
+
+Check the terminal for successful authorization; the callback page alone does
+not prove the token exchange succeeded. Listener and temporary certificate files
+are removed when login ends. The callback waits five minutes. Failed exchanges
+preserve any previous token. Only one Schwab command can run at a time.
+
+Tokens are plaintext secrets in ignored `.cache/schwab/token.json`, protected
+with owner-only POSIX permissions (directory 0700, file 0600), atomic replacement
+and symlink checks. Do not share that directory. This first CLI version explicitly
+fails on Windows pending Windows credential ACL support; the Windows GUI is
+unchanged. Uses the standard library and already-installed OpenSSL; no installs.
+
+```sh
+python -m qte.brokers.schwab_auth status
+python -m qte.brokers.schwab_auth refresh
+```
+
+`status` inspects local expiry metadata only, not provider validity. `refresh`
+prompts for the same app credentials and exchanges the refresh token explicitly.
+A rotated refresh token is saved only on success; an omitted refresh token
+preserves the existing one. Expired/revoked consent requires `login` again.
+No background refresh, account reads or trading are enabled.
+
+For market-data reads, supply the reviewed Market Data endpoint file and use its
+operation ID and documented parameters. See:
+
+```sh
+python -m qte.brokers.schwab_auth read --help
+```
+
+`read` accepts `--contract`, `--operation`, `--query` (JSON) and
+`--path-parameters` (JSON), and writes raw market-data JSON to stdout. It rejects
+trading/account contracts and expired access tokens and reuses the existing
+contract-verified GET client. OAuth grants are the only new POST operations,
+pinned to Schwab's token endpoint. The broker client remains GET-only. Provider
+token scopes may be broader depending on the app; QTE does not reduce those scopes.
+
+Add `--output build/schwab/<new-file>.json` to save a research capture. Create
+the output directory first. The capture includes the contract hash, operation
+and market-data parameters, UTC request and receipt times, provider JSON and
+its canonical JSON hash. It excludes request headers. A capture never replaces
+an existing file. The receipt timestamp describes this request, so it cannot
+stand in for the historical availability of every observation in a response.
+
+The first authenticated pilot should use a narrow SPY minute-history request
+and a small near-weekly option quote or chain request, using the operation IDs
+and parameter names in the verified specification. Check returned sessions,
+timestamps, contract identity, bid/ask and whether the response is a snapshot.
+Minute candles support signal testing. A quote snapshot can start forward
+collection. Five-minute options execution validation needs synchronized quotes
+across many sessions.
+
+Auth protocol cross-checked against the
+[schwab-py maintainers' implementation](https://github.com/alexgolec/schwab-py/blob/master/schwab/auth.py)
+and [local flow documentation](https://schwab-py.readthedocs.io/en/stable/auth.html).
+No schwab-py dependency was added. Local TLS was tested with a fake grant.
+User authorization and authenticated GETs for minute history and option chains
+were verified on November 21. See the [Schwab capture checkpoint](tick-data-acquisition.md#first-authenticated-schwab-capture).
 
 ## Safety and readiness
 
@@ -134,7 +216,7 @@ signer/credential provisioning, approval lifetime, and retry/idempotency policy.
 Default response retention should remain off; never register account payloads
 as research artifacts. Then implement and mock-test the integration separately.
 Real provider verification requires explicit online authorization. G9a does not
-complete that gate, validate current provider contracts, implement OAuth, or
+complete that gate, validate current provider contracts, implement GUI OAuth, or
 establish paper/live trading readiness.
 
 ### Existing Python transport boundary

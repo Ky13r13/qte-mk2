@@ -10,15 +10,19 @@ BAR_FIELDS = {"symbol", "start_ns", "end_ns", "available_ns", "open", "high", "l
 
 
 def market_recording(loaded) -> dict:
-    if not loaded.bars or loaded.dataset.timing_policy != "fixed_interval_v1":
-        raise ValueError("captured fixed-interval canonical bars are required")
-    return {"schema_version": 1, "timing_policy": "completed_bar_at_end",
+    if not loaded.bars:
+        raise ValueError("captured canonical bars are required")
+    timed = loaded.dataset.timing_policy == "explicit_availability_v1"
+    times = loaded.publication_times_ns if timed else (bar.end_ns for bar in loaded.bars)
+    rows = sorted(zip(loaded.bars, times, strict=True), key=lambda row: (row[0].start_ns, row[0].symbol))
+    return {"schema_version": 2 if timed else 1,
+            "timing_policy": "explicit_availability_v1" if timed else "completed_bar_at_end",
             "dataset_hash": loaded.dataset.hash,
             "source_sha256": loaded.provenance.source_sha256,
             "candles": [{"symbol": bar.symbol, "start_ns": bar.start_ns,
-                         "end_ns": bar.end_ns, "available_ns": bar.end_ns,
+                         "end_ns": bar.end_ns, "available_ns": publication,
                          **{field: getattr(bar, field) for field in ("open", "high", "low", "close", "volume")}}
-                        for bar in sorted(loaded.bars, key=lambda value: (value.start_ns, value.symbol))]}
+                        for bar, publication in rows]}
 
 
 def validate_market_recording(value: object, manifest: dict) -> list[dict]:
@@ -30,9 +34,11 @@ def validate_market_recording(value: object, manifest: dict) -> list[dict]:
     def invalid():
         raise ValueError("canonical market recording is inconsistent")
 
+    data = manifest["configuration"]["data"]
+    timed = data.get("adapter") == "session_bundle"
     if (type(value) is not dict or set(value) != {"schema_version", "timing_policy", "dataset_hash", "source_sha256", "candles"}
-            or type(value["schema_version"]) is not int or value["schema_version"] != 1
-            or value["timing_policy"] != "completed_bar_at_end"
+            or type(value["schema_version"]) is not int or value["schema_version"] != (2 if timed else 1)
+            or value["timing_policy"] != ("explicit_availability_v1" if timed else "completed_bar_at_end")
             or value["dataset_hash"] != manifest["dataset_hash"]
             or value["source_sha256"] != manifest["source"]["source_sha256"]
             or type(value["candles"]) is not list or not value["candles"]):
@@ -44,7 +50,7 @@ def validate_market_recording(value: object, manifest: dict) -> list[dict]:
         for field in ("start_ns", "end_ns", "available_ns"):
             if type(row[field]) is not int or not -(2**63) <= row[field] < 2**63:
                 invalid()
-        if row["available_ns"] != row["end_ns"]:
+        if row["available_ns"] < row["end_ns"] or (not timed and row["available_ns"] != row["end_ns"]):
             invalid()
         for field in ("open", "high", "low", "close", "volume"):
             if type(row[field]) not in (int, float) or not math.isfinite(row[field]):
@@ -55,10 +61,18 @@ def validate_market_recording(value: object, manifest: dict) -> list[dict]:
         previous = key
         bars.append(qte.Bar(row["symbol"], row["start_ns"], row["end_ns"],
                             row["open"], row["high"], row["low"], row["close"], row["volume"]))
-    data = manifest["configuration"]["data"]
-    dataset = qte.Dataset.from_bars(bars, interval_ns=data["interval_ns"],
-        source_id=manifest["source_id"], tick_size=data.get("tick_size", 0.01),
-        currency=data.get("currency", "USD"), volume_unit="shares")
+    kwargs = dict(source_id=manifest["source_id"], tick_size=data.get("tick_size", 0.01),
+                  currency=data.get("currency", "USD"), volume_unit="shares")
+    if timed:
+        timing = manifest["timing"]
+        observations = [qte.BarObservation(bar, row["available_ns"])
+                        for bar, row in zip(bars, value["candles"], strict=True)]
+        dataset = qte.Dataset.from_observations(observations, timing_source_id=timing["timing_source_id"], **kwargs)
+        if (dataset.timing_policy != timing["timing_policy"] or dataset.observation_end_ns != timing["observation_end_ns"]
+                or dataset.end_ns != timing["replay_end_ns"]):
+            invalid()
+    else:
+        dataset = qte.Dataset.from_bars(bars, interval_ns=data["interval_ns"], **kwargs)
     if (dataset.hash != manifest["dataset_hash"] or dataset.start_ns != manifest["dataset_start_ns"]
             or dataset.end_ns != manifest["dataset_end_ns"]):
         invalid()

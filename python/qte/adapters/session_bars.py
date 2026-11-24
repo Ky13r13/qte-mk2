@@ -106,4 +106,4 @@ def build_session_dataset(
             "action_free=true",
         ),
     )
-    return AdapterResult(dataset, provenance)
+    return AdapterResult(dataset, provenance, tuple(bars), tuple(obs.available_at_ns for obs in observations))

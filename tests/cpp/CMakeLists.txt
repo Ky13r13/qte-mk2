@@ -107,3 +107,18 @@ add_executable(qte_futures_margin_tests test_futures_margin.cpp)
 target_link_libraries(qte_futures_margin_tests PRIVATE qte::core)
 target_compile_features(qte_futures_margin_tests PRIVATE cxx_std_20)
 add_test(NAME qte.futures_margin COMMAND qte_futures_margin_tests)
+
+add_executable(qte_futures_lifecycle_tests test_futures_lifecycle.cpp)
+target_link_libraries(qte_futures_lifecycle_tests PRIVATE qte::core)
+target_compile_features(qte_futures_lifecycle_tests PRIVATE cxx_std_20)
+add_test(NAME qte.futures_lifecycle COMMAND qte_futures_lifecycle_tests)
+
+add_executable(qte_sweep_tests test_sweep.cpp)
+target_link_libraries(qte_sweep_tests PRIVATE qte::core)
+target_compile_features(qte_sweep_tests PRIVATE cxx_std_20)
+add_test(NAME qte.sweep COMMAND qte_sweep_tests)
+
+add_executable(qte_condor_tests test_condor.cpp)
+target_link_libraries(qte_condor_tests PRIVATE qte::core)
+target_compile_features(qte_condor_tests PRIVATE cxx_std_20)
+add_test(NAME qte.condor COMMAND qte_condor_tests)

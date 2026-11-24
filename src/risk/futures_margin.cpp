@@ -62,6 +62,32 @@ void require_money(const double value, const char* const name, const bool positi
                           : amount >= magnitude ? amount - magnitude : magnitude - amount;
 }
 
+[[nodiscard]] bool nonreversing_reduction(
+    const orders::OrderRecord& order, const core::ShareQuantity inventory,
+    const std::span<const PendingFuturesOrder> other_pending) {
+    if (inventory.is_zero()) return false;
+    const auto closing_side = inventory.value() > 0 ? orders::OrderSide::sell
+                                                    : orders::OrderSide::buy;
+    if (order.request().side != closing_side) return false;
+    auto reserved = order.remaining_quantity().magnitude();
+    for (const auto& pending : other_pending) {
+        if (pending.symbol() != order.request().symbol) continue;
+        if (pending.side() != closing_side) return false;
+        reserved = add_quantity(reserved, pending.remaining_quantity().as_quantity().magnitude());
+    }
+    return reserved <= inventory.magnitude();
+}
+
+[[nodiscard]] bool fresh_mark(
+    const portfolio::Position& position, const market_data::Timestamp now,
+    const std::chrono::nanoseconds maximum_age) {
+    const auto& mark = position.valuation_mark();
+    if (!mark || mark->price() <= 0.0 || mark->effective_at() > now) return false;
+    const auto age = static_cast<std::uint64_t>(now.time_since_epoch().count()) -
+                     static_cast<std::uint64_t>(mark->effective_at().time_since_epoch().count());
+    return age <= static_cast<std::uint64_t>(maximum_age.count());
+}
+
 }  // namespace
 
 FuturesMarginSchedule::FuturesMarginSchedule(
@@ -169,6 +195,13 @@ FuturesMarginReport FuturesMarginEvaluator::evaluate(
     const portfolio::Portfolio& ledger,
     const std::span<const PendingFuturesOrder> pending_orders,
     const market_data::Timestamp now) const {
+    return evaluate_snapshot(ledger, ledger.snapshot(), pending_orders, now);
+}
+
+FuturesMarginReport FuturesMarginEvaluator::evaluate_snapshot(
+    const portfolio::Portfolio& ledger, const portfolio::PortfolioSnapshot& snapshot,
+    const std::span<const PendingFuturesOrder> pending_orders,
+    const market_data::Timestamp now) const {
     if (now < schedule_.available_at() || now >= schedule_.valid_until()) {
         throw InvalidFuturesMarginInput("margin schedule is unavailable or expired");
     }
@@ -180,7 +213,6 @@ FuturesMarginReport FuturesMarginEvaluator::evaluate(
         throw InvalidFuturesMarginInput(
             "margin evaluation cannot precede the portfolio's latest event");
     }
-    const auto snapshot = ledger.snapshot();
     if (!std::isfinite(snapshot.cash()) || !snapshot.equity().has_value() ||
         !std::isfinite(*snapshot.equity())) {
         throw InvalidFuturesMarginInput("portfolio cash and equity must be available and finite");
@@ -318,27 +350,9 @@ FuturesMarginAdmission FuturesMarginEvaluator::evaluate_submission(
     // A missing target mark is a typed, short-circuit denial, including when
     // flat. Other schedule/ledger/reservation errors are validated below once
     // the target is priceable; no projection is returned for this denial.
-    const auto snapshot = ledger.snapshot();
-    const auto position = std::find_if(
-        snapshot.positions().begin(), snapshot.positions().end(),
-        [&](const portfolio::PositionSnapshot& value) {
-            return value.symbol == candidate.request().symbol;
-        });
-    const bool missing_mark =
-        position == snapshot.positions().end() || !position->mark_price.has_value() ||
-        !position->mark_timestamp.has_value() ||
-        !std::isfinite(*position->mark_price) || *position->mark_price <= 0.0 ||
-        *position->mark_timestamp > now;
-    if (missing_mark) {
-        return FuturesMarginAdmission{
-            FuturesAdmissionCode::missing_fresh_mark, std::nullopt};
-    }
-    const auto age = static_cast<std::uint64_t>(now.time_since_epoch().count()) -
-                     static_cast<std::uint64_t>(
-                         position->mark_timestamp->time_since_epoch().count());
-    if (age > static_cast<std::uint64_t>(max_mark_age_.count())) {
-        return FuturesMarginAdmission{
-            FuturesAdmissionCode::missing_fresh_mark, std::nullopt};
+    const auto* position = ledger.position(candidate.request().symbol);
+    if (!position || !fresh_mark(*position, now, max_mark_age_)) {
+        return {FuturesAdmissionCode::missing_fresh_mark, std::nullopt};
     }
 
     // This validates the schedule, ledger universe and clock, and every existing
@@ -356,29 +370,8 @@ FuturesMarginAdmission FuturesMarginEvaluator::evaluate_submission(
         return FuturesMarginAdmission{FuturesAdmissionCode::approved, projected};
     }
 
-    const auto quantity = position->quantity.value();
-    bool protected_reduction = quantity != 0;
-    const auto closing_side = quantity > 0 ? orders::OrderSide::sell
-                                           : orders::OrderSide::buy;
-    protected_reduction = protected_reduction && candidate.request().side == closing_side;
-    std::uint64_t closing_quantity = static_cast<std::uint64_t>(
-        candidate.request().quantity.value());
-    for (const auto& pending : pending_orders) {
-        if (pending.symbol() != candidate.request().symbol) {
-            continue;
-        }
-        if (pending.side() != closing_side) {
-            protected_reduction = false;
-        } else {
-            closing_quantity = add_quantity(
-                closing_quantity,
-                static_cast<std::uint64_t>(pending.remaining_quantity().value()));
-        }
-    }
-    const auto current_magnitude = quantity < 0
-        ? static_cast<std::uint64_t>(-(quantity + 1)) + 1
-        : static_cast<std::uint64_t>(quantity);
-    protected_reduction = protected_reduction && closing_quantity <= current_magnitude;
+    const bool protected_reduction = nonreversing_reduction(
+        candidate, position->quantity(), pending_orders);
     if (protected_reduction) {
         return FuturesMarginAdmission{FuturesAdmissionCode::reduction_only, projected};
     }
@@ -386,6 +379,61 @@ FuturesMarginAdmission FuturesMarginEvaluator::evaluate_submission(
         projected.maintenance_breach ? FuturesAdmissionCode::maintenance_margin
                                      : FuturesAdmissionCode::initial_margin,
         projected};
+}
+
+FuturesMarginAdmission FuturesMarginEvaluator::evaluate_fill(
+    const orders::OrderRecord& order, const FuturesAdmissionCode submission_code,
+    const orders::Fill& proposed, const portfolio::Portfolio& ledger,
+    const std::span<const PendingFuturesOrder> other_pending) const {
+    if (submission_code != FuturesAdmissionCode::approved &&
+        submission_code != FuturesAdmissionCode::reduction_only) {
+        throw InvalidFuturesMarginInput("proposed fill requires an approved submission");
+    }
+    const auto* instrument = ledger.instrument(order.request().symbol);
+    if (!instrument || instrument->kind() != market_data::InstrumentKind::future) {
+        throw InvalidFuturesMarginInput("proposed fill must reference a ledger future");
+    }
+    orders::require_valid(order.request(), *instrument);
+    orders::require_valid(proposed, order, *instrument);
+    for (const auto& pending : other_pending) {
+        if (pending.order_id() == order.id()) {
+            throw InvalidFuturesMarginInput("other reservations include the proposed fill order");
+        }
+    }
+
+    const auto now = proposed.effective_at();
+    const auto& position = *ledger.position(instrument->symbol());
+    if (!fresh_mark(position, now, max_mark_age_)) {
+        return {FuturesAdmissionCode::missing_fresh_mark, std::nullopt};
+    }
+    std::vector<PendingFuturesOrder> remaining(other_pending.begin(), other_pending.end());
+    remaining.push_back(PendingFuturesOrder::capture(order));
+    const auto before = evaluate(ledger, remaining, now);
+    if (now >= instrument->last_trade().value()) {
+        return {FuturesAdmissionCode::contract_closed, std::nullopt};
+    }
+    remaining.pop_back();
+    const auto rest = order.remaining_quantity().value() - proposed.quantity().value();
+    if (rest > 0) {
+        remaining.push_back(PendingFuturesOrder{
+            order.id(), order.request().symbol, order.request().side,
+            core::ShareAmount::from_count(rest), order.submitted_at()});
+    }
+    const auto projected = evaluate_snapshot(ledger, ledger.preview_fill(proposed), remaining, now);
+    const bool reducing = nonreversing_reduction(order, position.quantity(), other_pending);
+    if (submission_code == FuturesAdmissionCode::reduction_only && !reducing) {
+        return {FuturesAdmissionCode::reduction_conflict, projected};
+    }
+    if ((before.maintenance_breach || before.initial_breach) && !reducing) {
+        return {before.maintenance_breach ? FuturesAdmissionCode::maintenance_margin
+                                          : FuturesAdmissionCode::initial_margin, projected};
+    }
+    if (!projected.initial_breach && !projected.maintenance_breach) {
+        return {FuturesAdmissionCode::approved, projected};
+    }
+    if (reducing) return {FuturesAdmissionCode::reduction_only, projected};
+    return {projected.maintenance_breach ? FuturesAdmissionCode::maintenance_margin
+                                         : FuturesAdmissionCode::initial_margin, projected};
 }
 
 }  // namespace qte::risk

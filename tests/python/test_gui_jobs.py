@@ -391,3 +391,24 @@ def test_real_supervisor_runs_fixed_v2_cli_and_verifies_output(tmp_path, monkeyp
     assert terminal["exit_code"] == 0 and catalog.protected[-1][0] == terminal["output_path"]
     assert not (output.parent / "BROKER_SECRET_SENTINEL").exists()
     manager.close()
+
+
+def test_shutdown_closes_owner_descriptor_after_unlock_error(tmp_path, inputs_module, monkeypatch, caplog):
+    import errno
+    import fcntl
+
+    manager = JobManager(tmp_path, Catalog(), supervisor_factory=FakeSupervisor)
+    manager._open()
+    fd = manager._lock_fd
+
+    def fail_unlock(descriptor, operation):
+        assert (descriptor, operation) == (fd, fcntl.LOCK_UN)
+        raise OSError(errno.EIO, "private path")
+
+    monkeypatch.setattr(fcntl, "flock", fail_unlock)
+    manager.close()
+    assert manager._lock_fd is None
+    with pytest.raises(OSError) as error:
+        os.fstat(fd)
+    assert error.value.errno == errno.EBADF
+    assert "Job owner unlock" in caplog.text and "private path" not in caplog.text

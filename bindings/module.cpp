@@ -1,5 +1,8 @@
 #include "qte/analytics/performance.hpp"
 #include "qte/engine/backtest.hpp"
+#include "qte/research/sweep.hpp"
+#include "qte/research/european.hpp"
+#include "qte/research/condor.hpp"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -168,6 +171,30 @@ public:
 }  // namespace
 
 PYBIND11_MODULE(_core, module) {
+    module.def("condor_day", [](const std::vector<std::tuple<int, double, double>>& rows,
+                                double ratio, double vix, double distance, double wing,
+                                bool put_spread, bool stop, double iv_multiple, double half_spread, int entry)
+                                -> py::object {
+        std::vector<qte::research::CondorBar> bars;
+        bars.reserve(rows.size());
+        for (const auto& [minute, open, close] : rows) {
+            bars.push_back({minute, open, close});
+        }
+        const auto result = qte::research::condor_day(bars, ratio, vix,
+            {distance, wing, put_spread, stop, iv_multiple, half_spread, entry});
+        if (!result) {
+            return py::none();
+        }
+        using namespace py::literals;
+        return py::dict("credit"_a=result->credit, "settle"_a=result->settlement,
+                        "pnl"_a=result->pnl, "reason"_a=result->settlement ? "settle" : "stop",
+                        "shorts"_a=result->shorts, "spot"_a=result->entry_spot,
+                        "max_loss"_a=result->max_settlement_loss);
+    });
+    module.def("european_option", [](double forward, double strike, double iv, double years, bool call) {
+        const auto option = qte::research::european(forward, strike, iv, years, call);
+        return py::make_tuple(option.price, option.gamma);
+    });
     module.doc() = "QTE deterministic C++ research engine";
 
     py::register_exception<market_data::InvalidBar>(module, "InvalidBar", PyExc_ValueError);
@@ -606,4 +633,114 @@ PYBIND11_MODULE(_core, module) {
             py::gil_scoped_release release;
             return engine.run(dataset, strategy);
         }, py::arg("data"), py::arg("strategy"));
+
+    // ---- research sweep kernel (screening only; the ledger remains the accounting authority)
+    namespace rs = qte::research;
+    py::register_exception<rs::InvalidSweepInput>(module, "InvalidSweepInput", PyExc_ValueError);
+    py::enum_<rs::Family>(module, "SweepFamily")
+        .value("sigma_reversal", rs::Family::sigma_reversal)
+        .value("opening_range_breakout", rs::Family::opening_range_breakout);
+    py::enum_<rs::Sides>(module, "SweepSides")
+        .value("long_only", rs::Sides::long_only)
+        .value("short_only", rs::Sides::short_only)
+        .value("both", rs::Sides::both);
+    py::enum_<rs::ExitReason>(module, "SweepExitReason")
+        .value("time", rs::ExitReason::time)
+        .value("stop", rs::ExitReason::stop)
+        .value("target", rs::ExitReason::target)
+        .value("session_end", rs::ExitReason::session_end);
+    py::class_<rs::BarArrays>(module, "SweepBars")
+        .def(py::init([](std::int64_t interval_ns, std::vector<std::int64_t> start_ns, std::vector<double> open,
+                         std::vector<double> high, std::vector<double> low, std::vector<double> close,
+                         std::vector<double> volume, std::vector<std::int32_t> session) {
+                 rs::BarArrays b;
+                 b.interval_ns = interval_ns;
+                 b.start_ns = std::move(start_ns);
+                 b.open = std::move(open);
+                 b.high = std::move(high);
+                 b.low = std::move(low);
+                 b.close = std::move(close);
+                 b.volume = std::move(volume);
+                 b.session = std::move(session);
+                 return b;
+             }),
+             py::arg("interval_ns"), py::arg("start_ns"), py::arg("open"), py::arg("high"), py::arg("low"),
+             py::arg("close"), py::arg("volume"), py::arg("session"))
+        .def_property_readonly("size", [](const rs::BarArrays& b) { return b.start_ns.size(); })
+        .def_readonly("interval_ns", &rs::BarArrays::interval_ns);
+    py::class_<rs::SessionContext>(module, "SweepSession")
+        .def(py::init([](double anchor, double expected_move, double prior_vix, std::int32_t regime) {
+                 return rs::SessionContext{anchor, expected_move, prior_vix, regime};
+             }),
+             py::arg("anchor"), py::arg("expected_move"), py::arg("prior_vix"), py::arg("regime"))
+        .def_readonly("anchor", &rs::SessionContext::anchor)
+        .def_readonly("expected_move", &rs::SessionContext::expected_move)
+        .def_readonly("prior_vix", &rs::SessionContext::prior_vix)
+        .def_readonly("regime", &rs::SessionContext::regime);
+    py::class_<rs::FuturesCosts>(module, "FuturesCosts")
+        .def(py::init([](double point_value, double tick_size, double commission_per_side, double slippage_ticks) {
+                 return rs::FuturesCosts{point_value, tick_size, commission_per_side, slippage_ticks};
+             }),
+             py::arg("point_value"), py::arg("tick_size"), py::arg("commission_per_side"), py::arg("slippage_ticks"))
+        .def_readonly("point_value", &rs::FuturesCosts::point_value)
+        .def_readonly("tick_size", &rs::FuturesCosts::tick_size)
+        .def_readonly("commission_per_side", &rs::FuturesCosts::commission_per_side)
+        .def_readonly("slippage_ticks", &rs::FuturesCosts::slippage_ticks);
+    py::class_<rs::StrategySpec>(module, "SweepSpec")
+        .def(py::init<>())
+        .def_readwrite("family", &rs::StrategySpec::family)
+        .def_readwrite("sides", &rs::StrategySpec::sides)
+        .def_readwrite("allowed_regimes", &rs::StrategySpec::allowed_regimes)
+        .def_readwrite("allowed_regimes_long", &rs::StrategySpec::allowed_regimes_long)
+        .def_readwrite("allowed_regimes_short", &rs::StrategySpec::allowed_regimes_short)
+        .def_readwrite("min_prior_vix", &rs::StrategySpec::min_prior_vix)
+        .def_readwrite("max_prior_vix", &rs::StrategySpec::max_prior_vix)
+        .def_readwrite("bound_sigma", &rs::StrategySpec::bound_sigma)
+        .def_readwrite("touch_tolerance_sigma", &rs::StrategySpec::touch_tolerance_sigma)
+        .def_readwrite("band_window", &rs::StrategySpec::band_window)
+        .def_readwrite("band_width", &rs::StrategySpec::band_width)
+        .def_readwrite("touch_lookback", &rs::StrategySpec::touch_lookback)
+        .def_readwrite("stress_latch", &rs::StrategySpec::stress_latch)
+        .def_readwrite("range_bars", &rs::StrategySpec::range_bars)
+        .def_readwrite("max_range_sigma", &rs::StrategySpec::max_range_sigma)
+        .def_readwrite("volume_ratio", &rs::StrategySpec::volume_ratio)
+        .def_readwrite("volume_lookback", &rs::StrategySpec::volume_lookback)
+        .def_readwrite("last_entry_bar", &rs::StrategySpec::last_entry_bar)
+        .def_readwrite("stop_at_range_mid", &rs::StrategySpec::stop_at_range_mid)
+        .def_readwrite("hold_bars", &rs::StrategySpec::hold_bars)
+        .def_readwrite("stop_sigma", &rs::StrategySpec::stop_sigma)
+        .def_readwrite("target_sigma", &rs::StrategySpec::target_sigma)
+        .def_readwrite("max_trades_per_session", &rs::StrategySpec::max_trades_per_session)
+        .def_readwrite("flatten_bars_before_close", &rs::StrategySpec::flatten_bars_before_close);
+    py::class_<rs::Trade>(module, "SweepTrade")
+        .def_readonly("session", &rs::Trade::session)
+        .def_readonly("signal_ns", &rs::Trade::signal_ns)
+        .def_readonly("entry_ns", &rs::Trade::entry_ns)
+        .def_readonly("exit_ns", &rs::Trade::exit_ns)
+        .def_readonly("side", &rs::Trade::side)
+        .def_readonly("entry_price", &rs::Trade::entry_price)
+        .def_readonly("exit_price", &rs::Trade::exit_price)
+        .def_readonly("pnl", &rs::Trade::pnl)
+        .def_readonly("reason", &rs::Trade::reason);
+    py::class_<rs::RunResult>(module, "SweepResult")
+        .def_readonly("trades", &rs::RunResult::trades)
+        .def_readonly("session_pnl", &rs::RunResult::session_pnl)
+        .def_readonly("trade_count", &rs::RunResult::trade_count)
+        .def_readonly("net_pnl", &rs::RunResult::net_pnl)
+        .def_readonly("win_rate", &rs::RunResult::win_rate)
+        .def_readonly("profit_factor", &rs::RunResult::profit_factor)
+        .def_readonly("max_drawdown", &rs::RunResult::max_drawdown)
+        .def_readonly("sharpe", &rs::RunResult::sharpe);
+    module.def("sweep_validate_spec", [](const rs::StrategySpec& spec) { rs::validate(spec); }, py::arg("spec"));
+    module.def("sweep_run", [](const rs::BarArrays& bars, const std::vector<rs::SessionContext>& sessions,
+                               const rs::FuturesCosts& costs, const rs::StrategySpec& spec) {
+        py::gil_scoped_release release;
+        return rs::run(bars, sessions, costs, spec);
+    }, py::arg("bars"), py::arg("sessions"), py::arg("costs"), py::arg("spec"));
+    module.def("sweep_many", [](const rs::BarArrays& bars, const std::vector<rs::SessionContext>& sessions,
+                                const rs::FuturesCosts& costs, const std::vector<rs::StrategySpec>& specs,
+                                unsigned threads) {
+        py::gil_scoped_release release;
+        return rs::sweep(bars, sessions, costs, specs, threads);
+    }, py::arg("bars"), py::arg("sessions"), py::arg("costs"), py::arg("specs"), py::arg("threads") = 0);
 }

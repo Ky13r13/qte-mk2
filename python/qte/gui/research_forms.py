@@ -23,7 +23,10 @@ from qte.research_config import prepare_research
 from qte.strategy_lab import LAB_MAX_BARS, LAB_MAX_SEED, LAB_MIN_BARS, _CLOCKS, prepare_lab
 from qte.strategies import CandidateConfig
 from qte.strategies.candidates import FAMILIES
+from qte.strategies.volume import VOLUME_FAMILIES, VolumeConfig
+from qte.strategies.book151 import BOOK_FAMILIES, BookConfig
 from qte.synthetic import REGIMES
+from .job_inputs import SOURCE_SUFFIXES
 
 
 INLINE_CONFIG_ORIGIN = MappingProxyType({
@@ -46,6 +49,8 @@ _CANDIDATE_NUMBER_FIELDS = (
     "max_atr_fraction", "shock_fraction", "stop_atr_multiple",
 )
 _CANDIDATE_COMMON = ("allocation_fraction", "atr_period", "stop_atr_multiple", "max_holding_bars")
+_VOLUME_INTEGER_FIELDS = ("volume_period", "mfi_period", "middle_period", "channel_period")
+_VOLUME_NUMBER_FIELDS = ("relative_volume", "cmf_entry", "mfi_entry", "mfi_exit", "ibs_entry", "ibs_exit")
 _FAMILY_FIELDS = {
     "trend": _CANDIDATE_COMMON + ("fast_period", "slow_period"),
     "breakout": _CANDIDATE_COMMON + ("breakout_period", "exit_period"),
@@ -56,6 +61,15 @@ _FAMILY_FIELDS = {
     "pullback": _CANDIDATE_COMMON + ("fast_period", "slow_period"),
     "mean_reversion": _CANDIDATE_COMMON + ("slow_period", "entry_z", "max_atr_fraction"),
     "rebound": _CANDIDATE_COMMON + ("fast_period", "min_atr_fraction", "shock_fraction"),
+    "volume_breakout": _CANDIDATE_COMMON + ("breakout_period", "exit_period", "volume_period", "relative_volume"),
+    "vwma_trend": _CANDIDATE_COMMON + ("fast_period", "slow_period"),
+    "obv_confirmation": _CANDIDATE_COMMON + ("slow_period", "volume_period"),
+    "cmf_trend": _CANDIDATE_COMMON + ("slow_period", "volume_period", "cmf_entry"),
+    "mfi_reversal": _CANDIDATE_COMMON + ("mfi_period", "mfi_entry", "mfi_exit"),
+    "book_single_ma": _CANDIDATE_COMMON + ("slow_period",),
+    "book_triple_ma": _CANDIDATE_COMMON + ("fast_period", "middle_period", "slow_period"),
+    "book_channel_reversal": _CANDIDATE_COMMON + ("channel_period",),
+    "book_ibs_reversal": _CANDIDATE_COMMON + ("ibs_entry", "ibs_exit"),
 }
 
 
@@ -156,7 +170,7 @@ def _compile_candidate(section: dict[str, Any], strategy_type: str, path: str) -
     for name in _FAMILY_FIELDS[strategy_type]:
         if name not in section:
             continue
-        if name in _CANDIDATE_INTEGER_FIELDS:
+        if name in (*_CANDIDATE_INTEGER_FIELDS, *_VOLUME_INTEGER_FIELDS):
             result[name] = _integer(section[name], f"{path}.{name}", minimum=1, maximum=_UINT64_MAX)
         else:
             result[name] = _number(section[name], f"{path}.{name}")
@@ -165,13 +179,17 @@ def _compile_candidate(section: dict[str, Any], strategy_type: str, path: str) -
 
 def _compile_data(value: object) -> dict[str, Any]:
     data = _object(value, {"adapter", "path", "interval_ns", "tick_size", "currency", "action_free", "schema", "expected_sha256"}, "configuration.data")
-    _required(data, ("adapter", "path", "interval_ns"), "configuration.data")
-    adapter = _choice(data["adapter"], ("csv", "alpaca"), "configuration.data.adapter")
+    _required(data, ("adapter", "path"), "configuration.data")
+    adapter = _choice(data["adapter"], tuple(SOURCE_SUFFIXES), "configuration.data.adapter")
     typed_data: dict[str, Any] = {
         "adapter": adapter,
         "path": _text(data["path"], "configuration.data.path", maximum=1024),
-        "interval_ns": _integer(data["interval_ns"], "configuration.data.interval_ns", minimum=1, maximum=_INT64_MAX),
     }
+    if adapter == "session_bundle":
+        _object(data, {"adapter", "path", "tick_size", "expected_sha256"}, "configuration.data")
+    else:
+        _required(data, ("interval_ns",), "configuration.data")
+        typed_data["interval_ns"] = _integer(data["interval_ns"], "configuration.data.interval_ns", minimum=1, maximum=_INT64_MAX)
     if "tick_size" in data:
         typed_data["tick_size"] = _number(data["tick_size"], "configuration.data.tick_size")
     if "currency" in data:
@@ -205,9 +223,9 @@ def _compile_research(wire: object) -> dict[str, Any]:
     _required(top, ("data", "strategy", "engine"), "configuration")
     typed_data = _compile_data(top["data"])
 
-    strategy = _object(top["strategy"], {"type", "symbol", "profile", "fast_period", "slow_period", "quantity", *_CANDIDATE_INTEGER_FIELDS, *_CANDIDATE_NUMBER_FIELDS}, "configuration.strategy")
+    strategy = _object(top["strategy"], {"type", "symbol", "profile", "fast_period", "slow_period", "quantity", *_CANDIDATE_INTEGER_FIELDS, *_CANDIDATE_NUMBER_FIELDS, *_VOLUME_INTEGER_FIELDS, *_VOLUME_NUMBER_FIELDS}, "configuration.strategy")
     _required(strategy, ("type", "symbol"), "configuration.strategy")
-    strategy_type = _choice(strategy["type"], ("moving_average_regime", *FAMILIES, "macro_router"), "configuration.strategy.type")
+    strategy_type = _choice(strategy["type"], ("moving_average_regime", *FAMILIES, *VOLUME_FAMILIES, *BOOK_FAMILIES, "macro_router"), "configuration.strategy.type")
     if strategy_type == "moving_average_regime":
         strategy = _object(strategy, {"type", "symbol", "fast_period", "slow_period", "quantity"}, "configuration.strategy")
         _required(strategy, ("type", "symbol", "fast_period", "slow_period", "quantity"), "configuration.strategy")
@@ -390,11 +408,30 @@ def form_options() -> dict[str, Any]:
         "fields": {name: copy.deepcopy(candidate_fields[name]) for name in _FAMILY_FIELDS[family]},
         "hidden_defaults": {name: candidate_defaults[name] for name in candidate_defaults if name not in _FAMILY_FIELDS[family]},
     } for family in FAMILIES)
+    volume_defaults = asdict(VolumeConfig())
+    volume_defaults.pop("kind")
+    strategies.extend({
+        "type": family, "label": family.replace("_", " ").title(),
+        "exposed_fields": list(_FAMILY_FIELDS[family]),
+        "fields": {name: _field("integer_string" if name in (*_CANDIDATE_INTEGER_FIELDS, *_VOLUME_INTEGER_FIELDS) else "number",
+                                default=volume_defaults[name]) for name in _FAMILY_FIELDS[family]},
+        "hidden_defaults": {name: value for name, value in volume_defaults.items() if name not in _FAMILY_FIELDS[family]},
+    } for family in VOLUME_FAMILIES)
+    book_defaults = asdict(BookConfig())
+    book_defaults.pop("kind")
+    strategies.extend({
+        "type": family,
+        "label": family.replace("_", " ").title(),
+        "exposed_fields": list(_FAMILY_FIELDS[family]),
+        "fields": {name: _field("integer_string" if name in (*_CANDIDATE_INTEGER_FIELDS, *_VOLUME_INTEGER_FIELDS) else "number",
+                                default=book_defaults[name]) for name in _FAMILY_FIELDS[family]},
+        "hidden_defaults": {name: value for name, value in book_defaults.items() if name not in _FAMILY_FIELDS[family]},
+    } for family in BOOK_FAMILIES)
     strategies.append({"type": "macro_router", "label": "Macro router", "exposed_fields": ["profile"],
         "fields": {"profile": _field("json_text", required=True, default=json.dumps({
             "evidence": "synthetic", "candidates": [{"kind": "trend"}], "macro_observations": []}))}})
     data_fields = {
-        "data.adapter": _field("choice", required=True, choices=("csv", "alpaca")),
+        "data.adapter": _field("choice", required=True, choices=tuple(SOURCE_SUFFIXES)),
         "data.path": _field("string", required=True),
         "data.interval_ns": _field("integer_string", required=True, minimum="1", maximum=str(_INT64_MAX), unit="nanoseconds", guidance="Declared fixed bar interval; one hour is 3600000000000 ns."),
         "data.tick_size": _field("number", default=0.01),
@@ -407,11 +444,11 @@ def form_options() -> dict[str, Any]:
         "schema_version": 1,
         "config_origin": config_origin(),
         "research_run": {
-            "adapters": ["csv", "alpaca"],
+            "adapters": list(SOURCE_SUFFIXES),
             "strategies": strategies,
             "fields": {
                 **copy.deepcopy(data_fields),
-                "strategy.type": _field("choice", required=True, choices=("moving_average_regime", *FAMILIES, "macro_router")),
+                "strategy.type": _field("choice", required=True, choices=("moving_average_regime", *FAMILIES, *VOLUME_FAMILIES, *BOOK_FAMILIES, "macro_router")),
                 "strategy.symbol": _field("string", required=True),
                 "engine.initial_cash": _field("number", required=True),
                 "engine.history_capacity": _field("integer_string", default=256, minimum="1", maximum=str(_UINT64_MAX), unit="bars", guidance="Must cover the strategy warmup (at least the slow period for SMA)."),
@@ -444,7 +481,7 @@ def form_options() -> dict[str, Any]:
             },
         },
         "dataset_validate": {
-            "adapters": ["csv", "alpaca"],
+            "adapters": list(SOURCE_SUFFIXES),
             "fields": copy.deepcopy(data_fields),
             "defaults": {"data": {"tick_size": 0.01, "currency": "USD"}},
         },
@@ -528,7 +565,8 @@ def _research_assumptions(config: dict[str, Any], prepared: Any) -> list[str]:
         if router else f"Strategy {prepared.strategy_type} on {prepared.symbol} uses effective parameters {json.dumps(asdict(strategy), sort_keys=True, separators=(',', ':'))}.")
     return [
         f"Source is the captured repository input at {data['path']} using the {data['adapter']} adapter; preview cannot prove untouched data.",
-        f"Declared bars use interval_ns={data['interval_ns']}, currency={data.get('currency', 'USD')}, raw adjustment, and action-free assumptions required by the adapter.",
+        (_session_assumption(prepared) if data["adapter"] == "session_bundle" else
+         f"Declared bars use interval_ns={data['interval_ns']}, currency={data.get('currency', 'USD')}, raw adjustment, and action-free assumptions required by the adapter."),
         strategy_summary,
         f"Orders use deterministic next-open execution with commission/spread/slippage bps {costs['commission_bps']}/{costs['spread_bps']}/{costs['slippage_bps']}.",
         f"Effective risk limits are {json.dumps(risk, sort_keys=True, separators=(',', ':'))}.",
@@ -536,6 +574,12 @@ def _research_assumptions(config: dict[str, Any], prepared: Any) -> list[str]:
         f"Sampling and annualization are {sampling}; result-dependent staleness and metric validity remain runtime checks.",
         "This is one run with no optimization, selection, preregistration, or holdout claim.",
     ]
+
+
+def _session_assumption(prepared: Any) -> str:
+    dataset = prepared.loaded.dataset
+    return (f"Observed bars match the declared session buckets in {dataset.currency}. "
+            "Publication follows each UTC bar end by the bundle's declared delay.")
 
 
 def _lab_assumptions(prepared: Any) -> list[str]:
@@ -591,12 +635,14 @@ def prepare_form(kind: str, wire_config: object, data_bytes: bytes | None) -> di
             prepared = prepare_data(config, data_bytes)
             data_hash = sha256(data_bytes).hexdigest()
             data = config["data"]
-            assumptions = [
+            assumptions = ([_session_assumption(prepared),
+                "Calendar provenance and the action-free declaration come from the captured bundle.",
+                "Closures and missing observations remain gaps."] if data["adapter"] == "session_bundle" else [
                 f"Captured {data['adapter']} bytes are validated at fixed interval_ns={data['interval_ns']}.",
                 "Timestamps are UTC and bars become available at interval end.",
                 "No exchange calendar or session semantics are inferred.",
                 "Observed gaps are reported without repair or bar filling.",
-            ]
+            ])
         elif kind == "strategy_lab":
             if data_bytes is not None:
                 raise _error("data_bytes", "Synthetic labs do not accept data bytes.")

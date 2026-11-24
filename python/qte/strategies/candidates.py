@@ -141,16 +141,14 @@ def _signals(history: Sequence, config: CandidateConfig) -> tuple[bool, bool, fl
             price >= _mean(closes[-config.fast_period:]), atr)
 
 
-class CandidateStrategy(Strategy):
-    """One symbol, one pending order, next-open fills; reset on every run."""
+class _LongOnlyStrategy(Strategy):
+    """Shared lifecycle for validated price and volume candidate configurations."""
 
-    def __init__(self, symbol: str, config: CandidateConfig,
+    def __init__(self, symbol: str, config,
                  regime_filter: Callable[[int, str], bool] | None = None) -> None:
         super().__init__()
         if not isinstance(symbol, str) or not symbol.strip():
             raise ValueError("symbol must be nonempty")
-        if not isinstance(config, CandidateConfig):
-            raise TypeError("config must be CandidateConfig")
         if regime_filter is not None and not callable(regime_filter):
             raise TypeError("regime_filter must be callable")
         self.symbol = symbol
@@ -190,7 +188,7 @@ class CandidateStrategy(Strategy):
             if self._bars_seen >= self.config.history_required:
                 raise ValueError("engine history_capacity is smaller than config.history_required")
             return
-        enter, exit_, atr = _signals(history, self.config)
+        enter, exit_, atr = self._signals(history)
         if quantity > 0:
             stopped = (self._entry_price is not None and self._entry_atr is not None
                        and bar.close <= self._entry_price - self.config.stop_atr_multiple * self._entry_atr)
@@ -230,3 +228,16 @@ class CandidateStrategy(Strategy):
             self._entry_price = self._entry_atr = None
             self._holding_bars = 0
         self._pending_entry_atr = None
+
+
+class CandidateStrategy(_LongOnlyStrategy):
+    """One symbol, one pending order, next-open fills; reset on every run."""
+
+    def __init__(self, symbol: str, config: CandidateConfig,
+                 regime_filter: Callable[[int, str], bool] | None = None) -> None:
+        if not isinstance(config, CandidateConfig):
+            raise TypeError("config must be CandidateConfig")
+        super().__init__(symbol, config, regime_filter)
+
+    def _signals(self, history):
+        return _signals(history, self.config)

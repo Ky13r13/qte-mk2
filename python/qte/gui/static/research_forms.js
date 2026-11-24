@@ -385,6 +385,10 @@ export function createResearchForms(ui) {
       csvOnly.append(schemaOverrides);
       function updateAdapter() {
         const csv = dataCore.adapter.input.value === "csv";
+        const bundle = dataCore.adapter.input.value === "session_bundle";
+        dataCore.interval_ns.wrapper.hidden = bundle;
+        dataCore.interval_ns.input.disabled = bundle;
+        dataCore.currency.wrapper.hidden = bundle;
         csvOnly.hidden = !csv;
         csvOnly.disabled = !csv;
       }
@@ -400,9 +404,15 @@ export function createResearchForms(ui) {
         for (const name of ["adapter", "path", "interval_ns", "tick_size", "currency"]) {
           if (Object.hasOwn(selectedData, name)) dataCore[name].input.value = String(selectedData[name]);
         }
+        updateAdapter();
+        csvOnly.disabled = true;
+        csvOnly.hidden = true;
       }
       function readData() {
         if (selectedData) return clone(selectedData);
+        if (dataCore.adapter.input.value === "session_bundle") {
+          return readObject({ adapter: dataCore.adapter, path: dataCore.path, tick_size: dataCore.tick_size });
+        }
         const data = readObject(dataCore);
         if (data.adapter === "csv") {
           data.action_free = actionFree.read().value;

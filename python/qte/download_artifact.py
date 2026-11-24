@@ -1,6 +1,8 @@
 """Strict configuration and immutable artifacts for Alpaca historical downloads."""
 from __future__ import annotations
 
+from qte._cleanup import close_fd
+
 import argparse
 import hashlib
 import json
@@ -320,13 +322,13 @@ def _capture_output(root: Path, *, include_complete: bool = True) -> dict[str, b
                 os.close(directory_fd)
     finally:
         for descriptor, _ in pending:
-            try: os.close(descriptor)
-            except OSError: pass
+            close_fd(descriptor)
     manifest = captured.get(_MANIFEST)
     request_id = None
     if manifest is not None:
         try: request_id = _strict_json(manifest).get("request_id")
-        except (ValueError, AttributeError): pass
+        except (ValueError, AttributeError) as exc:
+            raise ValueError("download manifest is invalid") from exc
     allowed_directories = {"cache", f"cache/{request_id}"} if isinstance(request_id, str) else set()
     if directories_seen != allowed_directories:
         raise ValueError("download artifact directory inventory is invalid")

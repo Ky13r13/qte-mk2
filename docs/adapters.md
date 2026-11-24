@@ -49,3 +49,16 @@ Existing CSV/Alpaca loaders and CLI/GUI remain fixed-duration/at-end paths.
 Use [ADR 0011](adr/0011-session-calendar.md) and
 [ADR 0012](adr/0012-explicit-availability.md) for exact contracts and limits.
 Caller-declared snapshots are not official calendars or verified action coverage.
+
+## Schwab and Alpaca into the truth database (Nov 2026)
+
+`qte.truth_db` is the adapter boundary for accumulated history:
+- **Schwab:** it reads `schwab_capture` priceHistory files. These must pass a
+  response checksum, and `/ES` contract symbols such as `/ESZ26` are mapped.
+- **Alpaca:** it reads `alpaca_download` cache folders. These must pass the
+  download.json checksum, and regular versus extended hours come from the XNYS
+  calendar.
+
+Bars are stored per provider with provenance. Research reads go through
+`truth_db.daily` and `truth_db.intraday`, or through `qte search`. See
+[truth database](truth-database.md).

@@ -1,0 +1,8 @@
+{"event":"subscribed","received_utc_ns":1795204799000000000,"contracts":["SPXW  261120C06500000","SPXW  261120C06510000"]}
+{"event":"data","received_utc_ns":1795204799500000000,"message":{"data":[{"service":"LEVELONE_EQUITIES","command":"SUBS","timestamp":1795204799500,"content":[{"key":"$SPX","3":6500,"32":"Normal","35":1795204799490,"delayed":false}]}]}}
+{"event":"data","received_utc_ns":1795204799600000000,"message":{"data":[{"service":"LEVELONE_OPTIONS","command":"SUBS","timestamp":1795204799600,"content":[{"key":"SPXW  261120C06500000","2":5.45,"3":5.65,"16":8,"17":5,"33":"Normal","38":1795204799595,"delayed":false},{"key":"SPXW  261120C06510000","2":1.6,"3":1.8,"16":3,"17":4,"33":"Normal","38":1795204799595,"delayed":false}]}]}}
+{"event":"data","received_utc_ns":1795204800100000000,"message":{"data":[{"service":"LEVELONE_OPTIONS","command":"SUBS","timestamp":1795204800100,"content":[{"key":"SPXW  261120C06500000","2":5.5,"3":5.7,"16":8,"17":5,"33":"Normal","38":1795204800095,"delayed":false},{"key":"SPXW  261120C06510000","2":1.6,"3":1.8,"16":3,"17":4,"33":"Normal","38":1795204800095,"delayed":false}]}]}}
+{"event":"disconnect","received_utc_ns":1795204800400000000}
+{"event":"subscribed","received_utc_ns":1795204800500000000,"contracts":["SPXW  261120C06500000","SPXW  261120C06510000"]}
+{"event":"data","received_utc_ns":1795204800510000000,"message":{"data":[{"service":"LEVELONE_OPTIONS","command":"SUBS","timestamp":1795204800510,"content":[{"key":"SPXW  261120C06500000","2":5.5}]}]}}
+{"event":"disconnect","received_utc_ns":1795204800600000000}

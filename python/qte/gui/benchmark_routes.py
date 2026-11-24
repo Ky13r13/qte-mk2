@@ -52,7 +52,8 @@ def benchmark_detail(manager, job_id):
             raise ValueError
         result["evidence"] = shown
     except Exception:
-        pass  # Invalid/partial output and raw errors are never exposed.
+        # Keep the job visible while withholding invalid or partial evidence.
+        return result
     return result
 
 

@@ -1,5 +1,7 @@
 # GUI dependency proposal — 2026-09-23, post-boot
 
+> **Status:** Historical dependency proposal (2026-09-23); the pinned set is in requirements-gui.lock. For current capabilities see [docs/README.md](README.md).
+
 Status update, 2026-09-24: **approved and installed** in the existing `.venv`.
 The user approved the pinned packages and Sol/Terra build agents with Astra
 review. Hash-checked, wheel-only installation succeeded; imports and `pip check`

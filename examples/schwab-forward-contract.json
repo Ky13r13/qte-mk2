@@ -1,0 +1,32 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "QTE forward collector Schwab market-data allowlist",
+    "version": "2026-11-22"
+  },
+  "servers": [{"url": "https://api.schwabapi.com/marketdata/v1"}],
+  "paths": {
+    "/chains": {
+      "get": {
+        "operationId": "optionChain",
+        "parameters": [
+          {"name": "symbol", "in": "query", "required": true},
+          {"name": "contractType", "in": "query", "required": false},
+          {"name": "strikeCount", "in": "query", "required": false},
+          {"name": "includeUnderlyingQuote", "in": "query", "required": false},
+          {"name": "fromDate", "in": "query", "required": false},
+          {"name": "toDate", "in": "query", "required": false},
+          {"name": "strategy", "in": "query", "required": false}
+        ]
+      }
+    },
+    "/quotes": {
+      "get": {
+        "operationId": "quotes",
+        "parameters": [
+          {"name": "symbols", "in": "query", "required": true}
+        ]
+      }
+    }
+  }
+}

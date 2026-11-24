@@ -82,11 +82,19 @@ void admission_example(const market_data::InstrumentSpec& instrument,
     if (!after_cancel.approved()) throw std::runtime_error("cancellation did not release the budget");
     retry.open(instrument);
     std::cout << "submission: fresh buy 2 accepted after cancellation\n";
-    static_cast<void>(retry.cancel(orders::OrderCancellationReason::user_requested));
-    if (ledger.cash() != 10000 || ledger.fill_count() != 0) {
-        throw std::runtime_error("submission-only demo mutated portfolio accounting");
+    const auto proposed = orders::Fill::create(
+        core::FillId{1}, retry.id(), instrument.symbol(), orders::OrderSide::buy,
+        core::ShareAmount::from_count(1), at(5), core::EventSequence{5}, 100,
+        instrument.price_grid().canonicalize(100), 3.0, instrument.contract_multiplier());
+    const auto checked = evaluator.evaluate_fill(retry, after_cancel.code, proposed, ledger, {});
+    if (!checked.approved() || ledger.fill_count() != 0) {
+        throw std::runtime_error("funded fill preview failed");
     }
-    std::cout << "submission decisions created no fills; cash remains 10000.00\n";
+    ledger.apply_fill(proposed);
+    retry.record_fill_quantity(proposed.quantity());
+    const std::vector remainder{risk::PendingFuturesOrder::capture(retry)};
+    show("partial buy after actual fee of 3; one contract remains", ledger, evaluator, remainder, at(5));
+    static_cast<void>(retry.cancel(orders::OrderCancellationReason::user_requested));
 }
 }  // namespace
 

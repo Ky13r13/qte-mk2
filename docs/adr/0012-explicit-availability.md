@@ -3,6 +3,10 @@
 Status: R2b implemented; offline synthetic verification only. Python API access,
 not a new GUI/CLI ingestion format or verified historical calendar.
 
+Later implementation: the single-run and data-validation interfaces accept a versioned
+session bundle. The historical R2b decision below describes the earlier boundary.
+[File format, replay and charting](../research-workflow.md#declared-session-data)
+
 ## Decision
 
 Keep canonical Bar v1 unchanged: UTC signed-int64 nanoseconds, half-open

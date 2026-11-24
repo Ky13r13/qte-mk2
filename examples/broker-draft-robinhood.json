@@ -1,0 +1,11 @@
+{
+  "broker": "robinhood",
+  "account_alias": "example-only",
+  "asset": "equity",
+  "instrument": "SPY",
+  "side": "buy",
+  "position_effect": "open",
+  "quantity": 1,
+  "limit_price": "100.00",
+  "tick_size": "0.01"
+}

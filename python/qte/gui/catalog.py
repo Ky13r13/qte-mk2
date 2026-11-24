@@ -13,6 +13,7 @@ from .artifact_io import (ArtifactIOError, checked_relative, inventory,
                           inventory_fingerprint, read_stable, validate_root)
 from .artifacts import Artifact, ArtifactError, inspect_artifact, invalid_artifact, strict_json
 from .disclosures import DisclosureJournal
+from .job_inputs import SOURCE_SUFFIXES
 from .sqlite import owned_connection
 
 
@@ -343,7 +344,7 @@ class Catalog:
                 paths, hashes = (), (config_hash,)
             else:
                 adapter = getattr(prepared, "adapter", None)
-                if (not isinstance(adapter, str) or adapter not in {"csv", "alpaca"}
+                if (not isinstance(adapter, str) or adapter not in SOURCE_SUFFIXES
                         or not isinstance(getattr(prepared, "data_bytes", None), bytes)):
                     invalid()
                 paths, hashes = (data_path,), (config_hash, data_hash)
@@ -491,25 +492,39 @@ class Catalog:
                 # permanently taint validated train/validation-only files merely
                 # because their container also carries holdout data. Previously
                 # recorded protections are never erased or bypassed.
-                from .lab_views import _validated
-                first = _validated(artifact, None)
-                safe_names = set()
-                for timeframe in first["timeframes"]:
-                    model = _validated(artifact, timeframe)
-                    for window in model["safe_windows"]:
-                        name = window["name"]
-                        safe_names.add(f"{timeframe}/data/{name}.csv")
-                        for candidate in model["slate_names"]:
-                            for cost in ("base", "stress"):
-                                base = f"{timeframe}/runs/{name}--{candidate}--{cost}"
-                                safe_names.update(f"{base}/{table}.csv" for table in ("fills", "equity", "orders"))
                 hashes = artifact.metadata.get("file_hashes", {})
-                guarded_names = (artifact.protected | artifact.mixed | (set(artifact.snapshots) - artifact.known)) - safe_names
-                identities = {f"file-sha256:{hashes[name]}" for name in guarded_names if name in hashes}
+                try:
+                    safe_names = self._lab_safe_names(artifact)
+                except ArtifactError as error:
+                    if error.code not in {"artifact_invalid", "lab_view_unavailable"}:
+                        raise
+                    # Preserve catalog inspection and its diagnostic. A malformed
+                    # role map cannot exempt any file from persisted protection.
+                    identities = {f"file-sha256:{value}" for value in hashes.values()}
+                else:
+                    guarded = artifact.protected | artifact.mixed | (set(artifact.snapshots) - artifact.known)
+                    identities = {f"file-sha256:{hashes[name]}" for name in guarded - safe_names if name in hashes}
             identities.update(self._projection_protection(artifact, identities))
             self.disclosures.mark_protected(sorted(identities))
         except OSError as exc:
             raise ArtifactError("disclosure_unavailable", 503, "Disclosure storage is unavailable.") from exc
+
+    @staticmethod
+    def _lab_safe_names(artifact: Artifact) -> set[str]:
+        from .lab_views import _validated
+
+        first = _validated(artifact, None)
+        names = set()
+        for timeframe in first["timeframes"]:
+            model = first if timeframe == first["timeframe"] else _validated(artifact, timeframe)
+            for window in model["safe_windows"]:
+                name = window["name"]
+                names.add(f"{timeframe}/data/{name}.csv")
+                for candidate in model["slate_names"]:
+                    for cost in ("base", "stress"):
+                        base = f"{timeframe}/runs/{name}--{candidate}--{cost}"
+                        names.update(f"{base}/{table}.csv" for table in ("fills", "equity", "orders"))
+        return names
 
     def _projection_protection(self, artifact: Artifact, protected: set[str]) -> set[str]:
         if artifact.kind == "comparison_export_v1" and artifact.metadata.get("integrity") == "verified":

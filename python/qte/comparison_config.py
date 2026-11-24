@@ -30,6 +30,8 @@ from qte.strategies import (
     MovingAverageRegimeStrategy,
 )
 from qte.strategies.candidates import FAMILIES
+from qte.strategies.volume import VOLUME_FAMILIES, VolumeConfig, VolumeStrategy
+from qte.strategies.book151 import BOOK_FAMILIES, BookConfig, BookStrategy
 
 
 _CONFIG_LIMIT = 1024 * 1024
@@ -218,7 +220,7 @@ def _candidate(specification: object) -> dict[str, Any]:
     )
     name = _identifier(spec["name"], "candidate name")
     strategy_type = spec["type"]
-    if not isinstance(strategy_type, str) or strategy_type not in ("moving_average_regime", *FAMILIES):
+    if not isinstance(strategy_type, str) or strategy_type not in ("moving_average_regime", *FAMILIES, *VOLUME_FAMILIES, *BOOK_FAMILIES):
         raise ValueError("unsupported strategy type")
     symbol = _text(spec["symbol"], "candidate symbol", limit=64)
     eligible = spec.get("eligible", True)
@@ -228,11 +230,23 @@ def _candidate(specification: object) -> dict[str, Any]:
     if strategy_type == "moving_average_regime":
         parameters = fields(parameters, ("fast_period", "slow_period", "quantity"),
                             ("fast_period", "slow_period", "quantity"))
-        validated: MovingAverageConfig | CandidateConfig = MovingAverageConfig(**parameters)
+        validated: MovingAverageConfig | CandidateConfig | VolumeConfig = MovingAverageConfig(**parameters)
         if validated.quantity > 2**63 - 1:
             raise ValueError("quantity must fit int64")
         normalized_parameters = asdict(validated)
         history_required = validated.slow_period
+    elif strategy_type in BOOK_FAMILIES:
+        parameters = fields(parameters, set(BookConfig.__dataclass_fields__)-{"kind"})
+        validated = BookConfig(kind=strategy_type, **parameters)
+        normalized_parameters = asdict(validated)
+        normalized_parameters.pop("kind")
+        history_required = validated.history_required
+    elif strategy_type in VOLUME_FAMILIES:
+        parameters = fields(parameters, set(VolumeConfig.__dataclass_fields__)-{"kind"})
+        validated = VolumeConfig(kind=strategy_type, **parameters)
+        normalized_parameters = asdict(validated)
+        normalized_parameters.pop("kind")
+        history_required = validated.history_required
     else:
         parameters = fields(parameters, _CANDIDATE_PARAMETER_KEYS)
         validated = CandidateConfig(kind=strategy_type, **parameters)
@@ -457,11 +471,19 @@ def capture_comparison_inputs(config_path: Path) -> tuple[dict[str, Any], tuple[
     return configuration, tuple(captured)
 
 
-def _build_candidate(spec: dict[str, Any]) -> tuple[Candidate, MovingAverageConfig | CandidateConfig]:
+def _build_candidate(spec: dict[str, Any]) -> tuple[Candidate, MovingAverageConfig | CandidateConfig | VolumeConfig]:
     if spec["type"] == "moving_average_regime":
-        strategy_config: MovingAverageConfig | CandidateConfig = MovingAverageConfig(**spec["parameters"])
+        strategy_config: MovingAverageConfig | CandidateConfig | VolumeConfig = MovingAverageConfig(**spec["parameters"])
         factory = functools.partial(MovingAverageRegimeStrategy, spec["symbol"], strategy_config)
         required = strategy_config.slow_period
+    elif spec["type"] in BOOK_FAMILIES:
+        strategy_config = BookConfig(kind=spec["type"], **spec["parameters"])
+        factory = functools.partial(BookStrategy, spec["symbol"], strategy_config)
+        required = strategy_config.history_required
+    elif spec["type"] in VOLUME_FAMILIES:
+        strategy_config = VolumeConfig(kind=spec["type"], **spec["parameters"])
+        factory = functools.partial(VolumeStrategy, spec["symbol"], strategy_config)
+        required = strategy_config.history_required
     else:
         strategy_config = CandidateConfig(kind=spec["type"], **spec["parameters"])
         factory = functools.partial(CandidateStrategy, spec["symbol"], strategy_config)

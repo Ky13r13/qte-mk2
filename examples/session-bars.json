@@ -1,0 +1,143 @@
+{
+  "schema": "qte-session-bundle-v1",
+  "source_id": "synthetic-session-demo-v1",
+  "schedule": {
+    "coverage_start": "2025-11-26",
+    "coverage_end": "2025-11-28",
+    "source_id": "invented-us-etf-hours-v1",
+    "source_sha256": "f9d1432aa9f73dee737442d86d2cddfe969a5fff4149114cdd24a3380cc92e0e",
+    "evidence": "synthetic",
+    "days": [
+      {
+        "trading_date": "2025-11-26",
+        "open_ns": 1764167400000000000,
+        "close_ns": 1764190800000000000
+      },
+      {
+        "trading_date": "2025-11-27",
+        "open_ns": null,
+        "close_ns": null
+      },
+      {
+        "trading_date": "2025-11-28",
+        "open_ns": 1764340200000000000,
+        "close_ns": 1764352800000000000
+      }
+    ]
+  },
+  "kind": "hourly",
+  "publication_delay_ns": 1000000000,
+  "action_free": true,
+  "bars": [
+    {
+      "symbol": "SPY",
+      "start_ns": 1764167400000000000,
+      "end_ns": 1764171000000000000,
+      "open": 100,
+      "high": 101,
+      "low": 99,
+      "close": 100.5,
+      "volume": 1000
+    },
+    {
+      "symbol": "SPY",
+      "start_ns": 1764171000000000000,
+      "end_ns": 1764174600000000000,
+      "open": 101,
+      "high": 102,
+      "low": 100,
+      "close": 101.5,
+      "volume": 1000
+    },
+    {
+      "symbol": "SPY",
+      "start_ns": 1764174600000000000,
+      "end_ns": 1764178200000000000,
+      "open": 102,
+      "high": 103,
+      "low": 101,
+      "close": 102.5,
+      "volume": 1000
+    },
+    {
+      "symbol": "SPY",
+      "start_ns": 1764178200000000000,
+      "end_ns": 1764181800000000000,
+      "open": 103,
+      "high": 104,
+      "low": 102,
+      "close": 103.5,
+      "volume": 1000
+    },
+    {
+      "symbol": "SPY",
+      "start_ns": 1764181800000000000,
+      "end_ns": 1764185400000000000,
+      "open": 104,
+      "high": 105,
+      "low": 103,
+      "close": 104.5,
+      "volume": 1000
+    },
+    {
+      "symbol": "SPY",
+      "start_ns": 1764185400000000000,
+      "end_ns": 1764189000000000000,
+      "open": 105,
+      "high": 106,
+      "low": 104,
+      "close": 105.5,
+      "volume": 1000
+    },
+    {
+      "symbol": "SPY",
+      "start_ns": 1764189000000000000,
+      "end_ns": 1764190800000000000,
+      "open": 106,
+      "high": 107,
+      "low": 105,
+      "close": 106.5,
+      "volume": 1000
+    },
+    {
+      "symbol": "SPY",
+      "start_ns": 1764340200000000000,
+      "end_ns": 1764343800000000000,
+      "open": 107,
+      "high": 108,
+      "low": 106,
+      "close": 107.5,
+      "volume": 1000
+    },
+    {
+      "symbol": "SPY",
+      "start_ns": 1764343800000000000,
+      "end_ns": 1764347400000000000,
+      "open": 108,
+      "high": 109,
+      "low": 107,
+      "close": 108.5,
+      "volume": 1000
+    },
+    {
+      "symbol": "SPY",
+      "start_ns": 1764347400000000000,
+      "end_ns": 1764351000000000000,
+      "open": 109,
+      "high": 110,
+      "low": 108,
+      "close": 109.5,
+      "volume": 1000
+    },
+    {
+      "symbol": "SPY",
+      "start_ns": 1764351000000000000,
+      "end_ns": 1764352800000000000,
+      "open": 110,
+      "high": 111,
+      "low": 109,
+      "close": 110.5,
+      "volume": 1000
+    }
+  ]
+}

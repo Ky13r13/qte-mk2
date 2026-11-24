@@ -6,6 +6,8 @@ test-job specification supplies the complete list for each identity group.
 
 from __future__ import annotations
 
+from qte._cleanup import close_fd
+
 from hashlib import sha256
 import os
 from pathlib import Path
@@ -90,10 +92,7 @@ def _snapshot(root: Path, relative: str, limit: int) -> Snapshot:
         raise _error() from None
     finally:
         for descriptor in reversed(descriptors):
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
+            close_fd(descriptor)
 
 
 def _limit(group: str) -> int:

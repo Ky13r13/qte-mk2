@@ -47,7 +47,7 @@ and never included in error output. Redirects are disabled. Example:
 .venv/bin/python -m qte download-alpaca \
   --symbols SPY --timeframe 1Hour --feed iex \
   --start 2024-01-02T14:00:00Z --end 2024-01-02T21:00:00Z \
-  --action-free --cache-dir .cache/alpaca
+  --action-free --cache-dir data/truth/captures/alpaca
 ```
 
 `--action-free` is an explicit declaration the user must verify. The tool does
@@ -78,7 +78,7 @@ the environment had no credentials.
 This measures synthetic data construction/preflight and replay separately using
 a no-op Python strategy. It reports code identity and bars/second. Results are
 machine/build/workload dependent; they do not validate historical trading merit.
-Real-history benchmarking remains pending authenticated data acquisition.
+Authenticated acquisition works (2026-11-24): SPY/QQQ 5-minute bars 2016–2026 were downloaded and loaded into the [truth database](truth-database.md). Download one calendar year per request, because the downloader rejects combined files over 32 MiB.
 
 ## Paper coordination
 
@@ -89,3 +89,31 @@ execution IDs must come from the eventual durable accounting bridge. A heartbeat
 may be advanced only on confirmed transport health. Lease recovery is an explicit
 operator action after the former owner has stopped; it persistently halts trading
 until reconciliation and an explicit halt clear succeed.
+
+## Declared session data
+
+`qte run` and `qte validate-data` accept a single captured JSON file with
+`data.adapter = "session_bundle"`. The GUI offers the same adapter under
+Research and Data. Try the included synthetic session, closure and early close.
+
+```sh
+.venv/bin/python -m qte run --config examples/session-run.json --export-version 2 --output build/my-session-run
+```
+
+Register `build/my-session-run` in Research to view its candles and fills.
+The input is raw, action-free USD equity OHLCV with share volume. Every
+calendar date in the declared coverage has either an open and close or two
+nulls. Each bar must exactly match a daily or open-anchored hourly bucket.
+The final hourly bucket may be short. Publish each bar at its physical end
+plus the declared nanosecond delay. The chart file retains both clocks.
+Sampling accepts an explicit grid spanning the first opening through final
+publication. Choose the staleness bound and annualization convention for that
+grid. Fixed-window comparisons still require their existing fixed interval.
+
+For a historical export from `exchange_calendars`, select the venue, pin the
+source version and coverage, and retain its original bytes and hash. Read its
+UTC open and close for each declared session. Use an explicit closure for
+each confirmed non-session within coverage. Check breaks before adapting a
+venue to this one-session-per-day profile. The example file shows every
+required field. [Session bundle](../examples/session-bars.json) ·
+[exchange_calendars schedule API](https://github.com/gerrymanoim/exchange_calendars)

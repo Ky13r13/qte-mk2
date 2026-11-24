@@ -1,6 +1,8 @@
 """Durable, single-run local research job scheduler."""
 from __future__ import annotations
 
+from qte._cleanup import close_fd, report_os_error
+
 from contextlib import contextmanager
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
@@ -71,6 +73,15 @@ def _fingerprint(kind: str, prepared, timeout: int) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _release_owner_lock(fd: int) -> None:
+    try:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+    except OSError as error:
+        report_os_error("Job owner unlock", error)
+    finally:
+        close_fd(fd)
+
+
 class RunningJob:
     def __init__(self, process: subprocess.Popen, liveness: int, cancel: int, result: int) -> None:
         self.process, self._liveness, self._cancel, self._result = process, liveness, cancel, result
@@ -85,18 +96,19 @@ class RunningJob:
             if fd < 0:
                 return
             try: os.write(fd, b"x")
-            except OSError: pass
+            except BrokenPipeError:
+                return  # The worker exited before receiving cancellation.
+            except OSError as error:
+                report_os_error("Job cancellation signal", error)
             finally:
-                try: os.close(fd)
-                except OSError: pass
+                close_fd(fd)
 
     def close_owner(self) -> None:
         with self._fd_guard:
             fd, self._liveness = self._liveness, -1
             if fd < 0:
                 return
-            try: os.close(fd)
-            except OSError: pass
+            close_fd(fd)
 
     def _take_descriptors(self) -> tuple[int, int, int]:
         with self._fd_guard:
@@ -119,8 +131,7 @@ class RunningJob:
             return _worker_protocol_error()
         finally:
             for fd in self._take_descriptors():
-                try: os.close(fd)
-                except OSError: pass
+                close_fd(fd)
 
 
 def _worker_protocol_error() -> dict:
@@ -164,8 +175,7 @@ class Supervisor:
                 close_fds=True, pass_fds=(parent_r, cancel_r, result_w, self.lock_fd))
         except Exception:
             for fd in (parent_r, parent_w, cancel_r, cancel_w, result_r, result_w):
-                try: os.close(fd)
-                except OSError: pass
+                close_fd(fd)
             raise
         for fd in (parent_r, cancel_r, result_w): os.close(fd)
         return RunningJob(process, parent_w, cancel_w, result_r)
@@ -231,10 +241,7 @@ class JobManager:
                 self._opened = False
                 self._thread = None
                 self._lock_fd = None
-                try: fcntl.flock(lock_fd, fcntl.LOCK_UN)
-                except OSError: pass
-                try: os.close(lock_fd)
-                except OSError: pass
+                _release_owner_lock(lock_fd)
                 raise
 
     def _ensure_storage(self) -> None:
@@ -607,7 +614,7 @@ class JobManager:
                 self._active[1].cancel(); self._active[1].close_owner()
             self._condition.notify_all()
         if self._thread: self._thread.join(timeout=10)
-        if self._lock_fd is not None and (self._thread is None or not self._thread.is_alive()):
-            try: fcntl.flock(self._lock_fd, fcntl.LOCK_UN); os.close(self._lock_fd)
-            except OSError: pass
-            self._lock_fd = None
+        with self._condition:
+            if self._lock_fd is not None and (self._thread is None or not self._thread.is_alive()):
+                fd, self._lock_fd = self._lock_fd, None
+                _release_owner_lock(fd)

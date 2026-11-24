@@ -6,6 +6,8 @@ This detects concurrent changes; it is not an atomic filesystem snapshot.
 """
 from __future__ import annotations
 
+from qte._cleanup import report_os_error
+
 from contextlib import contextmanager
 from dataclasses import dataclass
 import os
@@ -72,15 +74,15 @@ def _canonical(api, handle) -> str:
 def _close(api, handle) -> None:
     try:
         api.close(handle)
-    except OSError:
-        pass
+    except OSError as error:
+        report_os_error("Windows resource close", error)
 
 
 def _close_entries(entries) -> None:
     try:
         entries.close()
-    except OSError:
-        pass
+    except OSError as error:
+        report_os_error("Windows resource close", error)
 
 
 @contextmanager
@@ -112,7 +114,7 @@ def _allowed_name(name: str) -> None:
 def _validate_root(repository: str, relative: str, api) -> str:
     rel = checked_relative(relative)
     if (rel.as_posix() != relative or rel.parts[0] != "build" or len(rel.parts) < 2
-            or rel.parts[1] in {"local-dev", "python-package"}
+            or rel.parts[1] in {"local-dev", "python-package", "qte-agents"}
             or (rel.parts[1] == "gui" and not (
                 len(rel.parts) >= 5 and rel.parts[2] == "jobs" and rel.parts[4] == "artifacts"))):
         raise ArtifactIOError("artifact root is not allowed")

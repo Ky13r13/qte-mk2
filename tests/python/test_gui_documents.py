@@ -133,6 +133,20 @@ def test_session_calendar_contract_is_registered_and_linked():
     assert '/library/adr-0008' in document["rendered_html"]
 
 
+def test_user_guides_link_to_registered_broker_research_and_data_sources():
+    library = DocumentLibrary(Path(__file__).parents[2])
+    for guide, targets in {
+        "readme": ("adapters",),
+        "gui-usage": ("gui-test-evidence", "gui-benchmarks"),
+        "broker-connections": ("broker-order-staging", "tick-data-acquisition"),
+        "book151": ("book151-historical-results", "book151-schwab-timeframes"),
+    }.items():
+        html = library.render(guide)["rendered_html"]
+        for target in targets:
+            assert f'href="/library/{target}' in html
+            assert library.render(target)["document"]["availability"] == "available"
+
+
 def test_explicit_availability_contract_is_registered_and_linked():
     library = DocumentLibrary(Path(__file__).parents[2])
     document = library.render("adr-0012")

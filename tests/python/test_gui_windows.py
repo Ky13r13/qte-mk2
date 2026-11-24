@@ -162,6 +162,7 @@ def test_limited_app_never_imports_linux_jobs_and_has_authenticated_fail_closed_
                 assert (await client.get("/api/v1/connections", headers=headers)).status_code == 200
                 for path in ("jobs", "catalog/register", "artifacts/id/files", "runs/id",
                              "datasets/id", "comparisons/preview", "configs/validate",
+                             "book151-study/index", "regime-study/summary",
                              "data/alpaca/prerequisites", "system/tests/jobs", "system/benchmarks/jobs"):
                     response = await client.get(f"/api/v1/{path}", headers=headers)
                     assert response.status_code == 503

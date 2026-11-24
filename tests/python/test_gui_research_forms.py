@@ -66,14 +66,18 @@ def test_origin_and_options_are_fixed_registry_derived_metadata():
 
     options = form_options()
     from qte.gui.research_forms import _FAMILY_FIELDS
-    assert tuple(_FAMILY_FIELDS) == FAMILIES
+    from qte.strategies.volume import VOLUME_FAMILIES, VolumeConfig
+    from qte.strategies.book151 import BOOK_FAMILIES, BookConfig
+    assert tuple(_FAMILY_FIELDS) == (*FAMILIES, *VOLUME_FAMILIES, *BOOK_FAMILIES)
     strategies = options["research_run"]["strategies"]
-    assert tuple(value["type"] for value in strategies) == ("moving_average_regime", *FAMILIES, "macro_router")
+    assert tuple(value["type"] for value in strategies) == ("moving_average_regime", *FAMILIES, *VOLUME_FAMILIES, *BOOK_FAMILIES, "macro_router")
     assert strategies[-1]["fields"]["profile"]["type"] == "json_text"
     assert strategies[-1]["fields"]["profile"]["required"] is True
     defaults = asdict(CandidateConfig())
     defaults.pop("kind")
-    for value, family in zip(strategies[1:-1], FAMILIES, strict=True):
+    for value, family in zip(strategies[1:-1], (*FAMILIES, *VOLUME_FAMILIES, *BOOK_FAMILIES), strict=True):
+        defaults = asdict(BookConfig()) if family in BOOK_FAMILIES else asdict(VolumeConfig()) if family in VOLUME_FAMILIES else asdict(CandidateConfig())
+        defaults.pop("kind")
         assert value["type"] == family
         assert set(value["exposed_fields"]) == set(value["fields"])
         assert set(value["fields"]) | set(value["hidden_defaults"]) == set(defaults)
@@ -81,6 +85,8 @@ def test_origin_and_options_are_fixed_registry_derived_metadata():
             name: item for name, item in defaults.items() if name not in value["exposed_fields"]
         }
     assert options["strategy_lab"]["families"] == list(FAMILIES)
+    defaults = asdict(CandidateConfig())
+    defaults.pop("kind")
     assert set(options["strategy_lab"]["strategy_parameter_fields"]) == set(defaults)
     assert options["strategy_lab"]["regimes"] == list(REGIMES)
     assert options["research_run"]["fields"]["engine.random_seed"]["type"] == "integer_string"

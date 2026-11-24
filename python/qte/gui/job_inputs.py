@@ -1,6 +1,8 @@
 """Bounded, immutable input snapshots for the fixed local research job."""
 from __future__ import annotations
 
+from qte._cleanup import close_fd
+
 from dataclasses import dataclass
 from hashlib import sha256
 import copy
@@ -15,9 +17,10 @@ from .artifacts import strict_json
 
 CONFIG_LIMIT = 1024 * 1024
 DATA_LIMIT = 16 * 1024 * 1024
+SOURCE_SUFFIXES = {"csv": ".csv", "alpaca": ".json", "session_bundle": ".json"}
 _SENSITIVE_SUFFIXES = {".db", ".sqlite", ".sqlite3", ".pem", ".key"}
 _ALLOWED_ROOTS = {"examples", "configs", "data", "build"}
-_RESERVED_BUILD = {"gui", "local-dev", "python-package"}
+_RESERVED_BUILD = {"gui", "local-dev", "python-package", "qte-agents"}
 _JOB_ID = re.compile(r"[0-9a-f]{32}")
 _READ_FLAGS = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
 _DIRECTORY_FLAGS = _READ_FLAGS | getattr(os, "O_DIRECTORY", 0)
@@ -168,10 +171,7 @@ def _read_regular(repository: Path, relative: str, limit: int) -> bytes:
         raise _error("forbidden") from None
     finally:
         for fd in reversed(descriptors):
-            try:
-                os.close(fd)
-            except OSError:
-                pass
+            close_fd(fd)
 
 
 def _digest(value: bytes) -> str:
@@ -203,18 +203,18 @@ def collect_inputs(repository: Path, config_path: str) -> PreparedInputs:
         raise _error("invalid")
     data = config["data"]
     adapter, data_value = data.get("adapter"), data.get("path")
-    if not isinstance(adapter, str) or adapter not in {"csv", "alpaca"} or not isinstance(data_value, str):
+    if not isinstance(adapter, str) or adapter not in SOURCE_SUFFIXES or not isinstance(data_value, str):
         raise _error("invalid")
     data_parts = _data_parts(config_parts, data_value)
     data_suffix = PurePosixPath(data_parts[-1]).suffix.casefold()
-    if (adapter == "csv" and data_suffix != ".csv") or (adapter == "alpaca" and data_suffix != ".json"):
+    if data_suffix != SOURCE_SUFFIXES[adapter]:
         raise _error("invalid")
     original_data_path = _relative(data_parts)
     data_bytes = _read_regular(repository, original_data_path, DATA_LIMIT)
     canonical = copy.deepcopy(config)
     canonical["data"]["path"] = original_data_path
     canonical_config = _canonical(canonical)
-    copied_name = "input.csv" if adapter == "csv" else "input.json"
+    copied_name = "input" + SOURCE_SUFFIXES[adapter]
     effective = copy.deepcopy(canonical)
     effective["data"]["path"] = copied_name
     effective_bytes = _canonical(effective)
@@ -272,13 +272,11 @@ def _job_inputs_fd(repository: Path, job_id: str, *, create: bool) -> tuple[list
         return descriptors, current
     except JobInputError:
         for fd in reversed(descriptors):
-            try: os.close(fd)
-            except OSError: pass
+            close_fd(fd)
         raise
     except OSError:
         for fd in reversed(descriptors):
-            try: os.close(fd)
-            except OSError: pass
+            close_fd(fd)
         raise _error("snapshot") from None
 
 
@@ -319,11 +317,11 @@ def write_snapshot(repository: Path, job_id: str, prepared: PreparedInputs) -> S
         if isinstance(prepared, PreparedInlineInputs):
             return write_inline_snapshot(repository, job_id, prepared)
         raise _error("invalid")
-    data_name = "input.csv" if prepared.adapter == "csv" else "input.json" if prepared.adapter == "alpaca" else None
-    if data_name is None or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+    if not isinstance(prepared.adapter, str) or prepared.adapter not in SOURCE_SUFFIXES or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
                                for value in (prepared.config_sha256, prepared.data_sha256,
                                              prepared.canonical_config_sha256, prepared.fingerprint)):
         raise _error("invalid")
+    data_name = "input" + SOURCE_SUFFIXES[prepared.adapter]
     descriptors, inputs_fd = _job_inputs_fd(Path(repository), job_id, create=True)
     try:
         content_hashes = {"original-config.json": _digest(prepared.config_bytes),
@@ -341,8 +339,7 @@ def write_snapshot(repository: Path, job_id: str, prepared: PreparedInputs) -> S
         os.fchmod(inputs_fd, 0o500)
     finally:
         for fd in reversed(descriptors):
-            try: os.close(fd)
-            except OSError: pass
+            close_fd(fd)
     root = f"build/gui/jobs/{job_id}/inputs"
     hashes = {"config_sha256": prepared.config_sha256, "data_sha256": prepared.data_sha256,
               "canonical_config_sha256": prepared.canonical_config_sha256,
@@ -396,7 +393,8 @@ def verify_snapshot(repository: Path, job_id: str, expected_snapshot_hashes: dic
         if (not isinstance(manifest, dict) or set(manifest) != {"schema_version", "job_id", "adapter",
                 "original_config_path", "original_data_path", "canonical_config_sha256", "fingerprint", "hashes"}
                 or manifest.get("schema_version") != 1 or manifest.get("job_id") != job_id
-                or manifest.get("adapter") not in {"csv", "alpaca"} or not isinstance(manifest.get("hashes"), dict)):
+                or not isinstance(manifest.get("adapter"), str) or manifest["adapter"] not in SOURCE_SUFFIXES
+                or data_name != "input" + SOURCE_SUFFIXES[manifest["adapter"]] or not isinstance(manifest.get("hashes"), dict)):
             raise _error("snapshot")
         content_hashes = {name: actual[name] for name in expected_names - {"input-manifest.json"}}
         if manifest["hashes"] != content_hashes:
@@ -417,5 +415,4 @@ def verify_snapshot(repository: Path, job_id: str, expected_snapshot_hashes: dic
         raise
     finally:
         for fd in reversed(descriptors):
-            try: os.close(fd)
-            except OSError: pass
+            close_fd(fd)

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
+
+from qte._cleanup import close_fd
+
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -90,10 +94,7 @@ class DisclosureJournal:
             try:
                 stream = os.fdopen(fd, "w", encoding="utf-8")
             except BaseException as error:
-                try:
-                    os.close(fd)
-                except OSError:
-                    pass
+                close_fd(fd)
                 fd = None
                 raise error
             fd = None
@@ -119,9 +120,8 @@ class DisclosureJournal:
                         raise
             if created:
                 try:
-                    os.unlink(temporary, dir_fd=directory)
-                except FileNotFoundError:
-                    pass
+                    with suppress(FileNotFoundError):
+                        os.unlink(temporary, dir_fd=directory)
                 except OSError:
                     if primary is None:
                         raise
@@ -196,8 +196,7 @@ class DisclosureJournal:
             return False
         finally:
             if fd is not None:
-                try: os.close(fd)
-                except OSError: pass
+                close_fd(fd)
         return self._matches(value, identity, event)
 
     @staticmethod

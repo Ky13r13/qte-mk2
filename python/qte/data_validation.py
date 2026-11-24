@@ -11,8 +11,9 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from qte.adapters.common import AdapterResult
+from qte.json_input import strict_json
 from qte.provenance import source_identity
-from qte.research_config import _load_data, _preflight_capture, fields
+from qte.research_config import _load_data, _preflight_capture, data_fields, fields
 
 
 _MANIFEST = "dataset_validation.json"
@@ -30,17 +31,13 @@ class PreparedData:
 
 def _data_section(configuration: dict[str, Any]) -> dict[str, Any]:
     fields(configuration, ("data",), ("data",))
-    return fields(
-        configuration["data"],
-        ("adapter", "path", "interval_ns", "tick_size", "currency", "action_free", "schema", "expected_sha256"),
-        ("adapter", "path", "interval_ns"),
-    )
+    return data_fields(configuration["data"])
 
 
 def capture_data_inputs(config_path: Path) -> tuple[dict[str, Any], bytes]:
     """Read one validation config and its referenced source exactly once each."""
     path = Path(config_path)
-    configuration = json.loads(path.read_text(encoding="utf-8"))
+    configuration = strict_json(path.read_bytes())
     data = _data_section(configuration)
     _preflight_capture(data)
     return configuration, (path.parent / data["path"]).read_bytes()
@@ -103,6 +100,17 @@ def _values(prepared: PreparedData, copied_name: str) -> tuple[dict[str, Any], d
             *provenance["assumptions"],
         ],
     }
+    if dataset.timing_policy == "explicit_availability_v1":
+        summary["availability"].update(
+            bar_interval="declared_session_buckets", available_at="end_plus_declared_delay",
+            timing_source_id=dataset.timing_source_id, observation_end_ns=dataset.observation_end_ns,
+            replay_end_ns=dataset.end_ns,
+        )
+        summary["assumptions"] = [
+            "Every observed interval matches a caller-declared session bucket.",
+            "Physical gaps include closures. No missing bar is synthesized.",
+            *provenance["assumptions"],
+        ]
     return manifest, configuration, summary
 
 

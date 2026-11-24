@@ -1,5 +1,8 @@
 # QTE architecture and decision index
 
+> Current capability map: [docs/README.md](README.md). The baseline below describes
+> the engine foundation. Additions since October are listed under *Additions (Nov 2026)*.
+
 ## Status and baseline
 
 These are the implementation decisions for the first research release. The
@@ -35,7 +38,7 @@ integrates strategy commands, risk, open-only execution, atomic accounting,
 multi-symbol marks, audit logs, closed and open trade episodes, and a reproducible
 run manifest. Pure analytics now derives unannualized results and explicitly
 configured regular-grid annualized metrics, preserving undefined reasons.
-Fifteen CTest executables cover the foundation through analytics. The optional
+CTest executables (21 as of 2026-11-24) cover the foundation through analytics, futures accounting and the research sweep kernel. The optional
 pybind11 package exposes owned values, typed configuration/results, exact
 nanosecond conversion, synchronous Python strategies, and explicit GIL/lifetime
 handling. Offline Alpaca and explicitly mapped CSV adapters normalize saved
@@ -61,8 +64,9 @@ operations still require explicit user direction.
   additional eligibility check belongs to dataset preflight, not Bar validation.
 - Use unadjusted bars and a declared action-free interval initially. Unknown
   adjustment/action coverage fails preflight. Corporate actions, FX, borrow costs,
-  interest, settlement delays, margin calls, live revisions and exchange calendars
-  are unsupported. User declarations are recorded assumptions, not proof.
+  interest, settlement delays, margin calls and live revisions are unsupported in
+  the engine. XNYS calendars are imported in the Python layer (`exchange_calendars`)
+  for session hours and early closes (ADR 0011). User declarations are recorded assumptions, not proof.
 - Long-only by default; opt-in shorts use the accounting below, with an explicit
   assumption of borrow availability. Gross exposure is limited to equity by
   default. Results from this profile are research simulations, not paper trading.
@@ -79,6 +83,7 @@ operations still require explicit user direction.
 | `strategy` | Lifecycle, intent submission, read-only context contract | Broker or mutable ledger access |
 | `engine` | Clock, order registry, sequence allocation, commit coordination, results | Duplicated accounting, strategy-specific logic |
 | `analytics` | Derived metrics from immutable results | Execution decisions |
+| `research` | Parameter-sweep screening over bar arrays (`sweep.hpp`) | Portfolio accounting, promotion decisions |
 | Python package | Bindings, config, research, plotting, adapters | An alternative accounting implementation |
 
 Use one C++ library initially with separate headers/sources as components land.
@@ -100,6 +105,21 @@ introduce an event bus, dependency-injection framework, or broker SDK dependency
 10. [Local research library/UI boundary — proposed](adr/0010-local-research-ui.md)
 11. [Explicit offline session schedules](adr/0011-session-calendar.md)
 12. [Explicit availability and session replay](adr/0012-explicit-availability.md)
+13. [Derivative accounting before derivative replay](adr/0013-derivative-research-foundation.md)
+
+## Additions (Nov 2026)
+
+| Component | Where | Role and boundary |
+|---|---|---|
+| Futures accounting | `include/qte/risk/futures_*.hpp`, `src/portfolio/settlement.cpp` | Margin, variation settlement, fill admission and pending-order lifecycle. Not yet wired into `BacktestEngine` (ADR 0013). |
+| Research sweep kernel | `include/qte/research/sweep.hpp` | Multithreaded single-contract futures **screening**. It isn't an accounting authority: candidates must be re-run through the ledger and engine before promotion. |
+| Truth database | `python/qte/truth_db.py` | The SQLite store of all provider bars with provenance. An adapter-boundary component: the core never reads it directly. |
+| Strategy search | `python/qte/search.py` | Locked splits, trial registry, deflated leaderboard. `qte search agent-tool` is a JSON stdin/stdout adapter for agent frameworks (the glass agents integration was removed on 2026-11-24). |
+| Signal engine | `python/qte/signal_engine.py` | Causal live and replay signals. It is the Python reference implementation, and the C++ kernel has parity tests against it. |
+| Brokers | `python/qte/brokers/` | Schwab OAuth, read-only REST, streaming recorder, local order staging. Nothing transmits orders. |
+
+New numeric engines are written in C++ with a Python reference implementation and
+parity tests (see `AGENTS.md`).
 
 The [roadmap](roadmap.md) maps these contracts to independently testable changes.
 The [GUI architecture](gui-architecture.md) defines the minimal localhost

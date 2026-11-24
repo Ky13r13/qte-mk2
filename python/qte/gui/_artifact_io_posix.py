@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from qte._cleanup import close_fd
+
 import os
 from pathlib import Path, PurePosixPath
 import stat
@@ -26,7 +28,7 @@ def validate_root(repository: Path, relative: str) -> Path:
     rel = checked_relative(relative)
     if rel.parts[0] != "build" or len(rel.parts) < 2 or any(p.startswith(".") for p in rel.parts):
         raise ArtifactIOError("artifact root is not allowed")
-    if rel.parts[1] in {"local-dev", "python-package"}:
+    if rel.parts[1] in {"local-dev", "python-package", "qte-agents"}:
         raise ArtifactIOError("artifact root is reserved")
     if rel.parts[1] == "gui" and not (len(rel.parts) >= 5 and rel.parts[2] == "jobs" and rel.parts[4] == "artifacts"):
         raise ArtifactIOError("GUI state is not an artifact root")
@@ -75,8 +77,7 @@ def inventory(root: Path) -> dict[str, Snapshot]:
         raise ArtifactIOError("artifact inventory is unavailable") from exc
     finally:
         for directory_fd, _ in pending:
-            try: os.close(directory_fd)
-            except OSError: pass
+            close_fd(directory_fd)
     return dict(sorted(result.items()))
 
 
@@ -117,7 +118,4 @@ def read_stable(root: Path, relative: str, limit: int = FILE_LIMIT,
         raise ArtifactIOError("artifact file is unavailable") from exc
     finally:
         for fd in reversed(descriptors):
-            try:
-                os.close(fd)
-            except OSError:
-                pass
+            close_fd(fd)

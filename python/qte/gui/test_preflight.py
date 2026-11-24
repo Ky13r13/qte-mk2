@@ -6,6 +6,8 @@ graph or proof that a C++ binary was built from the captured source.
 
 from __future__ import annotations
 
+from contextlib import suppress
+
 import ast
 from dataclasses import dataclass
 import importlib.metadata
@@ -369,9 +371,8 @@ def _run_fixed(repository: Path, argv: tuple[str, ...]) -> tuple[bytes, bytes]:
             # Timeout, failed setup after spawn, and surviving descendants all
             # need cleanup; a leader exit alone does not close its whole group.
             try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+                with suppress(ProcessLookupError):
+                    os.killpg(process.pid, signal.SIGKILL)
             finally:
                 process.wait()
                 for stream in (process.stdout, process.stderr):

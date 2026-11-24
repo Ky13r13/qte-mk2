@@ -1,0 +1,20 @@
+{
+  "data": {
+    "adapter": "csv",
+    "path": "volume-bars.csv",
+    "interval_ns": 3600000000000,
+    "action_free": true
+  },
+  "strategy": {
+    "type": "vwma_trend",
+    "symbol": "SPY"
+  },
+  "engine": {
+    "initial_cash": 100000
+  },
+  "execution": {
+    "commission_bps": 1,
+    "spread_bps": 2,
+    "slippage_bps": 1
+  }
+}

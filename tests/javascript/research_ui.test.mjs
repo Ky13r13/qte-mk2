@@ -14,10 +14,13 @@ const metadata = JSON.parse(execFileSync(resolve(root, '.venv/bin/python'), ['-c
 // Match the route's control-plane version restoration after exact-value DTOs.
 metadata.schema_version = 1;
 metadata.config_origin.form_schema_version = 1;
-const loadModule = async name => import('data:text/javascript;base64,' + Buffer.from(
-  await readFile(resolve(root, 'python/qte/gui/static', name))).toString('base64'));
+const moduleSource = name => readFile(resolve(root, 'python/qte/gui/static', name), 'utf8');
+const moduleURL = source => 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+const loadModule = async name => import(moduleURL(await moduleSource(name)));
 const { createResearchForms } = await loadModule('research_forms.js');
 const { createResearchJobs } = await loadModule('research_jobs.js');
+const { createAgentResearch } = await import(moduleURL((await moduleSource('agent_research.js'))
+  .replace('./weekly_reversal_report.js', moduleURL(await moduleSource('weekly_reversal_report.js')))));
 let focused = null;
 class Node {
   constructor(tag, attrs = {}, children = []) {
@@ -101,6 +104,65 @@ async function runForm(h) {
 }
 async function preview(h) { await h.nodes().find(n => n.tagName === 'FORM').emit('submit'); await flush(); }
 afterEach(() => { delete globalThis.document; focused = null; });
+
+test('five-agent research starts offline by default and sends only explicitly selected roles', async () => {
+  const completed = { id: 'run-1', state: 'completed', roles: [], report: { agents: [], references: [], backtest: {
+    schema_version: 1, evidence: 'synthetic_known_mechanics_only', assumptions: ['Synthetic only'],
+    candidates: [{ id: 'retail', confirmation: 'close confirmed', regime_sizing: 'half size', oracle: 'none', status: 'verified',
+      aggregate: { risk_deployed: 101, return_on_debit_including_fees: 0.04 } }],
+    regimes: [{ name: 'trend', fixture_label: 'known fixture', variants: { retail: {
+      trades: 2, gross_pnl: 5, fees: 1, net_pnl: 4, win_rate: 0.5,
+    } } }], skipped: [{ variant: 'retail', regime: 'chop', reason: 'atomic_entry_quote_unavailable' }],
+    trades: [{ variant: 'retail', regime: 'trend', risk_deployed: 101, net_pnl: 4,
+      gamma_diagnostics: { entry_pair_gamma: 0.1, exit_pair_gamma: 0.2, entry_pair_gamma_forward_up_1pct: 0.09 } }],
+  } } };
+  const h = harness((url, options) => {
+    if (url.endsWith('/status')) return { enabled: false, roles: [], active_run_id: null, latest_run_id: null };
+    if (url.endsWith('/run')) {
+      assert.deepEqual(JSON.parse(options.body), { schema_version: 1, roles: [], experiment: 'weekly_reversal' });
+      return completed;
+    }
+    if (url.includes('/runs/')) return completed;
+    assert.fail(url);
+  });
+  const view = createAgentResearch(h.ui);
+  await view.load();
+  const roleInputs = h.nodes().filter(node => node.tagName === 'INPUT' && node.type === 'checkbox');
+  assert.equal(roleInputs.length, 5);
+  assert.ok(roleInputs.every(node => node.checked === false));
+  assert.equal(h.button('Run selected agents and backtest').disabled, true);
+  assert.ok(h.nodes().some(node => node.textContent.includes('OpenAI agents off')));
+  await h.button('Run fixed synthetic backtest').emit('click'); await flush();
+  assert.ok(h.nodes().some(node => node.textContent === 'Verified synthetic outcomes'));
+  assert.ok(h.nodes().some(node => node.textContent === 'half size'));
+  assert.ok(h.nodes().some(node => node.textContent === 'atomic_entry_quote_unavailable'));
+  assert.ok(h.nodes().some(node => node.textContent === 'Gamma diagnostics by recorded trade'));
+  view.dispose();
+});
+
+test('failed agent phases keep local evidence visible and stale polls cannot replace a newer run', async () => {
+  const old = deferred();
+  const report = id => ({ backtest: { evidence: 'synthetic_known_mechanics_only', assumptions: [],
+    candidates: [{ id, confirmation: 'none', regime_sizing: 'fixed', oracle: 'none', status: 'recorded' }],
+    regimes: [], skipped: [], trades: [] }, agents: [{ id: 'strategy_a', phase: 'proposal', state: 'failed', text: 'Provider unavailable' }],
+    picks: [], references: [] });
+  const latest = { id: 'new-run', state: 'failed', roles: ['strategy_a'], error: 'Some selected agent steps failed.', report: report('new-result') };
+  const h = harness((url, options) => {
+    if (url.endsWith('/status')) return { enabled: true, roles: [], active_run_id: null, latest_run_id: 'old-run' };
+    if (url.endsWith('/runs/old-run')) return old.promise;
+    if (url.endsWith('/run')) return latest;
+    if (url.endsWith('/runs/new-run')) return latest;
+    assert.fail(url);
+  });
+  const view = createAgentResearch(h.ui); await view.load();
+  await h.button('Run fixed synthetic backtest').emit('click'); await flush();
+  assert.ok(h.nodes().some(node => node.textContent === 'new-result'));
+  assert.ok(h.nodes().some(node => node.textContent === 'Provider unavailable'));
+  old.resolve({ id: 'old-run', state: 'completed', roles: [], report: report('old-result') }); await flush();
+  assert.equal(h.nodes().some(node => node.textContent === 'old-result'), false);
+  assert.ok(h.nodes().some(node => node.textContent === 'new-result'));
+  view.dispose();
+});
 
 test('working SMA preset is explicit, complete, and leaves sampling disabled', async () => {
   const h = harness(url => url.endsWith('form-options') ? metadata : previewResult);
@@ -225,6 +287,20 @@ test('download requires an explicit feed and action declaration before preview t
   assert.equal(sent.kind, 'download_alpaca');
   assert.equal(sent.configuration.feed, 'sip');
   assert.deepEqual(h.navigations, ['/research/jobs/' + 'e'.repeat(32)]);
+});
+
+test('session bundle preview submits the captured path without fixed-interval overrides', async () => {
+  const h = harness(url => url.endsWith('form-options') ? metadata : previewResult);
+  await createResearchForms(h.ui).loadDataset();
+  const adapter = h.field('configuration.data.adapter');
+  const interval = h.field('configuration.data.interval_ns');
+  adapter.value = 'session_bundle';
+  await adapter.emit('change');
+  h.field('configuration.data.path').value = 'examples/session-bars.json';
+  assert.equal(interval.disabled, true);
+  await preview(h);
+  const sent = JSON.parse(h.calls.find(call => call.url.endsWith('/validate')).options.body);
+  assert.deepEqual(sent.configuration.data, { adapter: 'session_bundle', path: 'examples/session-bars.json' });
 });
 
 test('dataset form submits only data and launches the fixed validation kind', async () => {

@@ -7,6 +7,8 @@ from dataclasses import asdict
 from qte.comparison_config import _historical_experiment, _legacy_experiment
 from qte.strategies import CandidateConfig
 from qte.strategies.candidates import FAMILIES
+from qte.strategies.volume import VOLUME_FAMILIES, VolumeConfig
+from qte.strategies.book151 import BOOK_FAMILIES, BookConfig
 
 from .research_forms import form_options
 
@@ -35,13 +37,19 @@ def comparison_form_options():
     # strategy that can be launched as an independent research run.
     strategies = copy.deepcopy([
         item for item in form_options()["research_run"]["strategies"]
-        if item["type"] in ("moving_average_regime", *FAMILIES)
+        if item["type"] in ("moving_average_regime", *FAMILIES, *VOLUME_FAMILIES, *BOOK_FAMILIES)
     ])
     parameters = asdict(CandidateConfig())
     parameters.pop("kind")
+    volume_parameters = asdict(VolumeConfig())
+    volume_parameters.pop("kind")
+    book_parameters = asdict(BookConfig())
+    book_parameters.pop("kind")
     for strategy in strategies:
         if strategy["type"] != "moving_average_regime":
-            strategy["fields"] = {name: _descriptor(value) for name, value in parameters.items()}
+            defaults = (book_parameters if strategy["type"] in BOOK_FAMILIES else
+                        volume_parameters if strategy["type"] in VOLUME_FAMILIES else parameters)
+            strategy["fields"] = {name: _descriptor(value) for name, value in defaults.items()}
             strategy.pop("hidden_defaults", None)
     return {"schema_version": 1, "strategies": strategies, "workflows": [
         {"type": "moving_average_comparison", "label": "SMA train/test comparison",

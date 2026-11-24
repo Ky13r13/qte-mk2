@@ -10,6 +10,7 @@ from .artifacts import strict_json
 from .job_inputs import (
     CONFIG_LIMIT,
     DATA_LIMIT,
+    SOURCE_SUFFIXES,
     JobInputError,
     _allowed,
     _error,
@@ -93,7 +94,7 @@ def capture_form_inputs(
     if not isinstance(data, dict):
         raise _error("invalid")
     adapter, path = data.get("adapter"), data.get("path")
-    if not isinstance(adapter, str) or adapter not in {"csv", "alpaca"} or not isinstance(path, str):
+    if not isinstance(adapter, str) or adapter not in SOURCE_SUFFIXES or not isinstance(path, str):
         raise _error("invalid")
     if not 1 <= len(path) <= 512:
         raise _error("invalid")
@@ -101,7 +102,7 @@ def capture_form_inputs(
     _allowed(parts)
     relative = _relative(parts)
     suffix = PurePosixPath(relative).suffix.casefold()
-    if (adapter == "csv" and suffix != ".csv") or (adapter == "alpaca" and suffix != ".json"):
+    if suffix != SOURCE_SUFFIXES[adapter]:
         raise _error("invalid")
 
     # Preserve canonical submitted form bytes exactly. The normalized relative

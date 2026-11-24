@@ -29,6 +29,11 @@ def test_missing_repository(tmp_path):
         server.serve(tmp_path / 'missing')
 
 
+def test_invalid_ollama_model_fails_before_server_start(tmp_path):
+    with pytest.raises(ValueError, match='Ollama model'):
+        server.serve(tmp_path, ollama_model='../remote')
+
+
 def test_missing_optional_dependencies_is_actionable_without_install(monkeypatch, tmp_path):
     def unavailable(_name):
         raise ModuleNotFoundError('fixture missing dependency')
@@ -42,6 +47,7 @@ def test_cli_gui_help_and_invalid_port():
                             capture_output=True, text=True)
     assert result.returncode == 0
     assert '--repo-root' in result.stdout
+    assert '--ollama-model' in result.stdout
     assert '--host' not in result.stdout
     result = subprocess.run([sys.executable, '-m', 'qte', 'gui', '--port', '0'],
                             capture_output=True, text=True)
@@ -68,9 +74,10 @@ def test_launcher_binds_loopback_before_code_and_uses_safe_server_settings(monke
     listener = Listener()
     monkeypatch.setattr(server.socket, 'socket', lambda *_: listener)
     import qte.gui.app as app_module
-    def make_app(repository, *, port, code_sink, alpaca_download_enabled):
+    def make_app(repository, *, port, code_sink, alpaca_download_enabled, research_agents_enabled):
         assert repository == tmp_path
         assert alpaca_download_enabled is enabled
+        assert research_agents_enabled is enabled
         assert events == [('bind', ('127.0.0.1', 9876))]
         code_sink('ephemeral-test-code')
         return 'test-app'
@@ -85,7 +92,7 @@ def test_launcher_binds_loopback_before_code_and_uses_safe_server_settings(monke
         events.append('ran')
     fake_uvicorn = SimpleNamespace(Config=config, Server=lambda _: SimpleNamespace(run=run))
     monkeypatch.setattr(server.importlib, 'import_module', lambda name: fake_uvicorn if name == 'uvicorn' else object())
-    options = {'alpaca_download_enabled': True} if enabled else {}
+    options = {'alpaca_download_enabled': True, 'research_agents_enabled': True} if enabled else {}
     assert server.serve(tmp_path, port=9876, announce=events.append, **options) == 0
     assert events[-2:] == ['ran', 'closed']
     assert configs[0]['host'] == '127.0.0.1'

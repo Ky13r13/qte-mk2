@@ -41,7 +41,10 @@ class GuiLabStaticTests(unittest.TestCase):
         self.assertIn("appendRecordValue(list, name, value)", script)
         self.assertNotIn("selected_candidate.sort", script)
         self.assertNotIn("portfolio", script)
-        self.assertNotIn("chart", script)
+        # The recorded-market view is explicit and receives only the role-filtered API response.
+        self.assertIn('const payload = await ui.api(`/api/v1/experiments/${encodeURIComponent(id)}/market?', script)
+        self.assertIn("renderMarketChart(ui, market)", script)
+        self.assertNotIn("renderMarketChart(ui, experiment)", script)
 
     def test_lab_tables_have_four_default_columns_and_complete_record_focus(self) -> None:
         script = (STATIC / "experiments.js").read_text(encoding="utf-8")

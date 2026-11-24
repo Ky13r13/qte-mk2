@@ -28,7 +28,7 @@ def test_dataset_form_has_data_only_config_and_deterministic_preview():
     assert preview["preview_fingerprint"] == identity["preview_fingerprint"]
     assert len(preview["assumptions"]) == 4
     options = form_options()["dataset_validate"]
-    assert options["adapters"] == ["csv", "alpaca"]
+    assert options["adapters"] == ["csv", "alpaca", "session_bundle"]
     assert "data.expected_sha256" in options["fields"]
 
 

@@ -125,6 +125,7 @@ enum class FuturesAdmissionCode {
     maintenance_margin,
     missing_fresh_mark,
     contract_closed,
+    reduction_conflict,
 };
 
 struct FuturesMarginAdmission final {
@@ -160,7 +161,18 @@ public:
         std::span<const PendingFuturesOrder> pending_orders,
         market_data::Timestamp now) const;
 
+    // The candidate order is passed separately. Supply every OTHER accepted
+    // order's current remainder at the fill frontier.
+    [[nodiscard]] FuturesMarginAdmission evaluate_fill(
+        const orders::OrderRecord& order, FuturesAdmissionCode submission_code,
+        const orders::Fill& proposed, const portfolio::Portfolio& ledger,
+        std::span<const PendingFuturesOrder> other_pending) const;
+
 private:
+    [[nodiscard]] FuturesMarginReport evaluate_snapshot(
+        const portfolio::Portfolio& ledger, const portfolio::PortfolioSnapshot& snapshot,
+        std::span<const PendingFuturesOrder> pending_orders, market_data::Timestamp now) const;
+
     FuturesMarginSchedule schedule_;
     double cash_buffer_;
     std::chrono::nanoseconds max_mark_age_;

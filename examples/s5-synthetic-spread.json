@@ -1,0 +1,78 @@
+{
+  "schema": "qte-s5-spxw-v1",
+  "evidence": "synthetic",
+  "fee_per_leg_usd": 0.65,
+  "max_risk_usd": 500,
+  "sessions": {
+    "2026-10-14": {
+      "source_ns": 1792007099000000000,
+      "available_ns": 1792007100000000000,
+      "calls": [
+        {
+          "contract": "SPXW  261016C07400000",
+          "delta": 0.5
+        },
+        {
+          "contract": "SPXW  261016C07405000",
+          "delta": 0.42
+        }
+      ],
+      "quotes": [
+        {
+          "contract_id": "SPXW  261016C07400000",
+          "timestamp_ns": 1792007160000000000,
+          "available_ns": 1792007160001000000,
+          "bid": 4.96,
+          "ask": 5.0,
+          "bid_size": 1,
+          "ask_size": 1
+        },
+        {
+          "contract_id": "SPXW  261016C07405000",
+          "timestamp_ns": 1792007160000000000,
+          "available_ns": 1792007160001000000,
+          "bid": 3.0,
+          "ask": 3.04,
+          "bid_size": 1,
+          "ask_size": 1
+        },
+        {
+          "contract_id": "SPXW  261016C07400000",
+          "timestamp_ns": 1792007220000000000,
+          "available_ns": 1792007220001000000,
+          "bid": 3.98,
+          "ask": 4.02,
+          "bid_size": 1,
+          "ask_size": 1
+        },
+        {
+          "contract_id": "SPXW  261016C07405000",
+          "timestamp_ns": 1792007220000000000,
+          "available_ns": 1792007220001000000,
+          "bid": 3.0,
+          "ask": 3.04,
+          "bid_size": 1,
+          "ask_size": 1
+        },
+        {
+          "contract_id": "SPXW  261016C07400000",
+          "timestamp_ns": 1792007280000000000,
+          "available_ns": 1792007280001000000,
+          "bid": 3.92,
+          "ask": 3.96,
+          "bid_size": 1,
+          "ask_size": 1
+        },
+        {
+          "contract_id": "SPXW  261016C07405000",
+          "timestamp_ns": 1792007280000000000,
+          "available_ns": 1792007280001000000,
+          "bid": 3.0,
+          "ask": 3.04,
+          "bid_size": 1,
+          "ask_size": 1
+        }
+      ]
+    }
+  }
+}

@@ -1,5 +1,35 @@
 # qte
 
+**Start here: [START-HERE.md](START-HERE.md)** (one page: goal, status, five commands). Detail: [docs/README.md](docs/README.md) has the current capability map, the
+path-to-live status and which documents are current or historical.
+[CONTINUITY.md](CONTINUITY.md) holds the latest session handoff.
+
+**Weekly data routine** (Schwab drops 1-minute history after about 48 days):
+
+```sh
+cd ~/Documents/qte
+.venv/bin/python -m qte.brokers.schwab_auth refresh   # prompts privately for the Schwab app key and secret
+.venv/bin/qte truth collect                           # within ~30 minutes: download every interval into data/truth
+.venv/bin/qte truth derive                            # rebuild 1h/4h bars from the new 5-minute data
+```
+
+Core research loop (Nov 2026):
+
+```sh
+.venv/bin/qte truth coverage                                   # what data the truth database holds
+.venv/bin/qte search describe --dataset SPY:5m:alpaca          # locked dev/validation/holdout split
+.venv/bin/qte search sweep --dataset SPY:5m:alpaca --costs spy_as_es --spec '{...}' --grid '{...}'
+.venv/bin/qte search leaderboard --dataset SPY:5m:alpaca --costs spy_as_es
+```
+
+Start with the [test build guide](docs/test-build-guide.md) for setup and the [development audit](docs/development-audit.md) for verified workflows, local evidence and outstanding integration work.
+
+Open **Research → Daily brief** for the scheduled post-close news, regime rationale and market data. [Daily agent workflow](docs/daily-brief-agent.md)
+
+Run the [S1 VWAP reversion and S2 opening gap fade studies](docs/strategies/core-reversion.md) with `qte s1-study` or `qte s2-study` in the project venv. Both screen SPX minutes and replay synchronized SPXW debit spreads.
+
+Replay the [S7 0DTE trend-day strategy](docs/strategies/s7-trend-day-convexity.md) with `.venv/bin/qte s7-study --demo --output build/my-s7-demo`. The report shows each simulated option entry, scale-out and exit.
+
 The [strategy lab](docs/strategies/strategy-lab.md) adds six documented long-only
 hypotheses, causal macro/volatility filtering, explicit dealer-data boundaries,
 and all-candidate cost/regime comparisons:
@@ -10,19 +40,15 @@ and all-candidate cost/regime comparisons:
 
 This command uses **synthetic data only**. It tests software behavior, does not
 establish profitability, and cannot promote a strategy for trading.
-Read-only [broker connection foundations](docs/broker-connections.md) support
-Robinhood's official crypto reads and contract-supplied Schwab GET endpoints.
-Credentials, signing/OAuth setup, verified Schwab documentation, and authenticated
-validation are still required; these do not enable automated account trading.
-See the [2026-09-22 validation record](docs/validation-20260922.md) for exact
-commands, tests, recovered artifacts, limitations and remaining approvals.
+The [broker adapters](docs/broker-connections.md) support captured data and
+explicit market-data reads. Schwab OAuth and selected read-only market-data
+routes have been exercised. Broker tickets can be staged locally for review.
 
-A minimal localhost [documentation library](docs/gui-usage.md) is available:
-run `.venv/bin/python -m qte gui` from this directory, open the printed loopback
-URL, and enter its terminal code. The [GUI checkpoint](docs/gui-task-log.md)
-distinguishes reviewed functionality from ongoing artifact/job development.
-The [architecture](docs/gui-architecture.md) describes the later research, data,
-test and connection workflows; it does not imply those controls are operational.
+Launch the local GUI with `.venv/bin/python -m qte gui` from the checkout.
+Open the printed loopback URL and enter the terminal code. The Library has
+the architecture and research guides. Research can preview and launch fixed
+jobs, register results and display recorded candles, fills and equity.
+[GUI guide](docs/gui-usage.md) · [Windows capabilities](docs/windows-gui.md)
 
 Run a complete synthetic research example from the installed venv package:
 
@@ -38,7 +64,7 @@ Alpaca historical downloads, cache behavior, and benchmarks. The new
 account/strategy connectivity is a later integration step.
 
 `qte` is a modular quantitative-trading research and backtesting engine. The
-performance-sensitive engine is written in C++20; Python will provide the
+performance-sensitive engine is written in C++20; Python provides the
 research, configuration, analysis, and strategy-facing API through pybind11.
 
 The project is being built in small, independently tested increments. Implemented
@@ -155,3 +181,5 @@ PIP_NO_CACHE_DIR=1 .venv/bin/python -m pip install --no-build-isolation --no-dep
 `qte.adapters.load_alpaca_fixture` and `load_csv_bars` consume local files only.
 See [the adapter contract](docs/adapters.md) and the formal
 [moving-average reference specification](docs/strategies/moving-average-reference.md).
+
+The Linux GUI includes a Live desk for Schwab SPX/SPXW observation, paper execution quality, position scenarios and session cutoffs. Run `.venv/bin/python -m qte live-demo` from the checkout to generate the offline example. [Live desk guide](docs/live-desk.md)

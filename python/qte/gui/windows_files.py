@@ -6,6 +6,8 @@ Native Windows acceptance remains separate from the injected-API unit tests.
 """
 from __future__ import annotations
 
+from qte._cleanup import report_os_error
+
 import ctypes
 from ctypes import wintypes
 from dataclasses import dataclass
@@ -184,8 +186,8 @@ def _read_pinned(root: str, relative: str, api) -> bytes:
         for handle in reversed(handles):
             try:
                 api.close(handle)
-            except OSError:
-                pass
+            except OSError as error:
+                report_os_error("Windows resource close", error)
 
 
 def read_windows_file(root: Path, relative: str) -> bytes:

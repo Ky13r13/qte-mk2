@@ -56,13 +56,14 @@ def dataset_view(catalog, artifact_id: str) -> dict:
             data["path"] = str(PurePosixPath(relative) / data["path"])
         data["expected_sha256"] = manifest["data_sha256"]
         wire = dict(data)
-        wire["interval_ns"] = str(wire["interval_ns"])
+        if "interval_ns" in wire:
+            wire["interval_ns"] = str(wire["interval_ns"])
         captured = capture_form_inputs(catalog.repository, "dataset_validate", config_origin(), {"data": wire})
         catalog.authorize_job_inputs(captured)
         if captured.data_sha256 == manifest["data_sha256"]:
             source = {"state": "available", "reason": "Source bytes match validation; preview and launch recheck the checksum.", "data": wire}
     except (JobInputError, ValueError, KeyError, TypeError, AttributeError):
-        pass
+        source = {"state": "unavailable", "reason": "The matching original source is unavailable.", "data": None}
     # Detect mutation between metadata reads and projection.
     latest = catalog.inspect(artifact_id)
     if latest.snapshots != artifact.snapshots or latest.metadata != artifact.metadata:

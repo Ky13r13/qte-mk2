@@ -1,12 +1,18 @@
+import { createDailyBrief } from "./daily_brief.js";
+import { createLiveDesk } from "./live_desk.js";
+import { createBook151Study } from "./book151_study.js";
 import { createExperimentViews } from "./experiments.js";
 import { createComparisonViews } from "./comparisons.js";
 import { createComparisonForms } from "./comparison_forms.js";
 import { createResearchForms } from "./research_forms.js";
 import { createResearchJobs } from "./research_jobs.js";
+import { createRegimeStudy } from "./regime_study.js";
+import { createAgentResearch } from "./agent_research.js";
 import { createDatasetViews } from "./datasets.js";
 import { createSystemTests } from "./system_tests.js";
 import { createSystemBenchmarks } from "./system_benchmarks.js";
 import { createSystemConnections } from "./system_connections.js";
+import { createSchwabToken } from "./schwab_token.js";
 import { capabilityAvailable, routeCapability } from "./platform_capabilities.js";
 
 const app = document.querySelector("#app");
@@ -18,10 +24,14 @@ let jobViews = null;
 let systemTests = null;
 let systemBenchmarks = null;
 let systemConnections = null;
+let schwabToken = null;
 let gammaLab = null;
+let agentResearch = null;
+let regimeStudy = null;
+let book151Study = null;
 const runViews = new Set(["overview", "market", "metrics", "orders", "fills", "equity", "sampled_equity", "equity_table", "sampled_equity_table", "positions", "closed_trades", "open_trades", "order_events", "route_events", "provenance", "files", "catalog"]);
 
-function beginView() { jobViews?.dispose(); systemTests?.dispose(); systemBenchmarks?.dispose(); systemConnections?.dispose(); gammaLab?.dispose(); activeView += 1; return activeView; }
+function beginView() { liveDesk.dispose(); regimeStudy?.dispose(); jobViews?.dispose(); systemTests?.dispose(); systemBenchmarks?.dispose(); systemConnections?.dispose(); gammaLab?.dispose(); agentResearch?.dispose(); activeView += 1; return activeView; }
 function isCurrentView(request) { return request === activeView; }
 
 function navigate(href) {
@@ -327,7 +337,7 @@ async function loadResearch(offset = 0, jobOffset = 0) {
       : [element("p", { text: "No research artifacts are registered." })];
     const actions = element("nav", { class: "run-nav", "aria-label": "New offline research" }, [
       textLink("/research/new/run", "New run"), textLink("/research/new/lab", "New synthetic lab"),
-      textLink("/research/new/comparison", "New comparison"),
+      textLink("/research/new/comparison", "New comparison"), textLink("/research/agents", "Five-agent research"), textLink("/research/daily-brief", "Daily brief"), textLink("/research/regimes", "SPX regimes"), textLink("/research/book151", "Book strategies"), textLink("/research/live-desk", "Live desk"),
     ]);
     replaceView(heading, lede, actions, jobViews.recent(jobs, jobsError, (next) => loadResearch(offset, next)),
       element("h2", { text: "Registered artifacts" }), form, ...content);
@@ -874,6 +884,13 @@ const comparisonViews = createComparisonViews({
 const researchForms = createResearchForms({
   api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation, textLink, navigate,
 });
+const dailyBrief = createDailyBrief({ api, element, replaceView, beginView, isCurrentView, setNavigation });
+const liveDesk = createLiveDesk({ api, element, replaceView, beginView, isCurrentView, setNavigation, setStatus });
+book151Study = createBook151Study({ api, element, replaceView, beginView, isCurrentView, setNavigation, textLink });
+regimeStudy = createRegimeStudy({ api, element, replaceView, beginView, isCurrentView, setNavigation, setStatus });
+agentResearch = createAgentResearch({
+  api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation, textLink,
+});
 const comparisonForms = createComparisonForms({
   api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation, textLink, navigate,
 });
@@ -894,6 +911,9 @@ systemBenchmarks = createSystemBenchmarks({
 systemConnections = createSystemConnections({
   api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation,
   textLink, displayValue, humanize,
+});
+schwabToken = createSchwabToken({
+  api, element, replaceView, beginView, isCurrentView, setStatus, setNavigation, textLink,
 });
 async function loadGammaLab() {
   const request = beginView();
@@ -970,7 +990,9 @@ function route() {
   systemTests.dispose();
   systemBenchmarks.dispose();
   systemConnections.dispose();
+  schwabToken.dispose();
   gammaLab?.dispose();
+  agentResearch?.dispose();
   const path = window.location.pathname;
   const required = routeCapability(path);
   if (required && !capabilityAvailable(state.capabilities, required)) {
@@ -984,6 +1006,11 @@ function route() {
     if (id !== null) loadDocument(id);
   }
   else if (path === "/research") loadResearch();
+  else if (path === "/research/live-desk") liveDesk.load();
+  else if (path === "/research/book151") book151Study.load();
+  else if (path === "/research/daily-brief") dailyBrief();
+  else if (path === "/research/regimes") regimeStudy.load();
+  else if (path === "/research/agents") agentResearch.load();
   else if (path === "/research/new/run") researchForms.loadRun(new URLSearchParams(window.location.search).get("dataset"));
   else if (path === "/research/new/lab") researchForms.loadLab();
   else if (path === "/research/new/comparison") comparisonForms.load();
@@ -1022,6 +1049,7 @@ function route() {
   else if (path === "/system") systemTests.load();
   else if (path === "/system/benchmarks") systemBenchmarks.load();
   else if (path === "/system/connections") systemConnections.load();
+  else if (path === "/system/schwab") schwabToken.load();
   else { beginView(); renderError("This page is unavailable."); }
 }
 

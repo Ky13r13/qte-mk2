@@ -1,5 +1,7 @@
 # Strategy-research and broker-boundary validation — 2026-09-22
 
+> **Status:** Historical validation record (2026-09-22). For current capabilities see [docs/README.md](README.md).
+
 ## Recovery and scope
 
 Resumed after usage interruptions and a computer shutdown. Source files, `.venv`

@@ -1,5 +1,23 @@
 # Incremental QTE development roadmap
 
+## Current priority — path to live trading (2026-11-24)
+
+The live status table is in [docs/README.md](README.md#path-to-live-trading-status).
+The gates are, in order:
+1. A strategy passes the search protocol: a deflated probability that holds up,
+   consistency between dev and validation, and robust neighboring parameters.
+2. It passes a single human-run holdout.
+3. It is re-run through `BacktestEngine` with futures wiring (D2b.2b/D3).
+4. It runs in shadow mode on live Schwab data.
+5. It paper trades for a fixed number of sessions.
+6. It goes through a Schwab order gateway with hard limits and a kill switch.
+
+Sections below are the earlier milestone history and the reasoning behind it.
+
+The [November development audit](development-audit.md) records verified entry points,
+repairs and open integration gates. Strategy discovery is paused.
+
+
 This plan implements the defaults in [architecture.md](architecture.md). ADRs
 describe target behavior, not existing functionality. Each numbered row is a
 separate reviewable change, not permission to build the whole engine in one turn.
@@ -36,7 +54,7 @@ Do not create empty modules merely to match this table.
 | M13b — analytics sampling (implemented) | Explicit UTC grids, bounded carry, session observation convention | Actual-engine annualization, equal-time collapse, stale/gap rejection, raw-event drawdown |
 | M13c — research integrity (implemented) | Chronological splits, strategy/code identity, metadata checks | Reject overlap, timeframe mismatch, missing pagination declaration, malformed CSV |
 | M14 — research command (implemented) | JSON configuration to reports, manifests and CSV artifacts | Subprocess execution, two-fill example, unknown-key rejection, overwrite protection |
-| M15 — acquisition (offline verified; authenticated validation pending) | Alpaca GET pagination, immutable local cache, explicit feed, scale tool | Offline retries/corruption/pagination tests and synthetic benchmarks; real historical run requires credentials |
+| M15 — acquisition (authenticated; 22 real SPY/QQQ 5-minute downloads 2016–2026 on 2026-11-24) | Alpaca GET pagination, immutable local cache, explicit feed, scale tool | Offline retries/corruption/pagination tests and synthetic benchmarks; real historical run requires credentials |
 | M16 — paper architecture (offline controller implemented) | Journaled intent, persistent IDs, acknowledgements, recovery, controls | Fake-gateway tests; actual paper gateway and durable C++ ledger bridge remain separate integration work |
 
 M3 uses an isolated open-event driver until the scheduler arrives. M6 similarly
@@ -61,7 +79,7 @@ Windows work remains paused and preserved. See the
 | D2a — variation settlement (implemented) | Explicit idempotent cash settlement, separate cash/economic bases, causal event journal | Basis/PnL conservation, unchanged equity/episodes, close/reversal/duplicate/cutoff/overflow regressions; no engine wiring |
 | D2b.1 — margin budgets (implemented) | Declared per-contract initial/maintenance/fee schedule, no-offset pending budget, conservative available collateral; runnable synthetic C++ demo | Current/pending quantities, qualified metadata, causal/fresh inputs, quantity overflow; report only, no order approval |
 | D2b.2a — submission admission (implemented) | Read-only candidate + pending margin decision, bounded nonreversing reductions under breaches, fresh target marks/cutoff, runnable accept/reject/cancel demo | Exact budget denials, competing reservations, long/short reduction and causal/lifecycle checks; no engine wiring |
-| D2b.2b — fill-time admission and execution costs (next) | Recheck inventory/reservations at execution, authoritative per-contract fees, pending lifecycle integration | Gap/cost stress, partial fills, reduction remains nonreversing, rejection/cancel recovery and reservation release; no equity-notional cash assumptions |
+| D2b.2b — fill-time admission (ledger and in-process lifecycle owner implemented; engine wiring open) | Recheck inventory/reservations at execution, authoritative per-contract fees, single pending-order owner (`FuturesOrderLifecycle`) | Gap/cost stress, partial fills, reduction remains nonreversing, rejection/cancel recovery and reservation release; no equity-notional cash assumptions |
 | D3 — executable market observations | Quote/Greek availability, contract/session mapping, subsequent-quote execution | No look-ahead, stale/missing data rejection, realistic size/latency/cost handling |
 | D4a — dealer-gamma futures strategy | Wire qualified dealer policy through normal lifecycle/config/reports | Rejection/cancel recovery, out-of-sample synthetic integrity checks, explicit flatten failures |
 | D4b — option gamma scalping | Straddle selection, hedge cadence, partial legs and liquidation | Combined option/hedge accounting, late fills and entry timeout, no implicit exercise/delivery |
@@ -156,7 +174,7 @@ or trade placement is authorized by this research request.
 | R2 — credible ETF datasets (in progress; not research-ready) | Finish M15 authenticated validation; point-in-time macro vintages; explicit session availability for daily bars; split/dividend ledger support before action-bearing runs | Credentials/data rights and action validation; UTC session/DST/holiday/short-day tests; no pretending 24-hour synthetic bars are exchange daily bars |
 | R2a — offline session contract (implemented; synthetic verified) | Immutable explicit session/closure snapshot, daily/hourly windows, availability and close grid; [ADR 0011](adr/0011-session-calendar.md) | Complete coverage, declared DST/holiday/short-day fixtures, exact UTC ns, immutable source identity; actual-engine close-grid regression; no replay/adapter semantics changed |
 | R2b — session-aware replay bridge (implemented; offline synthetic tests) | Opt-in explicit-availability envelope, callback clock, stale-mark protection, session adapter; [ADR 0012](adr/0012-explicit-availability.md) | Mixed durations and delayed publication cannot expose data early or fill at an already-passed open; legacy hash/tests retained; Python API only |
-| R2c — session ingestion and research surface (queued) | Versioned local session/bar files and bounded config/GUI integration; explicit sampling/export/comparison semantics | Preserve timing/calendar provenance and physical-vs-replay bounds; reject guessed calendar/frequency; online acquisition and actions remain separate gates |
+| R2c — session ingestion (single-run, chart and validation implemented; comparisons open) | Versioned local session/bar files and bounded config/GUI integration; explicit sampling/export/comparison semantics | Preserve timing/calendar provenance and physical-vs-replay bounds; reject guessed calendar/frequency; online acquisition and actions remain separate gates |
 | W1 — native Windows Library/Connections (implemented; native acceptance pending) | Platform-gated routes, pinned handle-based document reads, PowerShell launcher | Linux regressions plus Windows build/handle/browser checks; no artifact/job fallback; [Windows plan](windows-gui.md) |
 | W2 — Windows artifact/Data parity (W2a/W2b and W2c.1–.3 foundations implemented; native acceptance pending) | Native durable journal writes/SQLite containment and W2d integration remain | Reparse/race protections and holdout invariants before enabling historical results; routes remain blocked |
 | W3 — Windows job parity (queued) | Job Objects, locks, owner-death cleanup, timeouts/cancellation/recovery and environment checks | Whole-process-tree cleanup, restart/double-owner tests; then research/test/benchmark launch |
@@ -230,3 +248,164 @@ and first-screen contract examples after SSL/RPM checks passed. The user approve
 the locked packages and available Sol/Terra builders with Astra review, and later
 extended implementation through G4/G5 after the preceding gates. No current
 system repair is requested or authorized.
+
+## Personal terminal workstream — agreed goals, 2026-11-15
+
+Status: planned, not implemented by this entry. The user endorses the following
+goals and multiple-source validation. Wait for Schwab developer approval rather
+than buying data now. No new subscription, package installation, account access,
+or trading authorization is implied. Reuse existing research and GUI components;
+these milestones do not supersede outstanding accounting or execution gates.
+
+| Sequence | Small deliverable | Acceptance |
+|---|---|---|
+| T1a | One instrument-centered workspace using captured data | Linked candles, regime reasons, expected moves and existing research retain the same instrument/time selection; explicit observed/model/delayed labels; sparse monochrome layout and square corners |
+| T1b | Saved watchlists and workspace selections | Local persistence and restart recovery; unsupported instruments remain visibly unavailable |
+| T2a | Versioned recording and replay contract using local captures | Preserve raw payload hashes, instrument identity, event/availability/receipt times where actually supplied, sequence and gaps; deterministic replay; never invent receipt times |
+| T2b | Source comparison and quality view | Match equivalent observations; surface stale/missing/conflicting values with reasons; preserve originals and chosen-source provenance |
+| T2c | Verified Schwab acquisition and recorder | After approval, verify official contracts, entitlements and retention terms; authentication, reconnect and gap handling; do not assume historical option tick coverage |
+| T3a | Options contract and chain view | Explicit expiry, exercise/settlement convention, multiplier, bid/ask, sizes, age and coverage; no modeled value presented as a quote |
+| T3b | Volatility and scenario comparison | Link existing gamma tools to contract selection; compare IV, realized volatility, skew and term structure with declared conventions; dealer positioning remains an assumption unless supported by qualified data |
+| T4 | Explainable screeners and local alerts | Replay-test fixed predicates, regime vetoes, freshness checks and deduplication; display why an alert fired |
+| T5 | Macro/event context | Timestamped releases and revisions, point-in-time joins and regime explanations; retrospectively assigned event labels cannot become historical inputs |
+| T6 | Read-only portfolio/risk workspace | Positions, orders, Greeks and scenarios with mark age and reconciliation status; preserve one accounting authority and existing broker integration gates |
+| T7 | Hypothesis and decision journal | Link hypothesis, available evidence, quoted prices, invalidation and outcome; retain rejected candidates and untouched evaluation periods |
+
+### Monitoring priority — November 19, 2026
+
+Daily evidence collection is now scheduled through the Codex app heartbeat
+`qte-daily-regime-evidence` at 13:30 America/Los_Angeles. It is research-only:
+capture completed-session data, preserve provenance and contemporaneous regime
+labels, add explanations and propose separately evaluated improvements. It does
+not enable continuous monitoring, trade execution or automatic parameter fitting.
+First scheduled acquisition and availability of runtime connectors remain to be
+observed. Details and task checkpoint are in `docs/gui-task-log.md`.
+
+User wants assistant-supported monitoring. First deliverable combines T2c, T4
+and T6 as a read-only shadow monitor; it does not authorize trading or changing
+broker alerts. Initial proposed scope: SPX/SPY, QQQ and VIX, selected option
+contracts, and the designated trading account. Verify feed coverage before
+enabling each instrument. Futures data is now verified for research: Schwab `/ES` daily since 1983 and intraday is stored in the truth database (2026-11-24). Futures *trading* remains unavailable until a verified source
+is connected.
+
+- Continuously record available quotes and receipt times in a local QTE process;
+  display stale data, disconnects and missing observations explicitly.
+- Evaluate deterministic regime changes, expected-move boundaries, volume
+  confirmation and hypothesis invalidation. Label proxy/model assumptions.
+- Reconcile broker positions/open orders; expose concentration, marked PnL,
+  option Greeks when available, quote age and unresolved account state.
+- Produce deduplicated event summaries with reasons and a decision journal for
+  assistant review. Unknown risk values must not display as zero.
+- Keep collection and rule evaluation independent of the language model. This
+  chat is not an always-running monitor; Robinhood alert events require polling
+  and do not wake it. Local monitoring requires a running host/process and an
+  authenticated data connection. No background service or schedule is active
+  merely because this plan exists.
+
+First implementation gate: verify Schwab contracts/authorization, then implement
+quote recording plus shadow signals. Set concrete notification thresholds and
+delivery destination before creating external alerts. Actual order execution is
+a separate milestone with explicit authorization and execution controls.
+
+Build T1a and T2a against captured data first. Keep secondary detail collapsed;
+this is an opt-in market workspace, not a replacement for the Library landing
+page. Revise the GUI layout contract before implementing new navigation.
+
+### Multiple-source validation policy
+
+- Add sources for complementary evidence and independently checkable coverage,
+  not simply source count. Track upstream lineage: two vendors redistributing
+  the same exchange feed are not independent confirmations of a trading edge.
+- Maintain a source inventory recording access/retention terms, cost, coverage,
+  resolution, latency, timezone, adjustment basis, revision policy and known gaps.
+  Evaluate free/permitted sources first; document approval needs before acquisition.
+- Compare only matching contracts, sessions, timestamps and field meanings.
+  SPX, SPY and ES are distinct instruments; quotes, trades and model marks are
+  distinct observations. Asynchronous prices need an explicit comparison window.
+- Define tolerances by instrument and field before evaluating results. Preserve
+  discrepancies; never silently average quotes, fill missing observations or
+  overwrite raw captures. Record any fallback and its reason in the manifest.
+- Separate source agreement, data quality and strategy evidence. Agreement does
+  not establish profitability; keep chronological holdouts, all trial outcomes,
+  execution costs and sensitivity analysis in research reports.
+- Candidate evidence categories: broker/exchange prices and contract metadata,
+  official macro releases with vintages, volatility measures, timestamped news,
+  and qualified volume/order-flow observations. Unavailable positioning or flow
+  must remain unknown or explicitly modeled rather than inferred as fact.
+
+The existing Roadmap entry in the GUI Library exposes this plan. The next coding
+task should specify T1a's exact instrument/time navigation and captured-data
+inputs before changing interfaces.
+
+## November 17 priority update and loose-end register
+
+User direction: prioritize usable research functionality and viable strategy
+discovery over GUI polish or repeated browser acceptance. Existing tests remain;
+run focused checks when calculations, accounting, availability or execution change.
+Do not repeatedly rerun unchanged GUI suites or turn historical task-log entries
+into new blockers. Preserve the pending items below without claiming completion.
+This priority update puts research/data work ahead of T1 visual integration.
+
+| Loose end / evidence | Status and next concrete action |
+|---|---|
+| Options studies are modeled, not observed option fills (`regime_study.py`, `reversal_tail.py`) | Research blocker: admit actual quotes with contract/session/condition provenance, then measure executable-price sensitivity; no validated profitable strategy yet |
+| Theta sample: one day, 3 / 19 identified contracts, malformed rows, naive timestamps and an ordering inversion (`build/tick-data-evaluation/theta/audit.json`) | Raw preserved, replay admission pending. Resolve source timezone semantics and quarantine invalid records without inventing receive time; sample tests mechanics, not regime viability |
+| Minute coverage: 40 selected sessions; last-hour tail days selected retrospectively | Obtain fixed-calendar coverage when access permits; do not relabel this inspected sample or tail winners as untouched validation |
+| Scenario cohorts differ (`run_daily`, `run_intraday`) | November 17 diagnostics now expose unmatched counts and matched-trade costs; eligibility/capital-path differences still require a separately funded replay before portfolio comparisons |
+| Walk-forward is aggregation over precomputed family sleeves (`walk_forward`) | Not a shared-account executable walk-forward. Replay chosen policies with one cash/risk state and fresh evaluation windows before account-return claims |
+| Futures D2b.2b and D3–D5 (ADR 0013) | The ledger supports fill-time fee and margin checks, and `FuturesOrderLifecycle` owns pending orders, submission codes and fill/cancel transitions. Causal settlement and quote sources, expiry/roll and engine wiring remain |
+| American options and index-option semantics | Python pricing/research does not complete assignment/exercise and portfolio execution. Preserve explicit European SPX/SPXW versus American ETF-option distinction |
+| Schwab and live/paper integration (`brokers/readonly.py`, M17–M21) | OAuth and selected read-only GET routes verified. Recorded option-stream deltas have an offline replay path. Live stream entitlement, transport and durable accounting reconciliation remain open. No purchase or live trading implied |
+| Windows W2/W3 (`windows-gui.md`) | Artifact/storage and process-supervision parity plus native acceptance remain; parked while research takes priority, not advertised as complete |
+| Session integration R2c and corporate actions R2 | Single-run CLI/GUI ingestion, validation and candle export support declared sessions. Multi-window comparisons and corporate-action accounting remain open |
+| Macro/news/dealer evidence | Timestamped release vintages, news availability and qualified positioning absent. VIX is a daily-move proxy; volume-based price features are not measured dealer flow |
+| Recovery and documentation | Many uncommitted/untracked research files and ignored local datasets remain. Preserve all; user owns commits/backups. README and older log checkpoints are historical/incomplete capability summaries; this register and latest entries take precedence |
+
+### Functional research triage delivered November 17
+
+Run in the repository venv, with a new output directory each time:
+
+```sh
+.venv/bin/python -m qte.research_triage --study build/regime-study --output build/my-research-triage
+```
+
+Reports every family/vehicle, matching trade identity across scenarios, missing
+cohorts, best-session concentration, and year/regime PnL. JSON preserves all
+chronological slices; Markdown summarizes the already-inspected 2021+ slice.
+Raw input and output hashes plus code identity are recorded. No parameter search,
+new backtest, real quote calibration or fresh holdout is implied.
+
+The November 17 run found all ten minute family/vehicle combinations negative
+under both modeled base and wider costs. Daily SMA300-reclaim long options were
+positive in 2021+ (11 trades; wide-cost PnL $8,135; $2,900 excluding the best day),
+but negative in both earlier slices (wide costs: -$16,950 before 2016 and -$10,095
+in 2016–2020). This is a hypothesis to investigate, not a viable strategy finding.
+The existing walk-forward diagnostic sums to +$12,150 base but -$166,650 at wider
+costs; sums are modeled trade PnL, not risk-matched account returns.
+
+Conditional underlying forward outcomes at fixed 1/5/15/30-minute horizons are
+now implemented in `qte.forward_report`, with prior-session regime/time-matched
+controls and session-level sample counts. The first run keeps the four existing
+reversal variants frozen; detailed rules/results are in
+[the reversal study](strategies/reversal-tail-study.md#fixed-horizon-underlying-study--november-17-2026).
+Counts remain too small to identify a viable strategy. Next: representative
+session coverage and qualified recorded quotes for option ask-entry/bid-exit
+diagnostics, retaining all losing cases. Historical source/time validation and
+quote admission remain explicit gates; no paid signup is requested.
+
+### Common volume strategies — implemented November 17
+
+Five configurable long-only families now use the existing engine and shared
+candidate lifecycle: relative-volume breakout, VWMA trend, OBV confirmation,
+Chaikin Money Flow trend and MFI reversal. Registered for independent Research
+runs and declarative comparisons; the synthetic lab/macro router fixed slate is
+unchanged. Own-instrument OHLCV only, explicit observed-bar lookbacks and
+next-open execution. [Rules and runnable examples](strategies/volume-strategies.md)
+are in the GUI Library. November 19 frozen screening completed 264 daily/hourly
+and 400 minute-session QTE runs with paired controls and cost stress. Daily SPY
+OBV, QQQ VWMA and QQQ OBV pass the original screening gates, but incremental
+bootstrap intervals include zero and recent PnL trails the 10% buy/hold baseline.
+All five minute variants lose under both cost settings. Daily/hourly inputs are
+constructed adjusted-price proxies, not validated executable ETF histories.
+Independent action/quote validation and later uninspected sessions remain the
+next gate; no live candidate or calibrated dealer-flow interpretation established.

@@ -220,18 +220,25 @@ export function createGammaLab(ui) {
     let surfaceMode = "3d";
     const camera = { yaw: 0.65, pitch: 0.55 };
     const root = node("section", { class: "gamma-lab", "aria-labelledby": "gamma-heading" });
+    const query = new URLSearchParams(window.location.search);
     const form = node("form", { class: "gamma-form", novalidate: "" });
     const primary = node("fieldset", {}, [node("legend", { class: "visually-hidden", text: "Manual model inputs" })]);
     const advanced = node("details", {}, [node("summary", { text: "Contract & display settings" })]);
     const extras = node("fieldset", {}, [node("legend", { class: "visually-hidden", text: "Contract and display inputs" })]);
     for (const [index, [key, title, initial, min, max, step]] of fields.entries()) {
       const field = node("label", { class: "gamma-field", for: `gamma-${key}` }, [node("span", { text: title })]);
-      field.append(node("input", { id: `gamma-${key}`, name: key, type: "number", value: initial, min, max, step, required: "",
+      const supplied = query.get(key);
+      const parsed = supplied !== null && supplied.trim() !== "" ? Number(supplied) : NaN;
+      const value = Number.isFinite(parsed) && parsed >= min && parsed <= max
+        && (step !== "1" || Number.isInteger(parsed)) ? parsed : initial;
+      field.append(node("input", { id: `gamma-${key}`, name: key, type: "number", value, min, max, step, required: "",
         title: `${fmt(min)} to ${fmt(max)}${step === "1" ? "; whole numbers" : ""}` }));
       (index < 4 ? primary : extras).append(field);
     }
     const kind = node("label", { class: "gamma-field", for: "gamma-option-type" }, [node("span", { text: "Option type" })]);
-    kind.append(node("select", { id: "gamma-option-type", name: "option_type" }, [node("option", { value: "call", text: "Call" }), node("option", { value: "put", text: "Put" })]));
+    const option = node("select", { id: "gamma-option-type", name: "option_type" }, [node("option", { value: "call", text: "Call" }), node("option", { value: "put", text: "Put" })]);
+    option.value = query.get("option_type") === "put" ? "put" : "call";
+    kind.append(option);
     extras.append(kind); advanced.append(extras); form.append(primary, advanced);
     const error = node("p", { class: "gamma-validation", role: "alert", hidden: "" });
     const headline = node("p", { class: "gamma-headline", "aria-live": "polite", text: "Calculating…" });

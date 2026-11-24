@@ -62,7 +62,7 @@ def _cleanup(process):
                         # An unreaped child cannot have its PID reused here.
                         os.kill(child, signal.SIGTERM if time.monotonic() < deadline else signal.SIGKILL)
                 except (ChildProcessError, ProcessLookupError):
-                    pass
+                    continue  # This child has already exited.
             time.sleep(0.02)
 
 

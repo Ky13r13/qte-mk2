@@ -47,6 +47,8 @@ def test_options_expose_one_required_json_text_without_changing_old_families():
     assert tuple(item["type"] for item in strategies[:-1]) == (
         "moving_average_regime", "trend", "breakout", "contraction",
         "pullback", "mean_reversion", "rebound",
+        "volume_breakout", "vwma_trend", "obv_confirmation", "cmf_trend", "mfi_reversal",
+        "book_single_ma", "book_triple_ma", "book_channel_reversal", "book_ibs_reversal",
     )
     router = strategies[-1]
     assert router["type"] == "macro_router"

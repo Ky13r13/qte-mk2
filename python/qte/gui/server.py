@@ -10,9 +10,14 @@ from typing import Callable
 
 def serve(repository: Path, *, port: int = 8765,
           alpaca_download_enabled: bool = False,
+          research_agents_enabled: bool = False,
+          ollama_model: str | None = None,
           announce: Callable[[str], object] = print) -> int:
     if type(port) is not int or not 1 <= port <= 65535:
         raise ValueError('GUI port must be an integer in [1, 65535]')
+    if ollama_model is not None:
+        from .agent_provider import validate_ollama_model
+        validate_ollama_model(ollama_model)
     repository = Path(repository).absolute()
     if not repository.is_dir():
         raise ValueError('GUI repository directory does not exist')
@@ -43,9 +48,12 @@ def serve(repository: Path, *, port: int = 8765,
             ) from error
         listener.listen(128)
         listener.setblocking(False)
-        app = create_app(repository, port=port,
-                         alpaca_download_enabled=alpaca_download_enabled,
-                         code_sink=lambda code: announce(f'QTE local access code: {code}'))
+        app_options = dict(port=port, alpaca_download_enabled=alpaca_download_enabled,
+                           research_agents_enabled=research_agents_enabled,
+                           code_sink=lambda code: announce(f'QTE local access code: {code}'))
+        if ollama_model is not None:
+            app_options["ollama_model"] = ollama_model
+        app = create_app(repository, **app_options)
         config = uvicorn.Config(
             app, host='127.0.0.1', port=port, workers=1, reload=False,
             proxy_headers=False, access_log=False, log_level='warning',

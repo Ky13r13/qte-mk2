@@ -10,6 +10,8 @@ from qte.gui.comparison_forms import comparison_form_options
 from qte.gui.comparison_inputs import prepare_comparison_inputs
 from qte.strategies import CandidateConfig
 from qte.strategies.candidates import FAMILIES
+from qte.strategies.volume import VOLUME_FAMILIES, VolumeConfig
+from qte.strategies.book151 import BOOK_FAMILIES, BookConfig
 from test_gui_comparison_inputs import fixture
 from test_gui_job_api import visit
 
@@ -32,11 +34,13 @@ def defaults(fields):
 def test_metadata_has_complete_canonical_defaults_without_dataset_or_execution_access():
     options = comparison_form_options()
     assert options["schema_version"] == 1
-    assert [item["type"] for item in options["strategies"]] == ["moving_average_regime", *FAMILIES]
+    assert [item["type"] for item in options["strategies"]] == ["moving_average_regime", *FAMILIES, *VOLUME_FAMILIES, *BOOK_FAMILIES]
     canonical = asdict(CandidateConfig())
     canonical.pop("kind")
     for item in options["strategies"][1:]:
-        assert defaults(item["fields"]) == canonical
+        expected = asdict(BookConfig()) if item["type"] in BOOK_FAMILIES else asdict(VolumeConfig()) if item["type"] in VOLUME_FAMILIES else asdict(CandidateConfig())
+        expected.pop("kind")
+        assert defaults(item["fields"]) == expected
         assert set(item["exposed_fields"]) <= set(item["fields"])
     sma = options["strategies"][0]
     assert set(sma["fields"]) == {"fast_period", "slow_period", "quantity"}
@@ -51,7 +55,7 @@ def test_metadata_has_complete_canonical_defaults_without_dataset_or_execution_a
     assert comparison_form_options()["strategies"][1]["fields"]["fast_period"]["default"] == "10"
 
 
-@pytest.mark.parametrize("family", FAMILIES)
+@pytest.mark.parametrize("family", (*FAMILIES, *VOLUME_FAMILIES, *BOOK_FAMILIES))
 def test_all_candidate_fields_from_metadata_roundtrip_through_comparison_contract(tmp_path, family):
     catalog, form = fixture(tmp_path)
     prepared = prepare_comparison_inputs(catalog, form)

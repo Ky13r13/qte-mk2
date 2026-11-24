@@ -6,6 +6,8 @@ the runner, or establish build provenance.
 
 from __future__ import annotations
 
+from qte._cleanup import close_fd
+
 from dataclasses import dataclass
 from hashlib import sha256
 import json
@@ -73,10 +75,7 @@ def _read_regular(directory_fd: int, name: str, limit: int) -> tuple[bytes, _Fil
         raise _error() from None
     finally:
         if descriptor is not None:
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
+            close_fd(descriptor)
 
 
 def _names(directory_fd: int) -> set[str]:
@@ -108,17 +107,11 @@ def _artifacts_fd(repository: Path, job_id: str) -> tuple[list[int], int]:
         return descriptors, current
     except TestEvidenceWriterError:
         for descriptor in reversed(descriptors):
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
+            close_fd(descriptor)
         raise
     except OSError:
         for descriptor in reversed(descriptors):
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
+            close_fd(descriptor)
         raise _error() from None
 
 
@@ -161,10 +154,7 @@ def _write_exclusive(directory_fd: int, name: str, data: bytes) -> None:
         raise _error() from None
     finally:
         if descriptor is not None:
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
+            close_fd(descriptor)
 
 
 def _verified(files: dict[str, bytes]) -> VerifiedTestEvidence:
@@ -258,7 +248,4 @@ def finalize_test_evidence(repository: Path, job_id: str, manifest: dict, log: b
         raise _error() from None
     finally:
         for descriptor in reversed(descriptors):
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
+            close_fd(descriptor)

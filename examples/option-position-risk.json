@@ -1,0 +1,23 @@
+{
+  "asof_ns": 1795204800000000000,
+  "max_age_ms": 2000,
+  "underlying": "SPX",
+  "spot": {"price": 6500, "source_ns": 1795204799500000000, "received_ns": 1795204799600000000},
+  "rate": 0.04,
+  "dividend_yield": 0.013,
+  "positions": [
+    {"contract": "SPXW  261120C06500000", "product": "SPXW", "quantity": 2,
+     "expiry_ns": 1795208400000000000, "iv": 0.20,
+     "quote": {"bid": 5.45, "ask": 5.65, "bid_size": 8, "ask_size": 5,
+               "source_ns": 1795204799800000000, "received_ns": 1795204799900000000}},
+    {"contract": "SPXW  261120C06510000", "product": "SPXW", "quantity": -2,
+     "expiry_ns": 1795208400000000000, "iv": 0.19,
+     "quote": {"bid": 1.6, "ask": 1.8, "bid_size": 3, "ask_size": 4,
+               "source_ns": 1795204799700000000, "received_ns": 1795204799800000000}}
+  ],
+  "scenarios": [
+    {"spot_change_pct": -0.5, "iv_change_points": 4, "elapsed_minutes": 5},
+    {"spot_change_pct": 0, "iv_change_points": 0, "elapsed_minutes": 5},
+    {"spot_change_pct": 0.5, "iv_change_points": -2, "elapsed_minutes": 5}
+  ]
+}

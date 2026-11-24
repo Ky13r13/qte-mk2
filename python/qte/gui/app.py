@@ -18,6 +18,8 @@ from starlette.routing import Route
 
 from .documents import DocumentLibrary
 from .connection_routes import connection_routes
+from .schwab_token_routes import schwab_token_routes
+from .agent_routes import agent_routes
 from .gamma_routes import gamma_routes
 from .platform_support import full_gui_supported, LIMITED_REASON
 from .requests import json_request, pagination
@@ -26,16 +28,19 @@ from .security import IDLE_TIMEOUT_SECONDS, SecurityError, SessionController, un
 
 TOKEN_HEADER = "X-QTE-Token"
 COOKIE_NAME = "qte_session"
-STATIC_NAMES = {"index.html", "app.css", "app.js", "platform_capabilities.js", "experiments.js", "comparisons.js", "comparison_forms.js", "research_forms.js", "research_jobs.js", "datasets.js", "system_tests.js", "system_benchmarks.js", "system_connections.js", "gamma.js", "market_chart.js"}
+STATIC_NAMES = {"index.html", "app.css", "app.js", "platform_capabilities.js", "experiments.js", "comparisons.js", "comparison_forms.js", "research_forms.js", "research_jobs.js", "datasets.js", "system_tests.js", "system_benchmarks.js", "system_connections.js", "schwab_token.js", "gamma.js", "market_chart.js", "agent_research.js", "weekly_reversal_report.js", "regime_study.js", "daily_brief.js", "reversal_tail.js", "book151_study.js", "live_desk.js"}
 
 
 def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str], object] = print,
                clock: Callable[[], float] = time.monotonic,
-               alpaca_download_enabled: bool = False) -> Starlette:
+               alpaca_download_enabled: bool = False,
+               research_agents_enabled: bool = False,
+               ollama_model: str | None = None) -> Starlette:
     controller = SessionController(code_sink, clock)
     library = DocumentLibrary(Path(repository))
     full_gui = full_gui_supported()
     catalog = jobs = None
+    research_runs = None
     if full_gui:
         # Do not import Unix-only job/storage modules on native Windows.
         from .artifact_routes import artifact_routes
@@ -46,12 +51,18 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
         from .job_routes import job_routes
         from .test_routes import test_routes
         from .benchmark_routes import benchmark_routes
+        from .live_desk import live_desk_routes
+        from .book151_routes import book151_routes
+        from .regime_routes import regime_routes
+        from .daily_brief import daily_brief_routes
         from .jobs import JobManager
+        from .agent_research import ResearchRuns
         catalog = Catalog(Path(repository))
         # The dispatcher has its own verification cache; durable catalog and
         # protection storage are shared, not mutable request-thread cache objects.
         jobs = JobManager(Path(repository), Catalog(Path(repository)),
                           alpaca_download_enabled=alpaca_download_enabled)
+        research_runs = ResearchRuns(Path(repository), research_agents_enabled, ollama_model=ollama_model)
     expected_host = f"127.0.0.1:{port}"
     expected_origin = f"http://{expected_host}"
     static_root = Path(__file__).with_name("static")
@@ -188,9 +199,11 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
         Route("/data/{artifact_id:str}", shell, methods=["GET"]), Route("/system", shell, methods=["GET"]),
         Route("/system/benchmarks", shell, methods=["GET"]),
         Route("/system/connections", shell, methods=["GET"]),
-    ] + connection_routes(session_for) + gamma_routes(session_for)
+        Route("/system/schwab", shell, methods=["GET"]),
+    ] + connection_routes(session_for) + schwab_token_routes(Path(repository), session_for) + gamma_routes(session_for) + agent_routes(research_runs, session_for)
     if full_gui:
-        routes += (benchmark_routes(jobs, session_for) + test_routes(jobs, session_for)
+        routes += (daily_brief_routes(Path(repository), session_for) + live_desk_routes(Path(repository), session_for) + regime_routes(Path(repository), session_for) + book151_routes(Path(repository), session_for)
+                   + benchmark_routes(jobs, session_for) + test_routes(jobs, session_for)
                    + comparison_routes(Catalog(Path(repository)), session_for)
                    + artifact_routes(catalog, session_for) + job_routes(jobs, session_for)
                    + form_routes(Catalog(Path(repository)), session_for)
@@ -202,7 +215,7 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
 
         for prefix in ("catalog", "artifacts", "runs", "experiments", "comparisons",
                        "jobs", "research", "configs", "datasets", "downloads", "data",
-                       "system/tests", "system/benchmarks"):
+                       "system/tests", "system/benchmarks", "regime-study", "book151-study", "live-desk"):
             for suffix in ("", "/{remaining:path}"):
                 routes.append(Route(f"/api/v1/{prefix}{suffix}", unsupported,
                                     methods=["GET", "POST", "PUT", "PATCH", "DELETE"]))
@@ -260,11 +273,14 @@ def create_app(repository: Path, *, port: int = 8765, code_sink: Callable[[str],
             # initialize scheduling; shutdown still cleans up any owned worker.
             if jobs is not None:
                 await run_in_threadpool(jobs.close)
+            if research_runs is not None:
+                research_runs.close()
 
     app = Starlette(routes=routes, middleware=[Middleware(BoundaryMiddleware)], lifespan=lifespan)
     app.state.session_controller = controller
     app.state.document_library = library
     app.state.catalog = catalog
     app.state.jobs = jobs
+    app.state.research_runs = research_runs
 
     return app

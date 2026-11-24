@@ -7,7 +7,6 @@ def full_gui_supported() -> bool:
 
 
 LIMITED_REASON = (
-    "This host currently supports Library and offline Connections only. "
-    "Artifact storage and supervised research jobs require the Linux backend; "
-    "native Windows parity is still in development."
+    "Library, offline Connections and the Gamma calculator are available. "
+    "Research, Data and supervised jobs currently require the Linux backend."
 )

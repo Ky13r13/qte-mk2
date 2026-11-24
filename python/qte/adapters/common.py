@@ -39,6 +39,7 @@ class AdapterResult:
     # Owned canonical bars captured from the same bytes as dataset. Optional for
     # older/custom adapters; never recovered by reopening a mutable source path.
     bars: tuple[Bar, ...] = ()
+    publication_times_ns: tuple[int, ...] = ()
 
 
 def parse_rfc3339_utc_ns(value: object) -> int:

@@ -1,0 +1,41 @@
+{
+  "schema": "qte-execution-probes-v1",
+  "evidence": "synthetic",
+  "extra_feed_delay_ms": 25,
+  "order_delay_ms": 50,
+  "max_wait_ms": 2000,
+  "max_age_ms": 1500,
+  "commission_per_contract_usd": 0.65,
+  "hold_ms": 300000,
+  "buffer_ms": 60000,
+  "orders": [
+    {
+      "id": "buy-at-ask",
+      "contract": "SPXW  261120C06500000",
+      "side": "buy",
+      "quantity": 2,
+      "decision_ns": 1795204800000000000
+    },
+    {
+      "id": "sell-at-bid",
+      "contract": "SPXW  261120C06510000",
+      "side": "sell",
+      "quantity": 1,
+      "decision_ns": 1795204800000000000
+    },
+    {
+      "id": "size-check",
+      "contract": "SPXW  261120C06500000",
+      "side": "buy",
+      "quantity": 8,
+      "decision_ns": 1795204800000000000
+    },
+    {
+      "id": "reconnect-check",
+      "contract": "SPXW  261120C06500000",
+      "side": "buy",
+      "quantity": 1,
+      "decision_ns": 1795204800550000000
+    }
+  ]
+}

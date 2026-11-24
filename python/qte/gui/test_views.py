@@ -183,14 +183,13 @@ def check_current(manager, job_id):
     row = _record(manager, job_id)
     bound = _load(manager, row)
     _authorized(manager, bound)
-    result = {group: "unknown" for group in GROUPS}
-    versions_match = "unknown"
     try:
         current = prepare_test_run(manager.repository, bound.evidence.manifest["runner"]).value
         result = compare_identity(bound.evidence.manifest["end_identity"], current["identity"])
         versions_match = "same" if current["versions"] == bound.evidence.manifest["versions"] else "different"
     except Exception:
-        pass  # Unknown is not same, and preflight error text remains private.
+        result = {group: "unknown" for group in GROUPS}
+        versions_match = "unknown"
     _stable(manager, row, bound)
     _authorized(manager, bound)
     return {"current_match": result, "versions_match": versions_match,

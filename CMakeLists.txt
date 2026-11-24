@@ -24,11 +24,18 @@ add_library(qte_core
     src/portfolio/settlement.cpp
     src/portfolio/trade.cpp
     src/risk/risk.cpp
+    src/risk/futures_lifecycle.cpp
     src/risk/futures_margin.cpp
+    src/research/sweep.cpp
+    src/research/european.cpp
+    src/research/condor.cpp
     src/strategy/strategy.cpp
 )
 
 add_library(qte::core ALIAS qte_core)
+
+find_package(Threads REQUIRED)
+target_link_libraries(qte_core PUBLIC Threads::Threads)
 
 target_compile_features(qte_core PUBLIC cxx_std_20)
 target_include_directories(qte_core

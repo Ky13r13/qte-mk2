@@ -1,7 +1,9 @@
 # ADR 0013: Derivative accounting before derivative replay
 
 Status: D1, D2a variation settlement, D2b.1 margin budgeting and D2b.2a
-submission admission implemented, 2026-11-10. The user requested both Nasdaq options
+submission admission implemented 2026-11-10. The direct-ledger D2b.2b fill-time
+admission check was added 2026-11-21 and its single in-process lifecycle owner
+on 2026-11-22. The user requested both Nasdaq options
 gamma scalping and a separate futures-only dealer-gamma hypothesis. This extends
 [ADR 0004](0004-portfolio.md); it does not enable either in the backtest engine.
 
@@ -176,8 +178,8 @@ Terminal orders cannot be captured. The evaluator owns no pending-state cache.
 
 The budget report alone is **not order permission**. Positive availability does
 not certify that an order is eligible to trade. The submission policy below adds
-one lifecycle boundary; fill-time admission, actual contract fees, forced
-liquidation, option margin and gap/latency handling remain unimplemented.
+the submission lifecycle boundary; the direct-ledger fill-time extension follows.
+Broker fee schedules, forced liquidation, option margin and gap/latency handling remain unimplemented.
 
 ## D2b.2a: submission admission
 
@@ -203,7 +205,7 @@ maintenance denial takes precedence over initial-margin denial. One exception,
 This can permit an exit even when its estimated fee worsens a cash deficit; it
 does not waive fresh-mark, contract-cutoff or schedule validation. This is only
 a submission-frontier permission, **not a persistent reduce-only order flag**.
-Fill-time admission must recheck inventory, all remaining reservations and fees;
+The fill-time policy below rechecks inventory, all remaining reservations and fees;
 a later fill must not turn an earlier approved reduction into a reversal.
 
 Error precedence is deterministic: candidate structure/identity first, then
@@ -216,6 +218,49 @@ The caller applies the decision through existing order transitions and recapture
 pending remainders after acknowledged fills/cancellations. A cancellation request
 alone releases nothing. This increment neither wires derivatives into the
 BacktestEngine nor provides a broker acknowledgement or execution price.
+
+## D2b.2b proposed fill admission
+
+For a simulated execution proposal, call `evaluate_fill(order, original_submission_code,
+proposed_fill, ledger, other_pending)` at the proposed fill's effective time.
+The caller retains the original admission code and supplies every other accepted
+remainder. Including the target twice raises an error. The evaluator checks
+eligibility, remaining quantity, mark freshness, contract cutoff, current margin,
+and the complete budget after the proposal. The projection uses
+`Portfolio::preview_fill`, which shares the exact fill staging and invariants
+with commit, including variation basis, executed price and actual commission.
+The filled slice releases its estimated fee reservation; outstanding contracts
+continue to reserve fees. No execution price or actual commission is inferred.
+
+A current breach permits only nonreversing reductions. An order admitted under
+the reduction exception must still qualify at fill time even if the account has
+since recovered. Both checks include outstanding competing reservations and
+the order's full remainder. After approval the simulator applies the fill and
+acknowledges its quantity before evaluating another order. Denials mutate neither
+object.
+
+### Single pending-order owner (added 2026-11-22)
+
+`FuturesOrderLifecycle` (`include/qte/risk/futures_lifecycle.hpp`) owns the
+Portfolio, every submitted `OrderRecord` and each order's original submission
+code. Callers no longer assemble pending remainders or carry admission codes:
+
+- `submit` evaluates a NEW order against all accepted remainders. Approved and
+  `reduction_only` orders open; denials are kept as risk rejections with their
+  code. Duplicate order IDs throw, and a candidate whose validation throws is
+  left unchanged.
+- `apply_fill` rechecks the proposal with the stored submission code and every
+  other remainder, then commits the ledger fill and the order quantity together.
+  A denial changes neither. An identical redelivery of a committed fill ID returns
+  `already_applied`; altered content, unknown orders and terminal orders throw.
+- `cancel` is the acknowledged cancellation that releases a reservation.
+  `mark` and `apply_settlement` pass through so marks, settlements and fills share
+  one ledger clock. The ledger is exposed read-only.
+- Construction rejects a schedule/ledger universe mismatch and a ledger that
+  already contains fills, since those fills would have no owned order.
+
+This closes the in-process orchestration gap. Execution against real quotes,
+durable (crash-safe) admission identity and broker fill reconciliation remain open.
 
 ### Run the combined synthetic demonstration
 
@@ -235,8 +280,9 @@ these are **not current NQ rates**. It ends with cash/equity 10195 from initial
 10000, economic gross PnL 200 and fees 5. This demonstrates accounting, not
 historical performance. A separate flat-ledger example accepts three contracts,
 rejects two more for insufficient reserved margin, acknowledges cancellation,
-then accepts a fresh two-contract order. Submission decisions create no fills
-and leave that ledger's cash at 10000. No network, strategy, broker or live orders
+then accepts a fresh two-contract order. A proposed partial execution of the fresh order
+passes the fill-time check with an actual fee of 3. After commit its ledger has
+cash 9997 and one outstanding contract reserving another 2.50 in estimated fees. No network, strategy, broker or live orders
 are involved.
 
 ## Remaining execution gates
@@ -246,9 +292,10 @@ Before removing gates, implement and test:
 1. Wire D2a facts through a causal session/settlement event source; implement
    required correction/reconciliation and currency-rounding policies before
    claiming brokerage compatibility.
-2. D2b.2b fill-time margin admission, rechecking nonreversing reductions during
-   breaches, pending lifecycle integration, actual per-contract execution fees;
-   then subsequent-quote fills with availability, latency, size and stale-data rules.
+2. ~~Integrate fill-time decisions and the original submission decision with a
+   single pending-order lifecycle owner~~ (in-process owner done 2026-11-22);
+   produce actual per-contract fees from explicit terms and subsequent-quote
+   proposals with availability, latency, size and stale-data rules.
 3. Session/last-trade liquidation, unresolved exposure reporting, expiry and
    exercise safeguards, explicit roll/mapping and quote/Greek dataset identity.
 4. Engine strategy lifecycle, cancel/late-fill/partial-leg recovery, then normal

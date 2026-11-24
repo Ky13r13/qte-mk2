@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "short-term-options-strategy.schema.json",
+  "title": "ShortTermOptionsStrategySystem",
+  "description": "Config + runtime object schemas for the vol-reversal / mean-reversion / 0DTE system described in STRATEGY_SPEC.md",
+  "type": "object",
+  "required": ["system", "risk", "regime", "strategies", "validation"],
+  "properties": {
+    "system": {
+      "type": "object",
+      "required": ["account_equity", "broker", "mode", "require_human_approval", "timezone"],
+      "properties": {
+        "account_equity": { "type": "number", "exclusiveMinimum": 0 },
+        "broker": { "type": "string" },
+        "mode": { "enum": ["research", "backtest", "paper", "live"] },
+        "require_human_approval": { "type": "boolean", "default": true },
+        "timezone": { "const": "America/New_York" },
+        "monthly_return_target": {
+          "type": "number",
+          "description": "Informational only. MUST NOT be used as an optimisation objective or to scale risk.",
+          "default": 4.0
+        }
+      }
+    },
+
+    "risk": {
+      "type": "object",
+      "required": ["core", "convex", "global"],
+      "properties": {
+        "core": {
+          "type": "object",
+          "properties": {
+            "max_risk_per_trade_pct": { "type": "number", "maximum": 0.02, "default": 0.02 },
+            "kelly_fraction": { "type": "number", "minimum": 0.1, "maximum": 0.5, "default": 0.5 },
+            "max_concurrent_risk_pct": { "type": "number", "maximum": 0.08, "default": 0.08 },
+            "max_same_direction_0dte_positions": { "type": "integer", "maximum": 2, "default": 2 }
+          }
+        },
+        "convex": {
+          "type": "object",
+          "properties": {
+            "monthly_budget_pct": { "type": "number", "maximum": 0.10, "default": 0.10 },
+            "max_premium_per_trade_pct": { "type": "number", "maximum": 0.01, "default": 0.01 },
+            "allow_refill_from_core": { "const": false }
+          }
+        },
+        "global": {
+          "type": "object",
+          "properties": {
+            "daily_loss_limit_pct": { "type": "number", "maximum": 0.05, "default": 0.05 },
+            "weekly_loss_limit_pct": { "type": "number", "maximum": 0.10, "default": 0.10 },
+            "monthly_dd_kill_switch_pct": { "type": "number", "maximum": 0.20, "default": 0.20 },
+            "defined_risk_only": { "const": true },
+            "order_type": { "const": "limit" },
+            "max_price_walk_steps": { "type": "integer", "maximum": 3, "default": 3 },
+            "max_leg_spread_pct_0dte": { "type": "number", "default": 0.10 },
+            "max_leg_spread_pct_multiday": { "type": "number", "default": 0.05 },
+            "no_new_0dte_after": { "type": "string", "pattern": "^\\d{2}:\\d{2}$", "default": "15:30" },
+            "flatten_physically_settled_by": { "type": "string", "default": "15:50" },
+            "macro_blackout_minutes_before": { "type": "integer", "default": 10 },
+            "macro_blackout_minutes_after": { "type": "integer", "default": 15 }
+          }
+        }
+      }
+    },
+
+    "regime": { "$ref": "#/$defs/RegimeConfig" },
+
+    "strategies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/StrategyConfig" }
+    },
+
+    "validation": {
+      "type": "object",
+      "properties": {
+        "min_history_years": { "type": "number", "minimum": 2, "default": 2 },
+        "fill_model": { "enum": ["natural", "mid_plus_25pct_spread", "worse_of_both"], "default": "worse_of_both" },
+        "fee_per_contract": { "type": "number", "default": 0.65 },
+        "exchange_fee_per_contract": { "type": "number", "description": "e.g. SPX index option fees", "default": 0.60 },
+        "walk_forward": {
+          "type": "object",
+          "properties": {
+            "train_months": { "type": "integer", "default": 6 },
+            "test_months": { "type": "integer", "default": 1 }
+          }
+        },
+        "min_oos_trades_core": { "type": "integer", "default": 100 },
+        "min_oos_trades_convex": { "type": "integer", "default": 50 },
+        "min_profit_factor": { "type": "number", "default": 1.3 },
+        "min_deflated_sharpe": { "type": "number", "default": 0.0 },
+        "max_drawdown_pct": { "type": "number", "default": 0.25 },
+        "stress_dates": {
+          "type": "array",
+          "items": { "type": "string", "format": "date" },
+          "default": ["2018-02-05", "2020-03-16", "2024-08-05", "2025-04-03", "2025-04-04", "2025-04-07"]
+        },
+        "paper_sessions_required": { "type": "integer", "default": 20 },
+        "paper_to_backtest_expectancy_min_ratio": { "type": "number", "default": 0.5 },
+        "live_ramp": { "type": "array", "items": { "type": "number" }, "default": [0.25, 0.5, 1.0] },
+        "decay_window_trades": { "type": "integer", "default": 50 }
+      }
+    }
+  },
+
+  "$defs": {
+    "RegimeConfig": {
+      "type": "object",
+      "properties": {
+        "refresh_minutes": { "type": "integer", "default": 15 },
+        "vix_buckets": {
+          "type": "object",
+          "default": { "LOW": [0, 15], "MID": [15, 22], "HIGH": [22, 30], "CRISIS": [30, 1000] }
+        },
+        "term_structure_thresholds": {
+          "type": "object",
+          "default": { "CONTANGO_below": 0.95, "BACKWARDATION_above": 1.02 }
+        },
+        "gex_source": { "enum": ["vendor", "estimated_from_oi"], "description": "If estimated, never use as sole trigger." }
+      }
+    },
+
+    "RegimeSnapshot": {
+      "type": "object",
+      "required": ["ts", "vol_level", "term_structure", "gamma", "event_day", "implied_move", "realized_rv"],
+      "properties": {
+        "ts": { "type": "string", "format": "date-time" },
+        "vix": { "type": "number" },
+        "vix1d": { "type": "number" },
+        "vix9d": { "type": "number" },
+        "vix3m": { "type": "number" },
+        "vvix": { "type": "number" },
+        "vol_level": { "enum": ["LOW", "MID", "HIGH", "CRISIS"] },
+        "term_structure": { "enum": ["CONTANGO", "FLAT", "BACKWARDATION"] },
+        "gamma": { "enum": ["POSITIVE", "NEGATIVE", "UNKNOWN"] },
+        "gex_is_estimate": { "type": "boolean" },
+        "event_day": { "type": "boolean" },
+        "in_blackout": { "type": "boolean" },
+        "implied_move": { "type": "number", "description": "ATM 0DTE straddle mid / spot" },
+        "realized_rv": { "type": "number", "description": "annualised, trailing 30m, 5-min returns" }
+      }
+    },
+
+    "StrategyConfig": {
+      "type": "object",
+      "required": ["id", "sleeve", "enabled", "underlyings", "dte", "filters", "signal", "structure", "exits"],
+      "properties": {
+        "id": { "enum": ["S1_vwap_z_reversion", "S2_gap_fade", "S3_vix_spike_reversal", "S4_0dte_vrp_condor", "S5_oversold_bounce", "S6_earnings_iv_crush", "S7_trend_day_convexity"] },
+        "sleeve": { "enum": ["CORE", "CONVEX"] },
+        "enabled": { "type": "boolean" },
+        "status": { "enum": ["research", "backtest_passed", "paper", "live_ramp", "live", "disabled_decay"], "default": "research" },
+        "underlyings": { "type": "array", "items": { "type": "string" } },
+        "dte": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 2, "maxItems": 2, "description": "[min, max]" },
+        "entry_window": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 2 },
+        "filters": {
+          "type": "object",
+          "properties": {
+            "vol_level_in": { "type": "array", "items": { "enum": ["LOW", "MID", "HIGH", "CRISIS"] } },
+            "term_structure_in": { "type": "array", "items": { "enum": ["CONTANGO", "FLAT", "BACKWARDATION"] } },
+            "gamma_in": { "type": "array", "items": { "enum": ["POSITIVE", "NEGATIVE", "UNKNOWN"] } },
+            "allow_event_day": { "type": "boolean", "default": false },
+            "custom": { "type": "object", "additionalProperties": true }
+          }
+        },
+        "signal": {
+          "type": "object",
+          "description": "Strategy-specific parameters; each numeric param may be a value or an optimisation range.",
+          "additionalProperties": { "$ref": "#/$defs/Param" }
+        },
+        "structure": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "enum": ["debit_vertical", "credit_vertical", "iron_condor", "iron_fly", "butterfly", "long_single"] },
+            "long_delta": { "type": "number" },
+            "short_delta": { "type": "number" },
+            "wing_width": { "type": ["number", "string"], "description": "points, or expression like \"1.5x_implied_move\"" },
+            "min_reward_risk": { "type": "number" },
+            "min_credit_pct_of_width": { "type": "number" }
+          }
+        },
+        "exits": {
+          "type": "object",
+          "properties": {
+            "take_profit": { "type": "array", "items": { "$ref": "#/$defs/ExitRule" } },
+            "stop_loss": { "type": "array", "items": { "$ref": "#/$defs/ExitRule" } },
+            "time_stop": { "type": "string", "description": "HH:MM or '<n>m' or '<n>sessions'" }
+          }
+        }
+      }
+    },
+
+    "Param": {
+      "oneOf": [
+        { "type": ["number", "string", "boolean"] },
+        {
+          "type": "object",
+          "required": ["min", "max"],
+          "properties": { "min": { "type": "number" }, "max": { "type": "number" }, "step": { "type": "number" }, "default": { "type": "number" } }
+        }
+      ]
+    },
+
+    "ExitRule": {
+      "type": "object",
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "enum": ["pct_of_max_profit", "pct_of_credit", "pct_of_debit", "multiple_of_premium", "underlying_level", "short_delta_exceeds", "zscore_exceeds", "indicator_cross"] },
+        "value": { "type": ["number", "string"] },
+        "fraction_to_close": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 }
+      }
+    },
+
+    "Signal": {
+      "type": "object",
+      "required": ["signal_id", "strategy_id", "ts", "direction", "underlying", "regime", "inputs"],
+      "properties": {
+        "signal_id": { "type": "string" },
+        "strategy_id": { "type": "string" },
+        "ts": { "type": "string", "format": "date-time" },
+        "direction": { "enum": ["LONG", "SHORT", "NEUTRAL"] },
+        "underlying": { "type": "string" },
+        "regime": { "$ref": "#/$defs/RegimeSnapshot" },
+        "inputs": { "type": "object", "description": "All values used to fire the signal, for audit (e.g. z, vwap, gap_pct)." },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+
+    "OrderIntent": {
+      "type": "object",
+      "required": ["signal_id", "legs", "limit_price", "max_loss", "max_gain", "risk_pct_of_equity", "sleeve"],
+      "properties": {
+        "signal_id": { "type": "string" },
+        "sleeve": { "enum": ["CORE", "CONVEX"] },
+        "legs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["symbol", "expiry", "strike", "right", "side", "qty"],
+            "properties": {
+              "symbol": { "type": "string" },
+              "expiry": { "type": "string", "format": "date" },
+              "strike": { "type": "number" },
+              "right": { "enum": ["C", "P"] },
+              "side": { "enum": ["BUY", "SELL"] },
+              "qty": { "type": "integer", "minimum": 1 },
+              "bid": { "type": "number" },
+              "ask": { "type": "number" },
+              "delta": { "type": "number" },
+              "iv": { "type": "number" }
+            }
+          }
+        },
+        "limit_price": { "type": "number" },
+        "price_walk": { "type": "array", "items": { "type": "number" }, "maxItems": 3 },
+        "max_loss": { "type": "number", "description": "Must be finite (defined risk)." },
+        "max_gain": { "type": "number" },
+        "risk_pct_of_equity": { "type": "number" },
+        "risk_engine_approved": { "type": "boolean" },
+        "human_approved": { "type": ["boolean", "null"] }
+      }
+    },
+
+    "TradeRecord": {
+      "type": "object",
+      "required": ["trade_id", "signal_id", "strategy_id", "sleeve", "entry_ts", "exit_ts", "entry_price", "exit_price", "qty", "pnl", "fees", "exit_reason"],
+      "properties": {
+        "trade_id": { "type": "string" },
+        "signal_id": { "type": "string" },
+        "strategy_id": { "type": "string" },
+        "sleeve": { "enum": ["CORE", "CONVEX"] },
+        "mode": { "enum": ["backtest", "paper", "live"] },
+        "entry_ts": { "type": "string", "format": "date-time" },
+        "exit_ts": { "type": "string", "format": "date-time" },
+        "entry_price": { "type": "number" },
+        "exit_price": { "type": "number" },
+        "model_entry_price": { "type": "number", "description": "for slippage tracking" },
+        "qty": { "type": "integer" },
+        "pnl": { "type": "number" },
+        "fees": { "type": "number" },
+        "r_multiple": { "type": "number", "description": "pnl / max_loss" },
+        "exit_reason": { "enum": ["take_profit", "stop_loss", "time_stop", "eod_flatten", "kill_switch", "expired", "manual"] },
+        "regime_at_entry": { "$ref": "#/$defs/RegimeSnapshot" }
+      }
+    },
+
+    "SkippedSignalRecord": {
+      "type": "object",
+      "required": ["signal_id", "reason"],
+      "properties": {
+        "signal_id": { "type": "string" },
+        "reason": { "enum": ["blackout", "regime_filter", "spread_too_wide", "risk_limit", "sleeve_budget_exhausted", "kill_switch", "unfilled", "human_rejected"] }
+      }
+    },
+
+    "StrategyStats": {
+      "type": "object",
+      "properties": {
+        "strategy_id": { "type": "string" },
+        "window_trades": { "type": "integer" },
+        "win_rate": { "type": "number" },
+        "avg_win_r": { "type": "number" },
+        "avg_loss_r": { "type": "number" },
+        "expectancy_r": { "type": "number" },
+        "profit_factor": { "type": "number" },
+        "kelly_full": { "type": "number", "description": "p - q/b; size uses kelly_full * kelly_fraction, capped by max_risk_per_trade_pct" },
+        "avg_slippage": { "type": "number" },
+        "max_drawdown_pct": { "type": "number" },
+        "decay_flag": { "type": "boolean" }
+      }
+    }
+  }
+}
