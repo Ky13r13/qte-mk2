@@ -1,6 +1,6 @@
 # S7 trend-day convexity
 
-S7 asks whether a tight opening range, unusually heavy volume and a trend-supporting regime identify index breakouts large enough to pay for a same-day OTM option. The research command implements the long-single configuration in `claude trading research/example_config.json`. Run one index per account, either SPX with SPXW options or XSP with XSP options. The spread alternative in the source paper remains unspecified.
+S7 asks whether a tight opening range, unusually heavy volume and a trend-supporting regime identify index breakouts large enough to pay for a same-day OTM option. The research command implements the long-single configuration in `archive/specs/claude-trading-research/example_config.json`. Run one index per account, either SPX with SPXW options or XSP with XSP options. The spread alternative in the source paper remains unspecified.
 
 ## Run it
 

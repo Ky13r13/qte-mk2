@@ -1,6 +1,6 @@
 # GUI dependency proposal — 2026-09-23, post-boot
 
-> **Status:** Historical dependency proposal (2026-09-23); the pinned set is in requirements-gui.lock. For current capabilities see [docs/README.md](README.md).
+> **Status:** Historical dependency proposal (2026-09-23); the pinned set is in requirements-gui.lock. For current capabilities see [docs/README.md](../../docs/README.md).
 
 Status update, 2026-09-24: **approved and installed** in the existing `.venv`.
 The user approved the pinned packages and Sol/Terra build agents with Astra
@@ -28,8 +28,8 @@ installation**, and all 12 packages are still absent from the venv.
 | Optional GUI runtime | starlette 1.7.0; uvicorn 0.53.0; markdown-it-py 4.2.0 | anyio 4.15.1; click 8.5.0; h11 0.16.0; idna 3.20; mdurl 0.1.2; typing-extensions 4.16.0 |
 | Optional GUI tests | httpx 0.28.1 | certifi 2026.7.22; httpcore 1.0.9; reuses runtime dependencies above |
 
-- [Runtime input](../requirements-gui.in) and [runtime lock](../requirements-gui.lock).
-- [Test input](../requirements-gui-test.in) and [test lock](../requirements-gui-test.lock),
+- [Runtime input](../../requirements-gui.in) and [runtime lock](../../requirements-gui.lock).
+- [Test input](../../requirements-gui-test.in) and [test lock](../../requirements-gui-test.lock),
   which includes the runtime lock. Combined closure: 12 packages.
 - Pins and SHA-256 hashes match the resolver's selected wheel metadata. The
   `Requires-Python` declarations and active dependency constraints were checked
@@ -73,7 +73,7 @@ packages does not itself create a GUI or authorize broker requests.
 
 ## Contracts and baseline validation
 
-[Versioned contract examples](gui-contracts/v1/README.md) contain nine JSON
+[Versioned contract examples](../../docs/gui-contracts/v1/README.md) contain nine JSON
 documents, a tiny source Markdown file and 45 proposed acceptance cases. Parsing,
 unique keys/IDs, source digest, linked summaries, example coverage and capability
 labels were checked with the existing venv standard library. These are proposed

@@ -1,6 +1,6 @@
 # QTE development audit — November 21, 2026
 
-> **Status:** Historical snapshot (2026-11-21). For current capabilities see [docs/README.md](README.md).
+> **Status:** Historical snapshot (2026-11-21). For current capabilities see [docs/README.md](../../docs/README.md).
 
 The Linux research path runs from a captured dataset through the native engine
 to verifiable results in the GUI. This review covered the native core and
@@ -90,7 +90,7 @@ build/test-gui-g6a-resume-confirm-20261012/test_lone_surrogates_fail_clos5/build
 
 ## November 22 live desk integration
 
-Schwab SPX/SPXW streaming, calendar-aware paper execution probes, displayed-size liquidation and spot/IV/time scenarios share a local GUI and a reproducible offline example. The forward protocol and its paper ledger remain separate from independent execution probes. [Live desk guide](live-desk.md)
+Schwab SPX/SPXW streaming, calendar-aware paper execution probes, displayed-size liquidation and spot/IV/time scenarios share a local GUI and a reproducible offline example. The forward protocol and its paper ledger remain separate from independent execution probes. [Live desk guide](../../docs/live-desk.md)
 
 ## Next integration milestone
 
@@ -99,4 +99,4 @@ underlying, a known disconnect/reconnect, sizes and receipt clocks. Replay
 the same captured bytes twice, and reconcile the resulting available and
 unavailable quotes before connecting the existing paper coordinator. Paper
 integration can then be tested against observed events without controlling an
-account. [Capture and replay](tick-data-acquisition.md) · [Paper coordinator](adr/0007-paper-coordination.md)
+account. [Capture and replay](../../docs/tick-data-acquisition.md) · [Paper coordinator](../../docs/adr/0007-paper-coordination.md)

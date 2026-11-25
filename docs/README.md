@@ -19,6 +19,9 @@ short session handoff, and the documents below hold the details.
 | Regime study | Pre-open regime labels (`qte.regime_study`), scored against daily outcomes in expected-move units | `qte truth regimes` | [truth database](truth-database.md#regime-validation) |
 | Data-driven regimes | 12 tree-based regimes with ≤ 4 indicators each (VIX term structure, Bollinger, VIX, rv/iv, SMA50 distance), fit 2008–2018 and validated 2019–2025 (R² 0.111 vs 0.045 for legacy labels) | `python -m qte.regime_lab` | [regime lab](strategies/regime-lab.md) |
 | Options candidate | Calm-regime 0DTE SPX iron condor: passes its pre-registered checks under the model, break-even at a model multiple ≈ 0.48 (Schwab calendar IV / VIX × 0.432). `--iv-check` measures it; forward gate requires 20 calm opening observations with median ≥ 0.60 | `qte calm-condor observe\|gate-status\|settle` | [calm-regime condor](strategies/calm-regime-condor.md) |
+| BTO options (user preference) | Opening-range breakout with 0DTE calls/puts. The original rule **failed** (+$8 per trade, t 0.21). The early-entry variant (by 11:30 ET, 60-minute stop: +$86, t 3.0) is in a **forward paper trial at real quotes** (`qte orb run`, decided after 30 trades) | `python -m qte.orb_options`, `qte orb run\|status` | [ORB BTO options](strategies/orb-bto-options.md) |
+| Close measurement | The 15:50–16:00 ET move is 0.86× VIX-implied (1.7× midday; 0.91 since 2022). Direction is ~50/50, with a weak 30-minute momentum tilt. Whether real 15:50 option prices are cheap is not yet measured | descriptive | [last 10 minutes](strategies/close-10min-move.md) |
+| Daily runner and report | `qte day run`: one interactive start per day runs the early-ORB trial, the 15:50 close capture and settlement (call, put, both, and the momentum side, at real asks), data collection, then a report: what the day was (trend, reversal, gap, range in σ, last 10 minutes), today's and tomorrow's pre-open regime, and both trials' running totals | `qte day run\|report` | [day runner](../python/qte/day_runner.py) |
 | Strategy search | Locked dev/validation/holdout split, every trial logged, deflated-Sharpe leaderboard, holdout run by humans only | `qte search` | [strategy search](strategy-search.md) |
 | Signal engine | Causal trend-day and σ-reversal signals on replay or a live recorder journal (Python reference implementation) | `qte signals replay\|follow` | [signal engine](signal-engine.md) |
 | Daily brief | A Codex scheduled job (1:30 p.m. PT) captures the session, regime and news, and the GUI publishes it | `qte daily-brief` | [daily brief agent](daily-brief-agent.md) |
@@ -60,29 +63,31 @@ short session handoff, and the documents below hold the details.
 **Decisions (ADRs).** Each records a decision and its rationale. Change one only
 with a new decision: [ADR index](architecture.md#decisions), 0001–0013.
 
+**GUI feature guides.** These are current: the GUI Library lists them for features that still exist:
+[result bindings](gui-result-bindings.md) · [lab views](gui-lab-views.md) ·
+[research forms](gui-research-forms.md) · [jobs](gui-jobs.md) ·
+[comparisons](gui-comparisons.md) · [test evidence](gui-test-evidence.md) ·
+[benchmarks](gui-benchmarks.md) · [export v2](gui-export-v2.md)
+
 **Research records.** These are dated findings and stay valid as records of what
 was tested. New results go in new records rather than rewriting old ones:
 `docs/strategies/*` ·
 [five-agent research](five-agent-research.md) ·
 [execution feasibility](execution-feasibility.md) ·
 [Robinhood MCP capabilities](robinhood-mcp-capabilities.md) ·
-[tick-data acquisition](tick-data-acquisition.md) ·
-`claude trading research/STRATEGY_SPEC.md`
+[tick-data acquisition](tick-data-acquisition.md)
 
-**Historical milestone records.** These are superseded, so don't treat them as
-current instructions:
-[development audit (Nov 21)](development-audit.md) ·
-[validation 2026-09-22](validation-20260922.md) ·
-[M13–M16 validation](m13-m16-validation.md) ·
-[GUI G0 preflight](gui-g0-preflight.md) ·
-[GUI restart handoff](gui-restart-handoff.md) ·
-[GUI dependency proposal](gui-dependencies.md) ·
-[GUI task log](gui-task-log.md) (still appended by the daily agent) ·
-GUI phase records: [result bindings](gui-result-bindings.md),
-[lab views](gui-lab-views.md), [research forms](gui-research-forms.md),
-[jobs](gui-jobs.md), [comparisons](gui-comparisons.md),
-[test evidence](gui-test-evidence.md), [benchmarks](gui-benchmarks.md),
-[export v2](gui-export-v2.md)
+**Archive** ([`archive/`](../archive/README.md)). Superseded material, kept for history.
+Don't treat it as current:
+[development audit (Nov 21)](../archive/docs/development-audit.md) ·
+[validation 2026-09-22](../archive/docs/validation-20260922.md) ·
+[M13–M16 validation](../archive/docs/m13-m16-validation.md) ·
+[GUI G0 preflight](../archive/docs/gui-g0-preflight.md) ·
+[GUI restart handoff](../archive/docs/gui-restart-handoff.md) ·
+[GUI dependency proposal](../archive/docs/gui-dependencies.md) ·
+[early strategy spec](../archive/specs/claude-trading-research/STRATEGY_SPEC.md) ·
+three unused example scripts in `archive/examples/`. The
+[GUI task log](gui-task-log.md) stays in `docs/` because the daily agent still appends to it.
 
 ## Credentials and local state (never commit, never print)
 

@@ -3209,3 +3209,7 @@ The frozen pre-open regime moved to `stress_selloff` on Friday’s data. Monday 
 ## November 23, 2026 — daily agent publication
 
 The existing daily heartbeat now follows the repository-owned [daily brief workflow](daily-brief-agent.md) and publishes to Research → Daily brief. The November 20 and 23 captures are available. The XNYS backlog check returned no missing completed sessions. The authenticated read path, session/holiday handling and publication checks passed along with the app integration tests (21 Python tests total), JavaScript syntax checks and 20 native tests. First unattended publication with the updated prompt is pending the next scheduled run.
+
+## November 24, 2026 — partial daily session evidence
+
+Published the November 24 brief using previously captured Schwab bars. The legacy pre-open regime was `recovery` after Monday's rebound, while the frozen tree returned `R12` on backwardation. SPX was 7,192.11 at the end of the local 12:20 Eastern bar series. AP reported 7,201.09 at the close, down 0.50%. The Conference Board confidence release and Fed G.17 revision are sourced in the brief. Robinhood was unavailable and the Schwab token had expired or was near expiry. Final daily and afternoon bars, QQQ/IWM intraday data and NQ remain pending backfill. Preserve this capture when adding a revision. [Report](../build/daily-regimes/2026-11-24/schwab-archive-20261124T213117Z/report.md) · [Morning chart](../build/daily-regimes/2026-11-24/schwab-archive-20261124T213117Z/session.svg)

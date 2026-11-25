@@ -74,6 +74,12 @@ def run_research(config_path: Path, output: Path, *, export_version=1):
 
 def main(argv=None):
     argv=sys.argv[1:] if argv is None else list(argv)
+    if argv[:1] == ['day']:
+        from qte.day_runner import main as run_day
+        return run_day(argv[1:])
+    if argv[:1] == ['orb']:
+        from qte.orb_forward import main as run_orb
+        return run_orb(argv[1:])
     if argv[:1] == ['calm-condor']:
         from qte.calm_condor_forward import main as run_condor
         return run_condor(argv[1:])
@@ -91,6 +97,8 @@ def main(argv=None):
         return run_search(argv[1:])
     parser=argparse.ArgumentParser(prog='qte')
     sub=parser.add_subparsers(dest='command',required=True)
+    sub.add_parser('day', add_help=False, help='One command per trading day: paper trials at real quotes and the post-close report')
+    sub.add_parser('orb', add_help=False, help='Early opening-range breakout: forward paper trial at real quotes')
     sub.add_parser('calm-condor', help='Observe, audit and settle the calm condor paper study')
     sub.add_parser('session-read', help='Read a live or archived SPX session')
     sub.add_parser('signals',add_help=False,help='Causal trend-day and sigma-reversal signal engine (replay or live shadow mode)')

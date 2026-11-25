@@ -1,9 +1,9 @@
 # GUI G0 preflight and first-screen contract — 2026-09-23
 
-> **Status:** Historical GUI preflight record (2026-09-23). For current capabilities see [docs/README.md](README.md).
+> **Status:** Historical GUI preflight record (2026-09-23). For current capabilities see [docs/README.md](../../docs/README.md).
 
 Status after reboot: **dependency/contract proposal prepared; approval pending**.
-This continues the [GUI architecture](gui-architecture.md), not a working GUI.
+This continues the [GUI architecture](../../docs/gui-architecture.md), not a working GUI.
 No engine, bindings, runtime code, installed packages or system files changed.
 The [post-boot dependency proposal](gui-dependencies.md) records successful SSL
 and RPM rechecks, exact uninstalled locks, versioned examples and fresh tests.
@@ -49,7 +49,7 @@ compatibility; G1 tests must do that after an approved installation.
 ## G1a/G1b contract prepared with GPT-6 Astra
 
 This is the bounded first implementation target; jobs, artifacts, accounts and
-research execution are deliberately absent. [Versioned G0 examples](gui-contracts/v1/README.md)
+research execution are deliberately absent. [Versioned G0 examples](../../docs/gui-contracts/v1/README.md)
 now record proposed payloads and acceptance cases, not implemented/tested routes.
 
 | Route | Behavior |

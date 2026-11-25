@@ -22,7 +22,7 @@ Core research loop (Nov 2026):
 .venv/bin/qte search leaderboard --dataset SPY:5m:alpaca --costs spy_as_es
 ```
 
-Start with the [test build guide](docs/test-build-guide.md) for setup and the [development audit](docs/development-audit.md) for verified workflows, local evidence and outstanding integration work.
+Start with the [test build guide](docs/test-build-guide.md) for setup and the [development audit](archive/docs/development-audit.md) for verified workflows, local evidence and outstanding integration work.
 
 Open **Research → Daily brief** for the scheduled post-close news, regime rationale and market data. [Daily agent workflow](docs/daily-brief-agent.md)
 

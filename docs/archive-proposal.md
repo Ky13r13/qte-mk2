@@ -1,4 +1,22 @@
-# Archive proposal (2026-11-24): nothing has been moved yet
+# Archive proposal (2026-11-24)
+
+> **Status:** Tiers 1 and 2 are done (revised, see below). The moved files are listed in
+> [archive/README.md](../archive/README.md). Tier 3 is next and needs your OK, one family at a time.
+
+## What changed while doing Tiers 1 and 2
+
+- **The GUI phase docs stay in `docs/`.** They're current reference guides for GUI
+  features that still exist (the Library lists them, and tests check `gui-usage`
+  links to them). The original plan wrongly called them historical.
+- **Strategy research docs and the example scripts that tests or docs reference move
+  together with their code in Tier 3.** Their GUI study pages are still live, so
+  moving them now would leave those pages pointing at nothing.
+- **Done:** 6 milestone docs, the early spec folder and 3 unreferenced example scripts (book151_schwab_screen was moved back because book151_timeframes imports it).
+  13 links were rewritten and 4 Library entries removed.
+
+---
+
+Original proposal:
 
 Purpose: shrink what a person or an AI sees day to day without losing anything.
 "Archive" means **move** into `archive/` (tracked in git, still searchable). Nothing is

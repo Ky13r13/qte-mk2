@@ -1,6 +1,6 @@
 # Strategy-research and broker-boundary validation — 2026-09-22
 
-> **Status:** Historical validation record (2026-09-22). For current capabilities see [docs/README.md](README.md).
+> **Status:** Historical validation record (2026-09-22). For current capabilities see [docs/README.md](../../docs/README.md).
 
 ## Recovery and scope
 

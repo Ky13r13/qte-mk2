@@ -1,7 +1,7 @@
 # Proposed G1 web contract fixtures
 
 These are versioned interface examples prepared during G0, not a server or a test
-result. [The preflight](../../gui-g0-preflight.md) defines their route/authentication
+result. [The preflight](../../../archive/docs/gui-g0-preflight.md) defines their route/authentication
 context. Future G1 tests should consume these examples rather than duplicate a
 second contract. No JSON Schema validator or web dependencies are installed.
 

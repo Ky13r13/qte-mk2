@@ -1,6 +1,6 @@
 # M13–M16 validation record
 
-> **Status:** Historical validation record (M13–M16). For current capabilities see [docs/README.md](README.md).
+> **Status:** Historical validation record (M13–M16). For current capabilities see [docs/README.md](../../docs/README.md).
 
 Verified on 2026-09-17 with the existing native GCC toolchain, repository `.venv`,
 C++ development build in `build/local-dev`, and Release Python extension in

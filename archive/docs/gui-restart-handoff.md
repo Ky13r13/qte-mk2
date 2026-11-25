@@ -1,6 +1,6 @@
 # GUI restart handoff — 2026-09-23
 
-> **Status:** Historical handoff (2026-09-23); superseded. For current capabilities see [docs/README.md](README.md).
+> **Status:** Historical handoff (2026-09-23); superseded. For current capabilities see [docs/README.md](../../docs/README.md).
 
 The user is rebooting. Work is saved in `/home/glsu6/Documents/qte`.
 Read `AGENTS.md` before resuming. Preserve all modified/untracked work; saving
@@ -8,15 +8,15 @@ does not mean committing. No Git history or remote operations are authorized.
 
 **Post-boot update:** SSL import and scoped RPM verification now pass. The
 [dependency proposal](gui-dependencies.md) contains exact uninstalled pins/hashes
-and [versioned contracts](gui-contracts/v1/README.md). G0 now waits for installation
+and [versioned contracts](../../docs/gui-contracts/v1/README.md). G0 now waits for installation
 and build-model approval, not a currently failing SSL import. No repair was
 performed by this task; the reason for the earlier mismatch remains unknown.
 
 ## Saved state
 
-- [GUI architecture](gui-architecture.md): minimalist local research/documentation
+- [GUI architecture](../../docs/gui-architecture.md): minimalist local research/documentation
   library, neutral colors, zero rounded corners, four sections; G0–G9 milestones.
-- [ADR 0010](adr/0010-local-research-ui.md): UI/core ownership and safety boundary.
+- [ADR 0010](../../docs/adr/0010-local-research-ui.md): UI/core ownership and safety boundary.
 - [G0 preflight](gui-g0-preflight.md): first-screen API/authentication contract,
   exact historical diagnostics, tests and approval gates. GPT-6 Astra reviewed both the
   architecture and preflight without remaining blocking design findings.

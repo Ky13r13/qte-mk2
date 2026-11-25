@@ -42,8 +42,8 @@ presentation/orchestration layer, not a new trading engine. Read with
 [ADR 0010](adr/0010-local-research-ui.md), [core architecture](architecture.md)
 and [development rules](../AGENTS.md).
 
-The [2026-09-23 G0 preflight](gui-g0-preflight.md) records the first-screen contract
-and an earlier SSL integrity failure. The [post-boot proposal](gui-dependencies.md)
+The [2026-09-23 G0 preflight](../archive/docs/gui-g0-preflight.md) records the first-screen contract
+and an earlier SSL integrity failure. The [post-boot proposal](../archive/docs/gui-dependencies.md)
 records passing environment rechecks, resolved locks and contract examples. G0
 approval was subsequently granted for the locked packages and GPT-5.6 Sol/Terra
 builders under GPT-6 Astra review.

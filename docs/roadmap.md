@@ -14,7 +14,7 @@ The gates are, in order:
 
 Sections below are the earlier milestone history and the reasoning behind it.
 
-The [November development audit](development-audit.md) records verified entry points,
+The [November development audit](../archive/docs/development-audit.md) records verified entry points,
 repairs and open integration gates. Strategy discovery is paused.
 
 
@@ -242,8 +242,8 @@ Job launch follows evidence validation; broker reads remain separately authorize
 GUI coverage does not imply completion of R2–R4 or M17–M20. Preserve current CLI,
 canonical Bar semantics, accounting authority and all existing artifacts.
 
-G0 preflight on 2026-09-23 is [recorded here](gui-g0-preflight.md). The
-[post-boot proposal](gui-dependencies.md) adds resolved optional dependency locks
+G0 preflight on 2026-09-23 is [recorded here](../archive/docs/gui-g0-preflight.md). The
+[post-boot proposal](../archive/docs/gui-dependencies.md) adds resolved optional dependency locks
 and first-screen contract examples after SSL/RPM checks passed. The user approved
 the locked packages and available Sol/Terra builders with Astra review, and later
 extended implementation through G4/G5 after the preceding gates. No current

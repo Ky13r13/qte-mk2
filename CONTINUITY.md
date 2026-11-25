@@ -2,6 +2,8 @@
 
 ## Snapshot (2026-11-24)
 
+- **Active goal (user: BTO calls/puts only, no spreads):** the early-ORB forward paper trial. Run `qte day run` each day by 9:40 ET (it also does the 15:50 close study and writes `data/truth/reports/daily/<date>.md`); ledgers are in `data/truth/forward/orb/`, decided after 30 trades. The condor is parked. See `docs/strategies/orb-bto-options.md`.
+
 Capability map and path-to-live status: `docs/README.md`. Read it first.
 
 - **Goal:** live ES/SPX trading. Gates: a search candidate, then the holdout (human-run), then engine futures wiring, then shadow mode, then paper, then the Schwab gateway.
@@ -29,7 +31,7 @@ Capability map and path-to-live status: `docs/README.md`. Read it first.
 - Verified 1,421 output checksums and rebuilt the 365-day panel and Book151 export.
 - Connected session-bundle data to CLI/GUI and explicit-availability exports.
 - Added Theta replay and Schwab partial-update normalization.
-- Repaired catalog protection, library links and descriptor cleanup. See `docs/development-audit.md`.
+- Repaired catalog protection, library links and descriptor cleanup. See `archive/docs/development-audit.md`.
 
 ## Working set
 
